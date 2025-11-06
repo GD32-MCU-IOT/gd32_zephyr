@@ -23,7 +23,7 @@ if HAS_GD32_HAL
 choice GD32_HXTAL_FREQUENCY
 	prompt "High speed external oscillator clock frequency"
 	default GD32_HXTAL_FIRMWARE_DEFINED if \
-		SOC_SERIES_GD32F403 || SOC_SERIES_GD32F4XX || SOC_SERIES_GD32F3X0
+		SOC_SERIES_GD32F403 || SOC_SERIES_GD32F4XX || SOC_SERIES_GD32F3X0 || SOC_SERIES_GD32F527 || SOC_SERIES_GD32C2X1
 	default GD32_HXTAL_25MHZ if SOC_SERIES_GD32VF103 || SOC_SERIES_GD32E50X
 	default GD32_HXTAL_8MHZ if SOC_SERIES_GD32E10X
 	help
@@ -282,5 +282,20 @@ config USE_GD32_WWDGT
 	bool
 	help
 	  Enable GD32 Window Watchdog Timer (WWDGT) HAL module driver
+
+config USE_GD32_HAU
+	bool
+	help
+	  Enable GD32 Hash Accelerator Unit (HAU) HAL module driver
+
+config USE_GD32_PKCAU
+	bool
+	help
+	  Enable GD32 Public Key Cryptographic Accelerator Unit (PKCAU) HAL module driver
+
+config USE_GD32_SAI
+	bool
+	help
+	  Enable GD32 Serial Audio Interface (SAI) HAL module driver
 
 endif # HAS_GD32_HAL
