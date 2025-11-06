@@ -16,6 +16,7 @@ permissions:
 jobs:
   do-not-merge:
     name: Prevent Merging
+    if: github.repository == 'zephyrproject-rtos/zephyr' # add to by pass the job for forks
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
