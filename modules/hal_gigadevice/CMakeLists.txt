@@ -51,6 +51,11 @@ if(${CONFIG_SOC_SERIES_GD32A50X})
   zephyr_compile_definitions(GD32A50X)
 endif()
 
+# GD32C2X1 series HAL public headers require extra definitions
+if(${CONFIG_SOC_SERIES_GD32C2X1})
+  zephyr_compile_definitions(GD32C2X1)
+endif()
+
 # Global includes to be used outside hal_gigadevice
 zephyr_include_directories(${gd32_soc_sys_dir}/include)
 zephyr_include_directories(${gd32_std_dir}/include)
@@ -94,5 +99,10 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_TRNG     ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TSI      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_tsi.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USART    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_usart.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_WWDGT    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_wwdgt.c)
+
+# For GD32F527
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_PKCAU     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_pkcau.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sai.c)
 
 endif()
