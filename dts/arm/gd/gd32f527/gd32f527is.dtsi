@@ -1,0 +1,17 @@
+/*
+ * Copyright (c) 2025, GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <freq.h>
+#include <gd/gd32f527/gd32f527.dtsi>
+
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(200)>;
+};
+
+&flash0 {
+	reg = <0x08000000 DT_SIZE_K(7680)>;
+};
