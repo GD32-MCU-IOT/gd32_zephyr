@@ -183,7 +183,8 @@ manifest:
       groups:
         - hal
     - name: hal_gigadevice
-      revision: ee0e31302c21b2a465dc303b3ced8c606c2167c8
+      revision: main
+      url: https://github.com/jianpingwu1/zephyr_hal_gigadevice.git
       path: modules/hal/gigadevice
       groups:
         - hal
