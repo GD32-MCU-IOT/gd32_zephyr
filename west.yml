@@ -181,7 +181,7 @@ manifest:
         - hal
     - name: hal_gigadevice
       revision: main
-      url: https://github.com/jianpingwu1/zephyr_hal_gigadevice.git
+      url: https://github.com/GD32-MCU-IOT/hal_gigadevice_zephyr.git
       path: modules/hal/gigadevice
       groups:
         - hal
