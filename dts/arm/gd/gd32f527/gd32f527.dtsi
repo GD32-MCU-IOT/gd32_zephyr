@@ -33,7 +33,11 @@
 	soc {
 		sram0: memory@20000000 {
 			compatible = "mmio-sram";
-			reg = <0x20000000 DT_SIZE_K(192)>;
+			reg = <0x20000000 DT_SIZE_K(512)>;
+		};
+		sram1: memory@10000000 {
+			compatible = "mmio-sram";
+			reg = <0x20000000 DT_SIZE_K(64)>;
 		};
 
 		rcu: reset-clock-controller@40023800 {
