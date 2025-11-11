@@ -105,7 +105,7 @@ static const struct dma_block_config *gd32_async_tx_next_block(
 	const struct dma_block_config *cur = data->async_tx_blk;
 
 	if (cur) {
-	data->async_tx_blk = cur->next_block;
+		data->async_tx_blk = cur->next_block;
 	}
 
 	return cur;
@@ -227,7 +227,6 @@ static int usart_gd32_async_tx(const struct device *dev,
 	struct dma_block_config *blk_cfg = &dma->dma_blk_cfg;
 	int ret;
 
-
 	if (!buf || len == 0) {
 		return -EINVAL;
 	}
@@ -235,6 +234,7 @@ static int usart_gd32_async_tx(const struct device *dev,
 	if (data->async_tx_buf) {
 		return -EBUSY;
 	}
+
 	data->async_tx_buf = buf;
 	data->async_tx_len = len;
 	data->async_tx_blk = NULL;
@@ -282,43 +282,43 @@ static int usart_gd32_async_tx(const struct device *dev,
 			k_work_reschedule(&data->async_tx_timeout_work, K_USEC(timeout));
 		}
 		return 0;
-	} else {
-		/* Normal block */
-		memset(dma_cfg, 0, sizeof(struct dma_config));
-		memset(blk_cfg, 0, sizeof(struct dma_block_config));
-		blk_cfg->block_size = len;
-		blk_cfg->source_address = (uint32_t)buf;
-		blk_cfg->dest_address = (uint32_t)USART_DATA_REG(cfg->reg);
-		blk_cfg->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-		blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-		dma_cfg->head_block = blk_cfg;
-		dma_cfg->block_count = 1U;
-		dma_cfg->dma_slot = dma->slot;
-		dma_cfg->channel_direction = MEMORY_TO_PERIPHERAL;
-		dma_cfg->source_data_size = 1;
-		dma_cfg->dest_data_size = 1;
-		dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
-		dma_cfg->user_data = (void *)dev;
-		dma_stop(dma->dev, dma->channel);
-		usart_dma_transmit_config(cfg->reg, USART_CTL2_DENT);
-		ret = dma_config(dma->dev, dma->channel, dma_cfg);
-		if (ret != 0) {
-			usart_dma_transmit_config(cfg->reg, DISABLE);
-			data->async_tx_buf = NULL;
-			return ret;
-		}
-		ret = dma_start(dma->dev, dma->channel);
-		if (ret != 0) {
-			usart_dma_transmit_config(cfg->reg, DISABLE);
-			data->async_tx_buf = NULL;
-			return ret;
-		}
-		/* 启动TX超时计时器 */
-		if (timeout != SYS_FOREVER_US && timeout > 0) {
-			k_work_reschedule(&data->async_tx_timeout_work, K_USEC(timeout));
-		}
-		return 0;
 	}
+
+	/* Normal block */
+	memset(dma_cfg, 0, sizeof(struct dma_config));
+	memset(blk_cfg, 0, sizeof(struct dma_block_config));
+	blk_cfg->block_size = len;
+	blk_cfg->source_address = (uint32_t)buf;
+	blk_cfg->dest_address = (uint32_t)USART_DATA_REG(cfg->reg);
+	blk_cfg->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+	blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+	dma_cfg->head_block = blk_cfg;
+	dma_cfg->block_count = 1U;
+	dma_cfg->dma_slot = dma->slot;
+	dma_cfg->channel_direction = MEMORY_TO_PERIPHERAL;
+	dma_cfg->source_data_size = 1;
+	dma_cfg->dest_data_size = 1;
+	dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
+	dma_cfg->user_data = (void *)dev;
+	dma_stop(dma->dev, dma->channel);
+	usart_dma_transmit_config(cfg->reg, USART_CTL2_DENT);
+	ret = dma_config(dma->dev, dma->channel, dma_cfg);
+	if (ret != 0) {
+		usart_dma_transmit_config(cfg->reg, DISABLE);
+		data->async_tx_buf = NULL;
+		return ret;
+	}
+	ret = dma_start(dma->dev, dma->channel);
+	if (ret != 0) {
+		usart_dma_transmit_config(cfg->reg, DISABLE);
+		data->async_tx_buf = NULL;
+		return ret;
+	}
+	/* 启动TX超时计时器 */
+	if (timeout != SYS_FOREVER_US && timeout > 0) {
+		k_work_reschedule(&data->async_tx_timeout_work, K_USEC(timeout));
+	}
+	return 0;
 }
 
 static int usart_gd32_async_tx_abort(const struct device *dev)
@@ -384,9 +384,11 @@ static void usart_gd32_async_rx_timeout_work(struct k_work *work)
 	/* Timeout period without new data, flush already received data */
 	usart_gd32_dma_rx_flush(dev);
 
-	/* Note: No need to restart DMA like the old code did.
+	/*
+	 * Note: No need to restart DMA like the old code did.
 	 * After flush, DMA continues running and will automatically receive
-	 * more data into the remaining buffer space (STM32 behavior). */
+	 * more data into the remaining buffer space (STM32 behavior).
+	 */
 }
 
 /**
@@ -428,9 +430,11 @@ static void usart_gd32_dma_rx_flush(const struct device *dev)
 		}
 	}
 
-	/* Note: Unlike the old version, we don't stop DMA or disable RX here.
+	/*
+	 * Note: Unlike the old version, we don't stop DMA or disable RX here.
 	 * DMA continues running for continuous reception (STM32 behavior).
-	 * The application must call uart_rx_disable() if it wants to stop. */
+	 * The application must call uart_rx_disable() if it wants to stop.
+	 */
 }
 
 static void usart_gd32_async_dma_rx_callback(
@@ -502,6 +506,7 @@ static int usart_gd32_async_rx_enable(
 	const struct gd32_usart_config *cfg =
 		(const struct gd32_usart_config *)dev->config;
 	int ret;
+
 	if (!buf || len == 0) {
 		return -EINVAL;
 	}
@@ -720,7 +725,8 @@ static void usart_gd32_isr(const struct device *dev)
 	tc_flag = usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC);
 
 	if (idle_flag) {
-		/* GD32 IDLE flag clearing requires reading status register
+		/*
+		 * GD32 IDLE flag clearing requires reading status register
 		 * first then data register
 		 */
 		uint32_t status = REG32(cfg->reg); /* read USART_STAT0 */
