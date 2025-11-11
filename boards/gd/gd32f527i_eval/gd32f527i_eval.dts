@@ -17,6 +17,7 @@
 		zephyr,sram = &sram0;
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
+		zephyr,eeprom = &at24_eeprom;
 	};
 
 	leds {
@@ -29,11 +30,40 @@
 
 	aliases {
 		led0 = &led0;
+		eeprom-0 = &at24_eeprom;
 	};
 };
-
+&gpiob {
+	status = "okay";
+};
 &gpiof {
 	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 7 1 0x440 0>, <&dma0 5 1 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+	at24_eeprom: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		status = "okay";
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
 };
 
 &usart0 {
