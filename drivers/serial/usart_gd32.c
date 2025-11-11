@@ -37,28 +37,28 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 
 /* DMA Initialization Macros */
 #define USART_DMA_INITIALIZER(idx, dir)                                       \
-   /* 参数idx/dir仅用于DT宏，不会产生副作用 */                      \
-   {                                                                      \
-	   .dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),    \
-	   .channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),      \
-	   .slot = COND_CODE_1(                                          \
-		   DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),            \
-		   (DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0)),    \
-	   .config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),        \
-	   .fifo_threshold = COND_CODE_1(                                \
-		   DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),            \
-		   (DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)),\
-		   (0)),                                                  \
-   }
+	/* 参数idx/dir仅用于DT宏，不会产生副作用 */                      \
+	{                                                                      \
+		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),         \
+		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),           \
+		.slot = COND_CODE_1(                                               \
+			DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),                     \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0)),             \
+		.config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),             \
+		.fifo_threshold = COND_CODE_1(                                     \
+			DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),                     \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)),         \
+			(0)),                                                           \
+	}
 
 #define USART_DMAS_DECL(idx)                                                   \
-   /* 参数idx仅用于DT宏，不会产生副作用 */                        \
-   {                                                                      \
-       COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, tx),                   \
-	       (USART_DMA_INITIALIZER(idx, tx)), ({0})),         \
-       COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, rx),                   \
-	       (USART_DMA_INITIALIZER(idx, rx)), ({0})),         \
-   }
+	/* 参数idx仅用于DT宏，不会产生副作用 */                        \
+	{                                                                      \
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, tx),                       \
+			(USART_DMA_INITIALIZER(idx, tx)), ({0})),                  \
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, rx),                       \
+			(USART_DMA_INITIALIZER(idx, rx)), ({0})),                  \
+	}
 
 #endif /* CONFIG_UART_ASYNC_API */
 
@@ -105,11 +105,7 @@ static const struct dma_block_config *gd32_async_tx_next_block(
 	const struct dma_block_config *cur = data->async_tx_blk;
 
 	if (cur) {
-#ifdef CONFIG_DMA_BLOCK_HAS_NEXT
-		data->async_tx_blk = cur->next;
-#else
-		data->async_tx_blk = NULL;
-#endif
+	data->async_tx_blk = cur->next_block;
 	}
 
 	return cur;
@@ -139,7 +135,7 @@ static void usart_gd32_async_tx_timeout_work(struct k_work *work)
 {
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 	struct gd32_usart_data *data = CONTAINER_OF(dwork, struct gd32_usart_data,
-						   async_tx_timeout_work);
+							async_tx_timeout_work);
 	const struct device *dev = data->dev;
 
 	LOG_DBG("TX timeout, aborting transmission");
@@ -147,9 +143,9 @@ static void usart_gd32_async_tx_timeout_work(struct k_work *work)
 }
 
 static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
-				    void *user_data,
-				    uint32_t channel,
-				    int status)
+					void *user_data,
+					uint32_t channel,
+					int status)
 {
 	ARG_UNUSED(dma_dev);
 	ARG_UNUSED(channel);
@@ -220,9 +216,9 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 }
 
 static int usart_gd32_async_tx(const struct device *dev,
-		       const uint8_t *buf,
-		       size_t len,
-		       int32_t timeout)
+				const uint8_t *buf,
+				size_t len,
+				int32_t timeout)
 {
 	struct gd32_usart_data *data = dev->data;
 	const struct gd32_usart_config *cfg = dev->config;

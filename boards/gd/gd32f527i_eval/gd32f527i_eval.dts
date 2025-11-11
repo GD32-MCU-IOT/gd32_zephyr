@@ -37,7 +37,7 @@
 };
 
 &dma1 {
-    status = "okay";
+	status = "okay";
 };
 
 &usart0 {

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 ATL Electronics
+﻿# Copyright (c) 2021 ATL Electronics
 # SPDX-License-Identifier: Apache-2.0
 
 config USART_GD32
@@ -8,8 +8,7 @@ config USART_GD32
 	select PINCTRL
 	select SERIAL_HAS_DRIVER
 	select SERIAL_SUPPORT_INTERRUPT
-	# the ASYNC implementation requires a DMA controller
-	select SERIAL_SUPPORT_ASYNC 
+	select SERIAL_SUPPORT_ASYNC
 	select DMA if UART_ASYNC_API
 	select USE_GD32_USART
 	help
