@@ -12,7 +12,7 @@ config I2C_GD32
 choice I2C_GD32_VERSION
 	bool "GD32 I2C driver version"
 	depends on I2C_GD32
-	default I2C_GD32_I2C_V2
+	default I2C_GD32_I2C_V3
 	help
 	  Select the GD32 I2C driver version to use.
 	  Different versions support different features and SoC series.

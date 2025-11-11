@@ -305,7 +305,8 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg,
 			i2c_gd32_complete(dev, -EIO); /* This will trigger retry logic */
 		} else {
 			/* Other I2C errors are fatal */
-			LOG_ERR("I2C error detected in DMA callback: 0x%02x,stopping transfer",data->errs);
+			LOG_ERR("I2C error detected in DMA callback: 0x%02x, "
+				"stopping transfer", data->errs);
 			i2c_gd32_complete(dev, -EIO);
 		}
 		return;
@@ -329,10 +330,11 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg,
 				if (!i2c_add_flag_get(cfg->reg, I2C_ADD_CTL1_AUTOEND)) {
 					/* Send STOP signal manually */
 					i2c_add_stop_on_bus(cfg->reg);
-					LOG_DBG("ADD IP: Manual STOP"
+					LOG_DBG("ADD IP: Manual STOP "
 						"generated after DMA completion");
 				} else {
-					LOG_DBG("ADD IP: AUTOEND enabled,STOP will be generated automatically");
+					LOG_DBG("ADD IP: AUTOEND enabled, "
+						"STOP will be generated automatically");
 				}
 			}
 		} else {
@@ -699,7 +701,7 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 
 	if (GD32_I2C_IS_ADD(cfg->reg)) {
 		stat = I2C_ADD_STAT(cfg->reg);
-		
+
 		if (stat & I2C_ADD_STAT_NACK) {
 			I2C_ADD_STATC(cfg->reg) = I2C_ADD_STATC_NACKC;
 			data->errs |= I2C_GD32_ERR_AERR;
@@ -821,15 +823,15 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 			uint8_t out = 0xFF;
 			bool provide = false;
 			if (data->target_cfg->callbacks &&
-				data->target_cfg->callbacks->read_requested) {
-				provide =
-					data->target_cfg->callbacks->read_requested(data->target_cfg, &out);
+			    data->target_cfg->callbacks->read_requested) {
+				provide = data->target_cfg->callbacks->read_requested(
+					data->target_cfg, &out);
 			}
 			if (!provide && data->target_cfg->callbacks &&
-				data->target_cfg->callbacks->read_processed) {
+			    data->target_cfg->callbacks->read_processed) {
 				/* Fallback to processed callback if primary not supplied */
-				provide =
-					data->target_cfg->callbacks->read_processed(data->target_cfg, &out);
+				provide = data->target_cfg->callbacks->read_processed(
+					data->target_cfg, &out);
 			}
 			if (!provide) {
 				out = 0xFF; /* default */
@@ -1533,7 +1535,7 @@ int i2c_gd32_configure_gd(const struct device *dev,
 
 
 	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,
-				     (clock_control_subsys_t)&cfg->clkid,&pclk1);
+			     (clock_control_subsys_t)&cfg->clkid, &pclk1);
 
 	freq = pclk1 / 1000000U;
 	if (freq > I2CCLK_MAX) {
