@@ -1534,8 +1534,8 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		i2c_disable(cfg->reg);
 	}
 
-	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,(clock_control_subsys_t)&cfg->clkid,
-							     &pclk1);
+	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&cfg->clkid,
+				     &pclk1);
 
 	freq = pclk1 / 1000000U;
 	if (freq > I2CCLK_MAX) {
@@ -1543,6 +1543,7 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		err = -ENOTSUP;
 		goto error;
 	}
+
 
 	if (GD32_I2C_IS_ADD(cfg->reg)) {
 		/* Select target bitrate */

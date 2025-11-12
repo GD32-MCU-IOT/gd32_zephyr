@@ -281,7 +281,7 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg,
 				i2c_add_stop_on_bus(cfg->reg);
 				LOG_DBG("ADD IP: Manual STOP generated after DMA completion");
 			} else {
-				/* while(!(I2C_ADD_STAT(cfg->reg) & I2C_ADD_STAT_STPDET)&&((I2C_ADD_STAT(cfg->reg) & I2C_ADD_STAT_I2CBSY))); */
+
 				LOG_DBG("ADD IP: AUTOEND enabled, STOP will be generated automatically");
 			}
 		}
@@ -767,12 +767,14 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 
 	/* Configure master addressing and direction */
 	uint32_t address = addr10 ? (data->addr1 & 0x3FFU) : ((data->addr1 & 0x7FU) << 1);
-	uint32_t direction = (data->current->flags & I2C_MSG_READ) ? I2C_ADD_MASTER_RECEIVE : I2C_ADD_MASTER_TRANSMIT;
+	uint32_t direction = (data->current->flags & I2C_MSG_READ) ?
+			     I2C_ADD_MASTER_RECEIVE : I2C_ADD_MASTER_TRANSMIT;
 	i2c_add_master_addressing(cfg->reg, address, direction);
 
 	/* DMA must be initialized before START bit is set per manual */
 #ifdef CONFIG_I2C_GD32_DMA
-	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD && i2c_gd32_dma_enabled(dev)) {
+	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
+	    i2c_gd32_dma_enabled(dev)) {
 		/* 2. Configure DMA specific interrupts (DENR/DENT already set) */
 		i2c_gd32_enable_dma_interrupts(cfg);
 	} else
@@ -1223,7 +1225,8 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		uint32_t total_delay = tvd_dat_max_ns + taf_max_ns;
 
 		if (total_delay > dnf_compensation) {
-			sda_dely = (total_delay - dnf_compensation + (t_psc * t_i2c_clk_ns / 2)) / (t_psc * t_i2c_clk_ns);
+			sda_dely = (total_delay - dnf_compensation +
+				   (t_psc * t_i2c_clk_ns / 2)) / (t_psc * t_i2c_clk_ns);
 		} else {
 			sda_dely = 0U;
 		}
@@ -1244,7 +1247,8 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		uint32_t total_delay = tvd_dat_max_ns + taf_max_ns;
 
 		if (total_delay > dnf_compensation) {
-			sda_dely = (total_delay - dnf_compensation + (t_psc * t_i2c_clk_ns / 2)) / (t_psc * t_i2c_clk_ns);
+			sda_dely = (total_delay - dnf_compensation +
+				   (t_psc * t_i2c_clk_ns / 2)) / (t_psc * t_i2c_clk_ns);
 		} else {
 			sda_dely = 0U;
 		}
