@@ -767,8 +767,9 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 
 	/* Configure master addressing and direction */
 	uint32_t address = addr10 ? (data->addr1 & 0x3FFU) : ((data->addr1 & 0x7FU) << 1);
-	uint32_t direction = (data->current->flags & I2C_MSG_READ) ?
-			     I2C_ADD_MASTER_RECEIVE : I2C_ADD_MASTER_TRANSMIT;
+	uint32_t direction = (data->current->flags & I2C_MSG_READ) ? I2C_ADD_MASTER_RECEIVE
+								   : I2C_ADD_MASTER_TRANSMIT;
+
 	i2c_add_master_addressing(cfg->reg, address, direction);
 
 	/* DMA must be initialized before START bit is set per manual */
@@ -1225,8 +1226,8 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		uint32_t total_delay = tvd_dat_max_ns + taf_max_ns;
 
 		if (total_delay > dnf_compensation) {
-			sda_dely = (total_delay - dnf_compensation +
-				   (t_psc * t_i2c_clk_ns / 2)) / (t_psc * t_i2c_clk_ns);
+			sda_dely = (total_delay - dnf_compensation + (t_psc * t_i2c_clk_ns / 2)) /
+				   (t_psc * t_i2c_clk_ns);
 		} else {
 			sda_dely = 0U;
 		}
@@ -1247,8 +1248,9 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		uint32_t total_delay = tvd_dat_max_ns + taf_max_ns;
 
 		if (total_delay > dnf_compensation) {
-			sda_dely = (total_delay - dnf_compensation +
-				   (t_psc * t_i2c_clk_ns / 2)) / (t_psc * t_i2c_clk_ns);
+			sda_dely = (total_delay - dnf_compensation + (t_psc * t_i2c_clk_ns / 2)) /
+				   (t_psc * t_i2c_clk_ns);
+
 		} else {
 			sda_dely = 0U;
 		}

@@ -1544,7 +1544,6 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		goto error;
 	}
 
-
 	if (GD32_I2C_IS_ADD(cfg->reg)) {
 		/* Select target bitrate */
 		uint32_t bitrate_hz;
