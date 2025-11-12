@@ -735,11 +735,11 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
 	    i2c_gd32_dma_enabled(dev)) {
 		i2c_gd32_enable_dma_interrupts(cfg);
-	} else
-#endif
-	{
-		i2c_gd32_enable_interrupts(cfg);
+		i2c_start_on_bus(cfg->reg);
+		return;
 	}
+#endif
+	i2c_gd32_enable_interrupts(cfg);
 	i2c_start_on_bus(cfg->reg);
 }
 
@@ -764,7 +764,6 @@ static int i2c_gd32_xfer_end(const struct device *dev)
 		i2c_enable(cfg->reg);
 	}
 #endif
-
 	if (data->errs) {
 		return -EIO;
 	}

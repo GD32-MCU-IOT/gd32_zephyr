@@ -14,8 +14,7 @@ LOG_MODULE_REGISTER(i2c_gd32_common, CONFIG_I2C_LOG_LEVEL);
 #include "i2c_gd32.h"
 #ifdef CONFIG_I2C_GD32_DMA
 
-void i2c_gd32_dma_callback(const struct device *dma_dev, void *arg,
-				  uint32_t channel, int status)
+void i2c_gd32_dma_callback(const struct device *dma_dev, void *arg, uint32_t channel, int status)
 {
 	i2c_gd32_dma_callback_gd(dma_dev, arg, channel, status);
 }
