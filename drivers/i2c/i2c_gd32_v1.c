@@ -757,6 +757,7 @@ static int i2c_gd32_xfer_end(const struct device *dev)
 #ifdef CONFIG_I2C_TARGET
 	if (data->target_cfg != NULL) {
 		uint32_t addr = data->target_cfg->address & 0x7FU;
+
 		i2c_disable(cfg->reg);
 		/* Put peripheral back in target mode */
 		i2c_mode_addr_config(cfg->reg, I2C_I2CMODE_ENABLE, I2C_ADDFORMAT_7BITS, addr);
@@ -880,8 +881,6 @@ static int i2c_gd32_msg_write(const struct device *dev)
 			if (ret == 0) {
 				/* Check for I2C errors even if DMA completed */
 				if (data->errs != 0U) {
-					/* LOG_ERR("TX DMA completed but I2C errors detected:
-					 * 0x%02x", data->errs); */
 					i2c_gd32_log_err(data);
 					return i2c_gd32_xfer_end(
 						dev); /* Returns -EIO due to errors */
