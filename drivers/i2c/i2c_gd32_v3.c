@@ -306,7 +306,7 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg,
 		} else {
 			/* Other I2C errors are fatal */
 			LOG_ERR("I2C error detected in DMA callback: 0x%02x, "
-    			"stopping transfer",
+				"stopping transfer",
 				data->errs);
 			i2c_gd32_complete(dev, -EIO);
 		}
@@ -1534,8 +1534,9 @@ int i2c_gd32_configure_gd(const struct device *dev,
 		i2c_disable(cfg->reg);
 	}
 
-	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,(clock_control_subsys_t)&cfg->clkid,
-								 &pclk1);
+	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,
+					     (clock_control_subsys_t)&cfg->clkid,
+					     &pclk1);
 
 	freq = pclk1 / 1000000U;
 	if (freq > I2CCLK_MAX) {
