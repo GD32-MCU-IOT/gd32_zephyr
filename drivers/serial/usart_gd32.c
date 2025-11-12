@@ -176,6 +176,7 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 			struct gd32_usart_dma *dma = &data->dma[USART_DMA_TX];
 			struct dma_config *dma_cfg = &dma->dma_cfg;
 			struct dma_block_config *blk_cfg = &dma->dma_blk_cfg;
+
 			memcpy(blk_cfg, next, sizeof(struct dma_block_config));
 			if (blk_cfg->block_size &&
 				blk_cfg->source_address &&
@@ -373,6 +374,7 @@ static void usart_gd32_async_rx_timeout_work(struct k_work *work)
 
 	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
 		size_t current_rx_len = data->async_rx_len - stat.pending_length;
+
 		if (current_rx_len > data->async_rx_counter) {
 			/* New data arrived, reset timeout and continue waiting */
 			data->async_rx_counter = current_rx_len;
@@ -413,8 +415,8 @@ static void usart_gd32_dma_rx_flush(const struct device *dev)
 	/* Get current DMA status without stopping DMA (STM32 style) */
 	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
 		size_t rx_rcv_len = data->async_rx_len - stat.pending_length;
-		data->async_rx_counter = rx_rcv_len;
 
+		data->async_rx_counter = rx_rcv_len;
 
 		if (rx_rcv_len > data->async_rx_offset) {
 			size_t new_bytes = rx_rcv_len - data->async_rx_offset;
@@ -812,11 +814,9 @@ static void usart_gd32_isr(const struct device *dev)
 	if (data->user_cb) {
 		data->user_cb(dev, data->user_data);
 	}
-#endif /* CONFIG_UART_INTERRUPT_DRIVEN */
+#endif
 }
-#endif /* defined(CONFIG_UART_INTERRUPT_DRIVEN) ||
-	 * defined(CONFIG_UART_ASYNC_API)
-	 */
+#endif
 
 static int usart_gd32_init(const struct device *dev)
 {
