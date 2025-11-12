@@ -66,6 +66,51 @@
 	};
 };
 
+&i2c1 {
+	status = "disabled";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 7 7 0x440 0>, <&dma0 3 7 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+};
+
+&i2c2 {
+	status = "disabled";
+	pinctrl-0 = <&i2c2_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 4 3 0x440 0>, <&dma0 2 3 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+};
+&i2c3 {
+	status = "disabled";
+	pinctrl-0 = <&i2c3_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 6 0 0x440 0>, <&dma0 1 0 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+};
+
+&i2c4 {
+	status = "disabled";
+	pinctrl-0 = <&i2c4_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 3 1 0x440 0>, <&dma0 1 1 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <400000>;
+
+};
+
+&i2c5 {
+	status = "disabled";
+	pinctrl-0 = <&i2c5_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 7 6 0x440 0>, <&dma0 5 6 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <400000>;
+};
+
 &usart0 {
 	status = "okay";
 	current-speed = <115200>;
