@@ -155,6 +155,7 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 	struct gd32_usart_data *data;
 	const struct gd32_usart_config *cfg;
 
+
 	if (!dev) {
 		return;
 	}
@@ -186,10 +187,10 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 				dma_stop(dma->dev, dma->channel);
 				usart_dma_transmit_config(cfg->reg, USART_CTL2_DENT);
 				if (dma_config(dma->dev, dma->channel, dma_cfg) == 0 &&
-				    dma_start(dma->dev, dma->channel) == 0) {
+					dma_start(dma->dev, dma->channel) == 0) {
 					/* start TX timeout timer */
 					if (data->async_tx_timeout != SYS_FOREVER_US &&
-					    data->async_tx_timeout > 0) {
+						data->async_tx_timeout > 0) {
 						k_work_reschedule(&data->async_tx_timeout_work,
 								K_USEC(data->async_tx_timeout));
 					}
@@ -251,6 +252,7 @@ static int usart_gd32_async_tx(const struct device *dev,
 	if (data->async_tx_blk) {
 		/* Chain mode: send first block */
 		const struct dma_block_config *cur = gd32_async_tx_next_block(data);
+
 		if (!cur) {
 			return -EINVAL;
 		}
@@ -557,6 +559,7 @@ static int usart_gd32_async_rx_enable(
 	usart_dma_receive_config(cfg->reg, USART_CTL2_DENR);
 	/* Read CTL2 to confirm DENR bit is set */
 	uint32_t ctl2_after_enable = REG32(USART_CTL2_REG(cfg->reg));
+
 	if ((ctl2_after_enable & USART_CTL2_DENR) == 0) {
 		/* Note: DENR bit check for debug purposes */
 	}
@@ -573,6 +576,7 @@ static int usart_gd32_async_rx_enable(
 
 	/* Debug: Check DMA status and CTL2 */
 	struct dma_status start_stat;
+
 	if (dma_get_status(dma->dev, dma->channel, &start_stat) == 0) {
 		/* DMA status check for debug */
 	}
@@ -682,6 +686,7 @@ static int usart_gd32_async_rx_buf_rsp(
 
 	/* Configure DMA */
 	int ret = dma_config(dma->dev, dma->channel, dma_cfg);
+
 	if (ret != 0) {
 		data->async_rx_enabled = false;
 		data->async_rx_buf = NULL;
@@ -809,8 +814,9 @@ static void usart_gd32_isr(const struct device *dev)
 	}
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 }
-#endif /* defined(CONFIG_UART_INTERRUPT_DRIVEN) || \
-		  defined(CONFIG_UART_ASYNC_API) */
+#endif /* defined(CONFIG_UART_INTERRUPT_DRIVEN) ||
+	 * defined(CONFIG_UART_ASYNC_API)
+	 */
 
 static int usart_gd32_init(const struct device *dev)
 {
