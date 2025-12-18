@@ -37,7 +37,6 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 
 /* DMA Initialization Macros */
 #define USART_DMA_INITIALIZER(idx, dir)                                       \
-	/* 参数idx/dir仅用于DT宏，不会产生副作用 */                      \
 	{                                                                      \
 		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),         \
 		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),           \
@@ -52,7 +51,6 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 	}
 
 #define USART_DMAS_DECL(idx)                                                   \
-	/* 参数idx仅用于DT宏，不会产生副作用 */                        \
 	{                                                                      \
 		COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, tx),                       \
 			(USART_DMA_INITIALIZER(idx, tx)), ({0})),                  \
@@ -61,7 +59,6 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 	}
 
 #endif /* CONFIG_UART_ASYNC_API */
-
 
 /* ========== Forward Declarations ========== */
 #ifdef CONFIG_UART_ASYNC_API
@@ -280,7 +277,6 @@ static int usart_gd32_async_tx(const struct device *dev,
 			data->async_tx_buf = NULL;
 			return ret;
 		}
-		/* 启动TX超时计时器 */
 		if (timeout != SYS_FOREVER_US && timeout > 0) {
 			k_work_reschedule(&data->async_tx_timeout_work, K_USEC(timeout));
 		}
@@ -317,7 +313,6 @@ static int usart_gd32_async_tx(const struct device *dev,
 		data->async_tx_buf = NULL;
 		return ret;
 	}
-	/* 启动TX超时计时器 */
 	if (timeout != SYS_FOREVER_US && timeout > 0) {
 		k_work_reschedule(&data->async_tx_timeout_work, K_USEC(timeout));
 	}

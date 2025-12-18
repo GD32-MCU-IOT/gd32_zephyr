@@ -9,6 +9,7 @@
 #include <gd/gd32f527/gd32f527is.dtsi>
 #include "gd32f527i_eval-pinctrl.dtsi"
 #include <zephyr/dt-bindings/dma/gd32_dma.h>
+
 / {
 	model = "GigaDevice GD32F527I-EVAL";
 	compatible = "gd,gd32f527i-eval";
