@@ -1,0 +1,327 @@
+# GD32 开发板外设支持矩阵配置
+# 此文件定义了每个 GD32 开发板支持的外设和适用的测试用例
+
+boards:
+  # GD32F4 系列
+  gd32f407v_start:
+    series: gd32f4
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+      - adc
+      - pwm
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+        - samples/drivers/spi_flash
+      shell:
+        - samples/subsys/shell/shell_module
+
+  gd32f450z_eval:
+    series: gd32f4
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+      - adc
+      - pwm
+      - can
+      - ethernet
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+        - samples/drivers/spi_flash
+      network:
+        - samples/net/sockets/echo_client
+      shell:
+        - samples/subsys/shell/shell_module
+
+  gd32f470i_eval:
+    series: gd32f4
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+      - adc
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+      shell:
+        - samples/subsys/shell/shell_module
+
+  gd32f450i_eval:
+    series: gd32f4
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+
+  gd32f450v_start:
+    series: gd32f4
+    peripherals:
+      - uart
+      - gpio
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+
+  gd32f403z_eval:
+    series: gd32f4
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+
+  # GD32E5 系列
+  gd32e507z_eval:
+    series: gd32e5
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+      - adc
+      - pwm
+      - can
+      - ethernet
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+        - samples/drivers/spi_flash
+      network:
+        - samples/net/sockets/echo_client
+      shell:
+        - samples/subsys/shell/shell_module
+
+  gd32e507v_start:
+    series: gd32e5
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+
+  # GD32F5 系列
+  gd32f527i_eval:
+    series: gd32f5
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+      - spi
+      - adc
+      - pwm
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+        - samples/drivers/spi_flash
+      shell:
+        - samples/subsys/shell/shell_module
+
+  # GD32F3 系列
+  gd32f350r_eval:
+    series: gd32f3
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+
+  # GD32E1 系列
+  gd32e103v_eval:
+    series: gd32e1
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+
+  # GD32L2 系列
+  gd32l233r_eval:
+    series: gd32l2
+    peripherals:
+      - uart
+      - gpio
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+
+  # GD32C2 系列
+  gd32c231c_eval:
+    series: gd32c2
+    peripherals:
+      - uart
+      - gpio
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+
+  # GD32A5 系列
+  gd32a503v_eval:
+    series: gd32a5
+    peripherals:
+      - uart
+      - gpio
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+
+  # GD32VF1 系列 (RISC-V)
+  gd32vf103v_eval:
+    series: gd32vf1
+    arch: riscv
+    peripherals:
+      - uart
+      - gpio
+      - i2c
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+      communication:
+        - samples/drivers/i2c_scanner
+
+  gd32vf103c_starter:
+    series: gd32vf1
+    arch: riscv
+    peripherals:
+      - uart
+      - gpio
+    test_suites:
+      basic:
+        - samples/basic/blinky
+        - samples/hello_world
+
+# 测试组定义（用于 CI 分组测试）
+test_groups:
+  # 组1: 基础功能（所有板子都必须通过）
+  essential:
+    description: "基础功能测试 - 所有开发板必须通过"
+    tests:
+      - samples/basic/blinky
+      - samples/hello_world
+    boards: all
+
+  # 组2: I2C 支持的开发板
+  i2c_capable:
+    description: "I2C 功能测试"
+    tests:
+      - samples/drivers/i2c_scanner
+    boards:
+      - gd32f407v_start
+      - gd32f450z_eval
+      - gd32f470i_eval
+      - gd32f450i_eval
+      - gd32f403z_eval
+      - gd32e507z_eval
+      - gd32e507v_start
+      - gd32f527i_eval
+      - gd32f350r_eval
+      - gd32e103v_eval
+      - gd32vf103v_eval
+
+  # 组3: SPI 支持的开发板
+  spi_capable:
+    description: "SPI 功能测试"
+    tests:
+      - samples/drivers/spi_flash
+    boards:
+      - gd32f407v_start
+      - gd32f450z_eval
+      - gd32f470i_eval
+      - gd32f450i_eval
+      - gd32f403z_eval
+      - gd32e507z_eval
+      - gd32e507v_start
+      - gd32f527i_eval
+
+  # 组4: 网络支持的开发板
+  network_capable:
+    description: "网络功能测试"
+    tests:
+      - samples/net/sockets/echo_client
+    boards:
+      - gd32f450z_eval
+      - gd32e507z_eval
+
+  # 组5: Shell 功能测试
+  shell_capable:
+    description: "Shell 功能测试"
+    tests:
+      - samples/subsys/shell/shell_module
+    boards:
+      - gd32f407v_start
+      - gd32f450z_eval
+      - gd32f470i_eval
+      - gd32e507z_eval
+      - gd32f527i_eval
+
+# CI 配置
+ci_config:
+  # 并行任务数
+  parallel_jobs: 4
+  
+  # 超时时间（秒）
+  build_timeout: 600
+  
+  # 失败重试次数
+  retry_count: 2
+  
+  # 清理策略
+  pristine: auto
+  
+  # 报告格式
+  report_formats:
+    - json
+    - junit_xml
