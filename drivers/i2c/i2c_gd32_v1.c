@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 BrainCo Inc.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,7 +8,7 @@
 #include <zephyr/logging/log.h>
 
 #include <errno.h>
-LOG_MODULE_REGISTER(i2c_gd32_v3, CONFIG_I2C_LOG_LEVEL);
+LOG_MODULE_REGISTER(i2c_gd32, CONFIG_I2C_LOG_LEVEL);
 
 #include "i2c-priv.h"
 #include "i2c_gd32.h"
@@ -140,9 +140,6 @@ static int i2c_gd32_start_dma_transceive(const struct device *dev)
 		}
 	}
 
-	/* Configure interrupts for DMA mode (excludes data transfer interrupts) */
-	i2c_gd32_enable_dma_interrupts(cfg);
-
 on_error:
 	if (ret < 0) {
 		for (size_t i = 0; i < i2c_gd32_dma_enabled_num(dev); i++) {
@@ -157,6 +154,12 @@ static void i2c_gd32_complete(const struct device *dev, int status)
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
 
+	/* Generate STOP signal in DMA transfer complete ISR per manual */
+	if (data->current->flags & I2C_MSG_STOP) {
+		/* Legacy IP read: Generate STOP immediately after DMA complete */
+		i2c_stop_on_bus(cfg->reg);
+		LOG_DBG("Legacy IP: STOP generated after DMA RX completion");
+	}
 	/* Legacy IP: Disable DMA functionality and clear DMALST bit */
 	i2c_dma_config(cfg->reg, I2C_DMA_OFF);
 	/* Clear DMALST bit if it was set previously */
@@ -170,11 +173,6 @@ static void i2c_gd32_complete(const struct device *dev, int status)
 		dma_stop(cfg->dma[i].dev, cfg->dma[i].channel);
 	}
 
-	/* Send STOP signal to properly terminate I2C transfer per manual */
-	if (data->current && (data->current->flags & I2C_MSG_READ)) {
-		/* Legacy IP: Send STOP signal manually */
-		i2c_stop_on_bus(cfg->reg);
-	}
 	/* Update context for completed transfer */
 	data->current->len = 0;
 
@@ -215,6 +213,34 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg, uint32_t 
 		return;
 	}
 
+	/* Check operation type and only process corresponding DMA completion */
+	if ((data->current->flags & I2C_MSG_READ)) {
+		bool is_rx_dma = false;
+
+		/* Check if this callback is from RX DMA channel */
+		if (dma_dev == cfg->dma[RX].dev && channel == cfg->dma[RX].channel) {
+			is_rx_dma = true;
+		}
+		/* For read operations, only process RX DMA completion */
+		if (!is_rx_dma) {
+			LOG_DBG("DMA callback: Ignoring TX DMA completion for read operation");
+			return;
+		}
+	} else {
+		/* Write operation - only process TX DMA completion */
+		bool is_tx_dma = false;
+
+		/* Check if this callback is from TX DMA channel */
+		if (dma_dev == cfg->dma[TX].dev && channel == cfg->dma[TX].channel) {
+			is_tx_dma = true;
+		}
+		/* For write operations, only process TX DMA completion */
+		if (!is_tx_dma) {
+			LOG_DBG("DMA callback: Ignoring RX DMA completion for write operation");
+			return;
+		}
+	}
+
 	/* Check if I2C errors occurred during DMA transfer */
 	if (data->errs != 0U) {
 		/* Special handling for EEPROM write operations */
@@ -250,12 +276,6 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg, uint32_t 
 
 	/* Check if current chunk transfer finished */
 	if (i2c_gd32_chunk_transfer_finished(dev)) {
-		/* Generate STOP signal in DMA transfer complete ISR per manual */
-		if (data->current->flags & I2C_MSG_READ) {
-			/* Legacy IP read: Generate STOP immediately after DMA complete */
-			i2c_stop_on_bus(cfg->reg);
-			LOG_DBG("Legacy IP: STOP generated after DMA RX completion");
-		}
 		/* Update I2C message context - move to next message if available */
 		data->current->len = 0;
 		data->xfer_len -= chunk_len;
@@ -293,7 +313,6 @@ static inline void i2c_gd32_enable_interrupts(const struct i2c_gd32_config *cfg)
 {
 	i2c_interrupt_enable(cfg->reg, I2C_INT_ERR);
 	i2c_interrupt_enable(cfg->reg, I2C_INT_EV);
-	i2c_interrupt_enable(cfg->reg, I2C_INT_BUF);
 }
 
 static inline void i2c_gd32_xfer_read(struct i2c_gd32_data *data, const struct i2c_gd32_config *cfg)
@@ -309,6 +328,7 @@ static inline void i2c_gd32_xfer_read(struct i2c_gd32_data *data, const struct i
 static inline void i2c_gd32_xfer_write(struct i2c_gd32_data *data,
 				       const struct i2c_gd32_config *cfg)
 {
+	data->current->len--;
 	i2c_data_transmit(cfg->reg, *data->current->buf);
 	data->current->buf++;
 
@@ -326,9 +346,6 @@ static void i2c_gd32_handle_rbne(const struct device *dev)
 	/* This function should not be called in DMA mode */
 	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
 	    i2c_gd32_dma_enabled(dev)) {
-		LOG_WRN("RBNE interrupt received during DMA transfer - "\n\t\t\t
-			"disabling RBNE interrupt");
-
 		i2c_interrupt_disable(cfg->reg, I2C_INT_BUF);
 		return;
 	}
@@ -367,8 +384,6 @@ static void i2c_gd32_handle_tbe(const struct device *dev)
 	/* This function should not be called in DMA mode */
 	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
 	    i2c_gd32_dma_enabled(dev)) {
-		LOG_WRN("TBE interrupt received during DMA transfer - "\n\t\t\t
-			"disabling TBE interrupt");
 		i2c_interrupt_disable(cfg->reg, I2C_INT_BUF);
 		return;
 	}
@@ -386,8 +401,12 @@ static void i2c_gd32_handle_tbe(const struct device *dev)
 		i2c_gd32_xfer_write(data, cfg);
 
 	} else {
-		/* Legacy STOP via HAL */
-		i2c_stop_on_bus(cfg->reg);
+		if (data->current->flags & I2C_MSG_STOP) {
+			/* Generate STOP for final single byte */
+			i2c_stop_on_bus(cfg->reg);
+		} else {
+			i2c_interrupt_disable(cfg->reg, I2C_INT_EV);
+		}
 		k_sem_give(&data->sync_sem);
 	}
 }
@@ -545,6 +564,9 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 		/* Start bit sent: send address + direction via HAL */
 		if (data->current->flags & I2C_MSG_READ) {
 			i2c_master_addressing(cfg->reg, (data->addr1 << 1U), I2C_RECEIVER);
+#ifndef CONFIG_I2C_GD32_DMA
+			i2c_interrupt_enable(cfg->reg, I2C_INT_BUF);
+#endif
 		} else {
 			i2c_master_addressing(cfg->reg, (data->addr1 << 1U), I2C_TRANSMITTER);
 		}
@@ -699,6 +721,53 @@ static int i2c_gd32_target_unregister(const struct device *dev, struct i2c_targe
 }
 #endif /* CONFIG_I2C_TARGET */
 
+static int i2c_gd32_bus_recovery(const struct device *dev)
+{
+	const struct i2c_gd32_config *cfg = dev->config;
+	struct i2c_gd32_data *data = dev->data;
+
+	/* Disable I2C peripheral */
+	i2c_disable(cfg->reg);
+
+	/* Software reset - set then clear SRESET bit */
+	i2c_software_reset_config(cfg->reg, I2C_SRESET_SET);
+	i2c_software_reset_config(cfg->reg, I2C_SRESET_RESET);
+
+	/* Reconfigure I2C clock parameters after reset */
+	switch (I2C_SPEED_GET(data->dev_config)) {
+	case I2C_SPEED_STANDARD:
+		i2c_clock_config(cfg->reg, I2C_BITRATE_STANDARD, I2C_DTCY_2);
+		break;
+	case I2C_SPEED_FAST:
+		i2c_clock_config(cfg->reg, I2C_BITRATE_FAST, I2C_DTCY_16_9);
+#ifdef I2C_FMPCFG
+		I2C_FMPCFG(cfg->reg) &= ~I2C_FMPCFG_FMPEN;
+#endif
+		break;
+#ifdef I2C_FMPCFG
+	case I2C_SPEED_FAST_PLUS:
+		i2c_clock_config(cfg->reg, I2C_BITRATE_FAST_PLUS, I2C_DTCY_16_9);
+		I2C_FMPCFG(cfg->reg) |= I2C_FMPCFG_FMPEN;
+		break;
+#endif
+	default:
+		break;
+	}
+
+	/* Re-enable I2C peripheral */
+	i2c_enable(cfg->reg);
+
+	/* Check if bus is now free */
+
+	if (!i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
+		return 0;
+	}
+
+	LOG_ERR("I2C bus recovery failed");
+	data->errs |= I2C_GD32_ERR_BUSY;
+	return -EBUSY;
+}
+
 static void i2c_gd32_xfer_begin(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
@@ -712,9 +781,24 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 #ifdef CONFIG_I2C_TARGET
 	data->master_active = true;
 #endif
+	if ((data->current->flags & I2C_MSG_READ) == 0) {
+		/* Wait for bus idle and check for stuck condition */
+		uint32_t busy_retry = 10000;
 
-	/* Ensure I2C is in master mode for transmission */
-	i2c_disable(cfg->reg);
+		while (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY) && busy_retry--) {
+			/* NOP */
+		}
+		if (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
+			LOG_WRN("I2C bus stuck, attempting recovery");
+			/* Try bus recovery */
+			if (i2c_gd32_bus_recovery(dev) < 0) {
+				data->errs |= I2C_GD32_ERR_BUSY;
+				k_sem_give(&data->sync_sem);
+				return;
+			}
+		}
+	}
+
 	/* Configure as I2C master mode */
 	i2c_mode_addr_config(cfg->reg, I2C_I2CMODE_ENABLE, I2C_ADDFORMAT_7BITS, 0);
 	i2c_enable(cfg->reg);
@@ -740,6 +824,9 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 	}
 #endif
 	i2c_gd32_enable_interrupts(cfg);
+	if (data->current->flags & I2C_MSG_WRITE) {
+		i2c_interrupt_enable(cfg->reg, I2C_INT_BUF);
+	}
 	i2c_start_on_bus(cfg->reg);
 }
 
@@ -750,8 +837,12 @@ static int i2c_gd32_xfer_end(const struct device *dev)
 
 	i2c_gd32_disable_interrupts(cfg);
 
-	while (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
-		/* NOP */
+	if ((data->current->flags & I2C_MSG_STOP) || (data->errs != 0U)) {
+		while (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
+			/* NOP */
+		}
+	} else {
+		(void)i2c_data_receive(cfg->reg);
 	}
 	/* Restore target mode if target is registered */
 #ifdef CONFIG_I2C_TARGET
@@ -815,8 +906,7 @@ static int i2c_gd32_msg_read(const struct device *dev)
 					LOG_ERR("RX DMA completed but I2C errors detected: 0x%02x",
 						data->errs);
 					i2c_gd32_log_err(data);
-					return i2c_gd32_xfer_end(
-						dev); /* Returns -EIO due to errors */
+					return i2c_gd32_xfer_end(dev);
 				}
 				/* Send STOP signal for successful DMA read completion */
 				return i2c_gd32_xfer_end(dev);
@@ -842,7 +932,6 @@ static int i2c_gd32_msg_write(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
 #ifdef CONFIG_I2C_GD32_DMA
-	const struct i2c_gd32_config *cfg = dev->config;
 	int ret = 0;
 
 	/* Use DMA for transfers larger than threshold and if DMA is enabled */
@@ -881,11 +970,8 @@ static int i2c_gd32_msg_write(const struct device *dev)
 				/* Check for I2C errors even if DMA completed */
 				if (data->errs != 0U) {
 					i2c_gd32_log_err(data);
-					return i2c_gd32_xfer_end(
-						dev); /* Returns -EIO due to errors */
+					return i2c_gd32_xfer_end(dev);
 				}
-
-				i2c_stop_on_bus(cfg->reg);
 				return i2c_gd32_xfer_end(dev);
 			}
 			LOG_ERR("DMA TX transfer timeout, falling back to PIO");

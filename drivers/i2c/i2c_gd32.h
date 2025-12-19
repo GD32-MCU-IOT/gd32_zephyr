@@ -1,13 +1,11 @@
 /*
- * Copyright (c) 2021 BrainCo Inc.
- * Copyright (c) 2025 Claude-H7
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef ZEPHYR_DRIVERS_I2C_I2C_GD32_H_
 #define ZEPHYR_DRIVERS_I2C_I2C_GD32_H_
-#define DT_DRV_COMPAT gd_gd32_i2c
 
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/gd32.h>
@@ -29,12 +27,6 @@
 #define GD32_I2C_IS_LEGACY(periph) ((periph) == I2C0 || (periph) == I2C1 || (periph) == I2C2)
 #define GD32_I2C_IS_ADD(periph)    (!GD32_I2C_IS_LEGACY(periph))
 #endif
-
-/* I2C input clock frequency limits (MHz) for GD32F527 */
-#define I2CCLK_MAX         ((uint32_t)0x00000036U) /*  MHz maximum peripheral clock */
-#define I2CCLK_MIN         ((uint32_t)0x00000002U) /*   MHz minimum for standard mode */
-#define I2CCLK_FM_MIN      ((uint32_t)0x00000008U) /*   MHz minimum for fast mode (400 kHz) */
-#define I2CCLK_FM_PLUS_MIN ((uint32_t)0x00000018U) /*  MHz minimum for fast mode plus (1 MHz) */
 
 /* Bus error */
 #define I2C_GD32_ERR_BERR BIT(0)

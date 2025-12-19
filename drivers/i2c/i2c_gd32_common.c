@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 BrainCo Inc.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,14 @@ LOG_MODULE_REGISTER(i2c_gd32_common, CONFIG_I2C_LOG_LEVEL);
 
 #include "i2c-priv.h"
 #include "i2c_gd32.h"
+
+#if defined(CONFIG_I2C_GD32_I2C_V3)
+#define DT_DRV_COMPAT gd_gd32_i2c_v3
+#elif defined(CONFIG_I2C_GD32_I2C_V2)
+#define DT_DRV_COMPAT gd_gd32_i2c_v2
+#else
+#define DT_DRV_COMPAT gd_gd32_i2c
+#endif
 #ifdef CONFIG_I2C_GD32_DMA
 
 void i2c_gd32_dma_callback(const struct device *dma_dev, void *arg, uint32_t channel, int status)

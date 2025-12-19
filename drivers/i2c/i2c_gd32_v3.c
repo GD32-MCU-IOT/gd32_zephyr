@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 BrainCo Inc.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1541,13 +1541,6 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&cfg->clkid,
 				     &pclk1);
 
-	freq = pclk1 / 1000000U;
-	if (freq > I2CCLK_MAX) {
-		LOG_ERR("I2C max clock freq %u, current is %u\n", I2CCLK_MAX, freq);
-		err = -ENOTSUP;
-		goto error;
-	}
-
 	if (GD32_I2C_IS_ADD(cfg->reg)) {
 		/* Select target bitrate */
 		uint32_t bitrate_hz;
@@ -1754,6 +1747,13 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 		i2c_add_enable(cfg->reg);
 		data->dev_config = dev_config;
 		goto done;
+	}
+
+	freq = pclk1 / 1000000U;
+	if (freq > I2CCLK_MAX) {
+		LOG_ERR("I2C max clock freq %u, current is %u\n", I2CCLK_MAX, freq);
+		err = -ENOTSUP;
+		goto error;
 	}
 
 	switch (I2C_SPEED_GET(dev_config)) {
