@@ -46,10 +46,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.12'
 
@@ -199,7 +199,7 @@ jobs:
       changed_boards: ${{ steps.detect_boards.outputs.boards }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -240,12 +240,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.12'
 
@@ -255,6 +255,7 @@ jobs:
 
       - name: Setup Zephyr environment
         run: |
+          # 安装系统依赖
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             git cmake ninja-build gperf ccache dfu-util \
@@ -263,25 +264,49 @@ jobs:
             file make gcc gcc-multilib g++-multilib libsdl2-dev \
             libmagic1
 
-          # 安装 west
-          pip install west
+          # 安装 west 到用户目录并添加到PATH
+          pip3 install --user west
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-          # 初始化 west workspace
-          west init -l .
-          west update -o=--depth=1 -n
+          # 安装 Zephyr Python 依赖
+          pip3 install --user -r scripts/requirements.txt
 
-          # 下载 Zephyr SDK
+      - name: Download and setup Zephyr SDK
+        run: |
+          # 下载 Zephyr SDK (使用完整版或检查minimal是否可用)
           cd ~
           ZEPHYR_SDK_VERSION=$(cat $GITHUB_WORKSPACE/SDK_VERSION)
-          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz
-          tar xf zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz
+
+          # 尝试下载minimal版本，如果失败则使用完整版
+          SDK_FILE="zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          if ! wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/${SDK_FILE}; then
+            SDK_FILE="zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz"
+            wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/${SDK_FILE}
+          fi
+
+          tar xf ${SDK_FILE}
+
+          # 设置 SDK (只安装ARM工具链)
           cd zephyr-sdk-${ZEPHYR_SDK_VERSION}
           ./setup.sh -t arm-zephyr-eabi -h -c
 
+          # 导出 SDK 环境变量
+          echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-${ZEPHYR_SDK_VERSION}" >> $GITHUB_ENV
+
       - name: Run GD32 build test
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}
         run: |
-          export ZEPHYR_BASE=$GITHUB_WORKSPACE
+          # 确保 west 在 PATH 中
+          export PATH="$HOME/.local/bin:$PATH"
+
+          # 设置 Zephyr 环境
           source zephyr-env.sh
+
+          # 验证环境
+          west --version
+          echo "ZEPHYR_BASE=$ZEPHYR_BASE"
+          echo "ZEPHYR_SDK_INSTALL_DIR=$ZEPHYR_SDK_INSTALL_DIR"
 
           # 运行 GD32 本地测试脚本
           python3 boards/gd/scripts/gd32_local_tester.py \
@@ -329,7 +354,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
         with:
           name: gd32-test-results-${{ matrix.test_suite.name }}
           path: |
@@ -339,7 +364,7 @@ jobs:
 
       - name: Upload successful build artifacts (binaries)
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
         with:
           name: gd32-binaries-${{ matrix.test_suite.name }}
           path: |
@@ -351,7 +376,7 @@ jobs:
 
       - name: Upload failed build artifacts (debug)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
         with:
           name: gd32-failed-builds-${{ matrix.test_suite.name }}
           path: |
@@ -389,10 +414,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.12'
 
@@ -431,7 +456,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           path: artifacts
 
@@ -450,7 +475,7 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: EnricoMi/publish-unit-test-result-action@82082dac68ad6a19d980f8ce817e108b9f496c2a # v2.18.0
         with:
           check_name: GD32 Build Test Results
           files: |
@@ -459,7 +484,7 @@ jobs:
 
       - name: Upload merged results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
         with:
           name: gd32-final-test-report
           path: |
