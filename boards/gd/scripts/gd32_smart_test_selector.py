@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 GigaDevice Semiconductor Inc.
+
 """
 GD32 智能测试选择器
 ==================
@@ -32,26 +35,32 @@ import yaml
 # 数据结构
 # ------------------------------------------------------------
 
+
 @dataclass
 class BoardConfig:
     """开发板配置"""
+
     name: str
     series: str
     peripherals: list[str]
     test_suites: dict[str, list[str]]
     arch: str = "arm"
 
+
 @dataclass
 class TestPlan:
     """测试计划"""
+
     board: str
     test_path: str
     category: str
     required_peripherals: list[str]
 
+
 # ------------------------------------------------------------
 # 配置加载器
 # ------------------------------------------------------------
+
 
 class PeripheralMatrixLoader:
     """外设矩阵配置加载器"""
@@ -84,7 +93,7 @@ class PeripheralMatrixLoader:
                 series=board_info.get('series', 'unknown'),
                 peripherals=board_info.get('peripherals', []),
                 test_suites=board_info.get('test_suites', {}),
-                arch=board_info.get('arch', 'arm')
+                arch=board_info.get('arch', 'arm'),
             )
 
         # 加载测试组
@@ -109,9 +118,11 @@ class PeripheralMatrixLoader:
         """获取支持特定外设的开发板"""
         return [name for name, board in self.boards.items() if peripheral in board.peripherals]
 
+
 # ------------------------------------------------------------
 # 测试计划生成器
 # ------------------------------------------------------------
+
 
 class TestPlanGenerator:
     """测试计划生成器"""
@@ -135,12 +146,14 @@ class TestPlanGenerator:
 
                 # 检查开发板是否支持所需外设
                 if all(p in board_config.peripherals for p in required_peripherals):
-                    test_plans.append(TestPlan(
-                        board=board_name,
-                        test_path=test_path,
-                        category=category,
-                        required_peripherals=required_peripherals
-                    ))
+                    test_plans.append(
+                        TestPlan(
+                            board=board_name,
+                            test_path=test_path,
+                            category=category,
+                            required_peripherals=required_peripherals,
+                        )
+                    )
 
         return test_plans
 
@@ -173,12 +186,14 @@ class TestPlanGenerator:
         for board in boards:
             for test_path in tests:
                 required_peripherals = self._infer_required_peripherals(test_path)
-                test_plans.append(TestPlan(
-                    board=board,
-                    test_path=test_path,
-                    category=group_name,
-                    required_peripherals=required_peripherals
-                ))
+                test_plans.append(
+                    TestPlan(
+                        board=board,
+                        test_path=test_path,
+                        category=group_name,
+                        required_peripherals=required_peripherals,
+                    )
+                )
 
         return test_plans
 
@@ -216,15 +231,15 @@ class TestPlanGenerator:
                     "board": plan.board,
                     "test_path": plan.test_path,
                     "category": plan.category,
-                    "required_peripherals": plan.required_peripherals
+                    "required_peripherals": plan.required_peripherals,
                 }
                 for plan in test_plans
             ],
             "summary": {
                 "total_tests": len(test_plans),
                 "boards": len(set(plan.board for plan in test_plans)),
-                "unique_tests": len(set(plan.test_path for plan in test_plans))
-            }
+                "unique_tests": len(set(plan.test_path for plan in test_plans)),
+            },
         }
 
         with open(output_file, 'w', encoding='utf-8') as f:
@@ -240,9 +255,9 @@ class TestPlanGenerator:
         boards_set = set(plan.board for plan in test_plans)
         tests_set = set(plan.test_path for plan in test_plans)
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("GD32 测试计划摘要")
-        print("="*60)
+        print("=" * 60)
         print(f"总测试任务数: {len(test_plans)}")
         print(f"涉及开发板: {len(boards_set)}")
         print(f"独立测试用例: {len(tests_set)}")
@@ -259,64 +274,37 @@ class TestPlanGenerator:
         for board, tests in sorted(board_stats.items()):
             print(f"  {board:25s}: {len(tests):3d} 个测试")
 
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
+
 
 # ------------------------------------------------------------
 # 命令行接口
 # ------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="GD32 智能测试选择器",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
     )
 
-    parser.add_argument(
-        '-c', '--config',
-        help='外设矩阵配置文件路径',
-        default=None
-    )
+    parser.add_argument('-c', '--config', help='外设矩阵配置文件路径', default=None)
+
+    parser.add_argument('-p', '--platform', action='append', help='指定开发板（可多次使用）')
+
+    parser.add_argument('-g', '--group', help='按测试组生成测试计划')
+
+    parser.add_argument('-o', '--output', default='gd32_test_plan.json', help='输出 JSON 文件路径')
+
+    parser.add_argument('--list-boards', action='store_true', help='列出所有支持的开发板')
+
+    parser.add_argument('--list-groups', action='store_true', help='列出所有测试组')
+
+    parser.add_argument('--execute', action='store_true', help='生成计划后立即执行测试')
 
     parser.add_argument(
-        '-p', '--platform',
-        action='append',
-        help='指定开发板（可多次使用）'
-    )
-
-    parser.add_argument(
-        '-g', '--group',
-        help='按测试组生成测试计划'
-    )
-
-    parser.add_argument(
-        '-o', '--output',
-        default='gd32_test_plan.json',
-        help='输出 JSON 文件路径'
-    )
-
-    parser.add_argument(
-        '--list-boards',
-        action='store_true',
-        help='列出所有支持的开发板'
-    )
-
-    parser.add_argument(
-        '--list-groups',
-        action='store_true',
-        help='列出所有测试组'
-    )
-
-    parser.add_argument(
-        '--execute',
-        action='store_true',
-        help='生成计划后立即执行测试'
-    )
-
-    parser.add_argument(
-        '-j', '--jobs',
-        type=int,
-        default=1,
-        help='并行任务数（仅在 --execute 时有效）'
+        '-j', '--jobs', type=int, default=1, help='并行任务数（仅在 --execute 时有效）'
     )
 
     args = parser.parse_args()
@@ -380,6 +368,7 @@ def main():
         print("⚠️  执行功能待实现，请使用 gd32_local_tester.py")
 
     return 0
+
 
 if __name__ == '__main__':
     sys.exit(main())

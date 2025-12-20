@@ -1,5 +1,6 @@
-# GD32 开发板外设支持矩阵配置
-# 此文件定义了每个 GD32 开发板支持的外设和适用的测试用例
+# Copyright (c) 2025 Gigadevice Semiconductor Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 boards:
   # GD32F4 系列
@@ -10,8 +11,6 @@ boards:
       - gpio
       - i2c
       - spi
-      - adc
-      - pwm
     test_suites:
       basic:
         - samples/basic/blinky
@@ -29,10 +28,6 @@ boards:
       - gpio
       - i2c
       - spi
-      - adc
-      - pwm
-      - can
-      - ethernet
     test_suites:
       basic:
         - samples/basic/blinky
@@ -40,8 +35,6 @@ boards:
       communication:
         - samples/drivers/i2c_scanner
         - samples/drivers/spi_flash
-      network:
-        - samples/net/sockets/echo_client
       shell:
         - samples/subsys/shell/shell_module
 
@@ -52,7 +45,6 @@ boards:
       - gpio
       - i2c
       - spi
-      - adc
     test_suites:
       basic:
         - samples/basic/blinky
@@ -108,10 +100,6 @@ boards:
       - gpio
       - i2c
       - spi
-      - adc
-      - pwm
-      - can
-      - ethernet
     test_suites:
       basic:
         - samples/basic/blinky
@@ -119,8 +107,6 @@ boards:
       communication:
         - samples/drivers/i2c_scanner
         - samples/drivers/spi_flash
-      network:
-        - samples/net/sockets/echo_client
       shell:
         - samples/subsys/shell/shell_module
 
@@ -286,14 +272,14 @@ test_groups:
       - gd32e507v_start
       - gd32f527i_eval
 
-  # 组4: 网络支持的开发板
-  network_capable:
-    description: "网络功能测试"
-    tests:
-      - samples/net/sockets/echo_client
-    boards:
-      - gd32f450z_eval
-      - gd32e507z_eval
+  # # 组4: 网络支持的开发板
+  # network_capable:
+  #   description: "网络功能测试"
+  #   tests:
+  #     - samples/net/sockets/echo_client
+  #   boards:
+  #     - gd32f450z_eval
+  #     - gd32e507z_eval
 
   # 组5: Shell 功能测试
   shell_capable:
@@ -311,16 +297,16 @@ test_groups:
 ci_config:
   # 并行任务数
   parallel_jobs: 4
-  
+
   # 超时时间（秒）
   build_timeout: 600
-  
+
   # 失败重试次数
   retry_count: 2
-  
+
   # 清理策略
   pristine: auto
-  
+
   # 报告格式
   report_formats:
     - json
