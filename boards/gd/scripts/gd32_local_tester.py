@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 GigaDevice Semiconductor Inc.
+
 """
 GD32 Zephyr Local Test Runner
 ==============================
@@ -60,15 +63,16 @@ MAX_LOG_LENGTH = 1000
 # Utilities
 # ------------------------------------------------------------
 
+
 class Logger:
     """Colorful logger for terminal output"""
 
     COLORS = {
-        'INFO': '\033[36m',   # Cyan
-        'WARN': '\033[33m',   # Yellow
+        'INFO': '\033[36m',  # Cyan
+        'WARN': '\033[33m',  # Yellow
         'ERROR': '\033[31m',  # Red
-        'OK': '\033[32m',     # Green
-        'RESET': '\033[0m'
+        'OK': '\033[32m',  # Green
+        'RESET': '\033[0m',
     }
 
     def __init__(self, verbose: bool = False):
@@ -95,13 +99,16 @@ class Logger:
         if self.verbose:
             self._log('DEBUG', msg)
 
+
 # ------------------------------------------------------------
 # Data models
 # ------------------------------------------------------------
 
+
 @dataclass
 class TestCase:
     """Represents a test case or sample"""
+
     name: str
     path: Path
     tags: list[str]
@@ -111,9 +118,11 @@ class TestCase:
     def __str__(self):
         return f"{self.name} ({self.source_type})"
 
+
 @dataclass
 class BuildResult:
     """Result of a single build"""
+
     board: str
     testcase: str
     success: bool
@@ -122,9 +131,11 @@ class BuildResult:
     build_dir: Path | None = None
     log_output: str = ""
 
+
 # ------------------------------------------------------------
 # Board discovery
 # ------------------------------------------------------------
+
 
 def discover_gd32_boards(zephyr_base: Path) -> list[str]:
     """Discover all GD32 boards in the Zephyr tree"""
@@ -135,17 +146,24 @@ def discover_gd32_boards(zephyr_base: Path) -> list[str]:
         return boards
 
     for board_dir in gd_boards_dir.iterdir():
-        if (board_dir.is_dir() and board_dir.name not in ['scripts', '__pycache__'] and
-            ((board_dir / 'board.yml').exists() or
-             list(board_dir.glob('*.dts')) or
-             list(board_dir.glob('*_defconfig')))):
+        if (
+            board_dir.is_dir()
+            and board_dir.name not in ['scripts', '__pycache__']
+            and (
+                (board_dir / 'board.yml').exists()
+                or list(board_dir.glob('*.dts'))
+                or list(board_dir.glob('*_defconfig'))
+            )
+        ):
             boards.append(board_dir.name)
 
     return sorted(boards)
 
+
 # ------------------------------------------------------------
 # Test/Sample discovery
 # ------------------------------------------------------------
+
 
 def parse_yaml_file(yaml_path: Path, source_type: str) -> list[TestCase]:
     """Parse testcase.yaml or sample.yaml"""
@@ -170,13 +188,15 @@ def parse_yaml_file(yaml_path: Path, source_type: str) -> list[TestCase]:
             tags = cfg.get('tags', [])
             platforms = cfg.get('platform_allow', cfg.get('platforms', []))
 
-            cases.append(TestCase(
-                name=name,
-                path=test_path,
-                tags=tags,
-                platforms=platforms if platforms else [],
-                source_type='testcase'
-            ))
+            cases.append(
+                TestCase(
+                    name=name,
+                    path=test_path,
+                    tags=tags,
+                    platforms=platforms if platforms else [],
+                    source_type='testcase',
+                )
+            )
 
     elif source_type == 'sample':
         sample_name = data.get('name', yaml_path.parent.name)
@@ -189,15 +209,18 @@ def parse_yaml_file(yaml_path: Path, source_type: str) -> list[TestCase]:
         # Get platform filters if any
         platforms = common.get('platform_allow', [])
 
-        cases.append(TestCase(
-            name=sample_name,
-            path=test_path,
-            tags=tags,
-            platforms=platforms if platforms else [],
-            source_type='sample'
-        ))
+        cases.append(
+            TestCase(
+                name=sample_name,
+                path=test_path,
+                tags=tags,
+                platforms=platforms if platforms else [],
+                source_type='sample',
+            )
+        )
 
     return cases
+
 
 def discover_tests_and_samples(root: Path, log: Logger) -> list[TestCase]:
     """Discover both testcase.yaml and sample.yaml files"""
@@ -215,9 +238,11 @@ def discover_tests_and_samples(root: Path, log: Logger) -> list[TestCase]:
 
     return cases
 
+
 # ------------------------------------------------------------
 # Builder
 # ------------------------------------------------------------
+
 
 def west_build(
     board: str,
@@ -226,7 +251,7 @@ def west_build(
     build_dir: Path,
     zephyr_base: Path,
     timeout: int,
-    log: Logger
+    log: Logger,
 ) -> BuildResult:
     """Execute west build for a single board/test combination"""
 
@@ -250,7 +275,7 @@ def west_build(
             stderr=subprocess.STDOUT,
             text=True,
             timeout=timeout,
-            env=os.environ.copy()
+            env=os.environ.copy(),
         )
 
         duration = time.time() - start_time
@@ -264,7 +289,7 @@ def west_build(
                 message='Build successful',
                 duration=duration,
                 build_dir=build_dir,
-                log_output=output[-MAX_LOG_LENGTH:] if len(output) > MAX_LOG_LENGTH else output
+                log_output=output[-MAX_LOG_LENGTH:] if len(output) > MAX_LOG_LENGTH else output,
             )
         else:
             # Extract relevant error message
@@ -278,7 +303,7 @@ def west_build(
                 message=f'Build failed: {error_msg}',
                 duration=duration,
                 build_dir=build_dir,
-                log_output=output[-MAX_LOG_LENGTH:] if len(output) > MAX_LOG_LENGTH else output
+                log_output=output[-MAX_LOG_LENGTH:] if len(output) > MAX_LOG_LENGTH else output,
             )
 
     except subprocess.TimeoutExpired:
@@ -289,7 +314,7 @@ def west_build(
             success=False,
             message=f'Build timeout after {timeout}s',
             duration=duration,
-            log_output="Build timed out"
+            log_output="Build timed out",
         )
 
     except Exception as e:
@@ -300,16 +325,12 @@ def west_build(
             success=False,
             message=f'Build error: {str(e)}',
             duration=duration,
-            log_output=str(e)
+            log_output=str(e),
         )
 
+
 def build_worker(
-    board: str,
-    testcase: TestCase,
-    args,
-    work_dir: Path,
-    zephyr_base: Path,
-    log: Logger
+    board: str, testcase: TestCase, args, work_dir: Path, zephyr_base: Path, log: Logger
 ) -> BuildResult:
     """Worker function for parallel builds"""
 
@@ -326,7 +347,7 @@ def build_worker(
         build_dir=build_dir,
         zephyr_base=zephyr_base,
         timeout=args.timeout,
-        log=log
+        log=log,
     )
 
     if result.success:
@@ -336,14 +357,14 @@ def build_worker(
 
     return result
 
+
 # ------------------------------------------------------------
 # Filtering
 # ------------------------------------------------------------
 
+
 def filter_boards_for_testcase(
-    testcase: TestCase,
-    all_gd32_boards: list[str],
-    platform_filter: list[str] | None
+    testcase: TestCase, all_gd32_boards: list[str], platform_filter: list[str] | None
 ) -> list[str]:
     """Determine which boards to test for a given testcase"""
 
@@ -360,9 +381,11 @@ def filter_boards_for_testcase(
 
     return boards
 
+
 # ------------------------------------------------------------
 # Reporting
 # ------------------------------------------------------------
+
 
 def generate_json_report(results: list[BuildResult], output_file: Path):
     """Generate JSON test report"""
@@ -382,14 +405,16 @@ def generate_json_report(results: list[BuildResult], output_file: Path):
                 'success': r.success,
                 'message': r.message,
                 'duration': r.duration,
-            } for r in results
-        ]
+            }
+            for r in results
+        ],
     }
 
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
 
     return report
+
 
 def generate_junit_xml(results: list[BuildResult], output_file: Path):
     """Generate JUnit XML report for CI integration"""
@@ -421,6 +446,7 @@ def generate_junit_xml(results: list[BuildResult], output_file: Path):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(xml_lines))
 
+
 def print_summary(results: list[BuildResult], log: Logger):
     """Print test summary to console"""
 
@@ -445,14 +471,17 @@ def print_summary(results: list[BuildResult], log: Logger):
                 log.error(f"  - {r.board} :: {r.testcase}")
                 log.error(f"    {r.message[:100]}")
 
+
 # ------------------------------------------------------------
 # Main
 # ------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="GD32 Local Build Test Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
         epilog="""
 Examples:
   # Test blinky on all GD32 boards
@@ -466,62 +495,60 @@ Examples:
 
   # With tag filter
   %(prog)s -T tests/kernel/common -t kernel
-        """
+        """,
     )
 
     parser.add_argument(
-        '-T', '--tests-root',
+        '-T',
+        '--tests-root',
         type=str,
         required=True,
-        help='Root directory to search for tests/samples (relative to ZEPHYR_BASE)'
+        help='Root directory to search for tests/samples (relative to ZEPHYR_BASE)',
     )
 
     parser.add_argument(
-        '-p', '--platform',
+        '-p',
+        '--platform',
         action='append',
         dest='platforms',
-        help='Board/platform filter (can be specified multiple times)'
+        help='Board/platform filter (can be specified multiple times)',
     )
 
     parser.add_argument(
-        '-t', '--tag',
+        '-t',
+        '--tag',
         action='append',
         dest='tags',
-        help='Tag filter (can be specified multiple times)'
+        help='Tag filter (can be specified multiple times)',
     )
 
     parser.add_argument(
         '--pristine',
         choices=['never', 'auto', 'always'],
         default='auto',
-        help='Pristine build mode (default: auto)'
+        help='Pristine build mode (default: auto)',
     )
 
     parser.add_argument(
-        '-j', '--jobs',
-        type=int,
-        default=1,
-        help='Number of parallel build jobs (default: 1)'
+        '-j', '--jobs', type=int, default=1, help='Number of parallel build jobs (default: 1)'
     )
 
     parser.add_argument(
         '--timeout',
         type=int,
         default=DEFAULT_TIMEOUT,
-        help=f'Build timeout in seconds (default: {DEFAULT_TIMEOUT})'
+        help=f'Build timeout in seconds (default: {DEFAULT_TIMEOUT})',
     )
 
     parser.add_argument(
-        '--build-dir',
-        type=str,
-        help='Base directory for builds (default: boards/gd/scripts/build)'
+        '--build-dir', type=str, help='Base directory for builds (default: boards/gd/scripts/build)'
     )
 
     parser.add_argument(
         '--json-report',
         type=str,
         default=None,
-        help='JSON report output file (default: build/gd32_test_report.json)'
+        help='JSON report output file (default: build/gd32_test_report.json)',
     )
 
     parser.add_argument(
@@ -529,20 +556,12 @@ Examples:
         type=str,
         default=None,
         help='JUnit XML report output file '
-             '(default: build/gd32_test_report.xml if --junit-xml flag used)'
+        '(default: build/gd32_test_report.xml if --junit-xml flag used)',
     )
 
-    parser.add_argument(
-        '--list-boards',
-        action='store_true',
-        help='List all GD32 boards and exit'
-    )
+    parser.add_argument('--list-boards', action='store_true', help='List all GD32 boards and exit')
 
-    parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Verbose output'
-    )
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
 
     args = parser.parse_args()
 
@@ -594,10 +613,7 @@ Examples:
 
     # Apply tag filter
     if args.tags:
-        testcases = [
-            tc for tc in testcases
-            if set(args.tags).intersection(tc.tags)
-        ]
+        testcases = [tc for tc in testcases if set(args.tags).intersection(tc.tags)]
         log.info(f"After tag filter: {len(testcases)} test(s)")
 
     if not testcases:
@@ -642,9 +658,10 @@ Examples:
         # Parallel builds
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             futures = {
-                executor.submit(
-                    build_worker, board, tc, args, work_dir, zephyr_base, log
-                ): (board, tc)
+                executor.submit(build_worker, board, tc, args, work_dir, zephyr_base, log): (
+                    board,
+                    tc,
+                )
                 for board, tc in build_tasks
             }
 
@@ -679,6 +696,7 @@ Examples:
     # Return exit code
     failed_count = sum(1 for r in results if not r.success)
     return 0 if failed_count == 0 else 1
+
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -43,7 +43,7 @@ jobs:
     outputs:
       test_suites: ${{ steps.generate_suites.outputs.matrix }}
       peripheral_groups: ${{ steps.generate_groups.outputs.matrix }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -114,7 +114,7 @@ groups = []
 
 # 生成外设特定的测试组
 # 组1: I2C 测试
-i2c_boards = [name for name, info in boards_data.items() 
+i2c_boards = [name for name, info in boards_data.items()
               if 'i2c' in info.get('peripherals', [])]
 if i2c_boards:
     i2c_tests = set()
@@ -123,7 +123,7 @@ if i2c_boards:
             for test in tests:
                 if 'i2c' in test.lower():
                     i2c_tests.add(test)
-    
+
     if i2c_tests:
         groups.append({
             'name': 'i2c',
@@ -133,7 +133,7 @@ if i2c_boards:
         })
 
 # 组2: SPI 测试
-spi_boards = [name for name, info in boards_data.items() 
+spi_boards = [name for name, info in boards_data.items()
               if 'spi' in info.get('peripherals', [])]
 if spi_boards:
     spi_tests = set()
@@ -142,7 +142,7 @@ if spi_boards:
             for test in tests:
                 if 'spi' in test.lower():
                     spi_tests.add(test)
-    
+
     if spi_tests:
         groups.append({
             'name': 'spi',
@@ -211,7 +211,7 @@ EOF
           else
             CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD)
           fi
-          
+
           if echo "$CHANGED_FILES" | grep -E '^(boards/gd|soc/gd|dts/gd|drivers/)'; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
             echo "GD32 相关文件发生变更"
@@ -237,7 +237,7 @@ EOF
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-test-matrix.outputs.test_suites) }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -262,14 +262,14 @@ EOF
             python3-setuptools python3-tk python3-wheel xz-utils \
             file make gcc gcc-multilib g++-multilib libsdl2-dev \
             libmagic1
-          
+
           # 安装 west
           pip install west
-          
+
           # 初始化 west workspace
           west init -l .
           west update -o=--depth=1 -n
-          
+
           # 下载 Zephyr SDK
           cd ~
           ZEPHYR_SDK_VERSION=$(cat $GITHUB_WORKSPACE/SDK_VERSION)
@@ -282,7 +282,7 @@ EOF
         run: |
           export ZEPHYR_BASE=$GITHUB_WORKSPACE
           source zephyr-env.sh
-          
+
           # 运行 GD32 本地测试脚本
           python3 boards/gd/scripts/gd32_local_tester.py \
             -T ${{ matrix.test_suite.path }} \
@@ -298,31 +298,31 @@ EOF
           echo "" >> size_report.md
           echo "| Board | Test | ELF Size | BIN Size | Flash Usage |" >> size_report.md
           echo "|-------|------|----------|----------|-------------|" >> size_report.md
-          
+
           for build_dir in boards/gd/scripts/gd32_build_*/; do
             if [ -f "$build_dir/zephyr/zephyr.elf" ]; then
               board=$(basename $build_dir | sed 's/gd32_build_//' | sed 's/_samples.*//' | sed 's/_tests.*//')
               test=$(basename $build_dir | sed 's/.*_\(samples\|tests\)/\1/')
-              
+
               if [ -f "$build_dir/zephyr/zephyr.elf" ]; then
                 elf_size=$(stat -c%s "$build_dir/zephyr/zephyr.elf" 2>/dev/null || echo "0")
               else
                 elf_size=0
               fi
-              
+
               if [ -f "$build_dir/zephyr/zephyr.bin" ]; then
                 bin_size=$(stat -c%s "$build_dir/zephyr/zephyr.bin" 2>/dev/null || echo "0")
               else
                 bin_size=0
               fi
-              
+
               elf_kb=$((elf_size / 1024))
               bin_kb=$((bin_size / 1024))
-              
+
               echo "| $board | $test | ${elf_kb} KB | ${bin_kb} KB | ${bin_kb} KB |" >> size_report.md
             fi
           done
-          
+
           echo "" >> size_report.md
           echo "Generated at: $(date)" >> size_report.md
           cat size_report.md
@@ -386,7 +386,7 @@ with open('gd32_test_${{ matrix.test_suite.name }}.json') as f:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-test-matrix.outputs.peripheral_groups) }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -405,12 +405,12 @@ with open('gd32_test_${{ matrix.test_suite.name }}.json') as f:
         run: |
           export ZEPHYR_BASE=$GITHUB_WORKSPACE
           source zephyr-env.sh
-          
+
           # 分别测试每个测试用例
           IFS=',' read -ra TESTS <<< "${{ matrix.peripheral_config.tests }}"
           for test in "${TESTS[@]}"; do
             echo "Testing $test on ${{ matrix.peripheral_config.description }}"
-            
+
             # 过滤开发板进行测试
             IFS=',' read -ra BOARDS <<< "${{ matrix.peripheral_config.boards }}"
             for board in "${BOARDS[@]}"; do
@@ -421,18 +421,18 @@ with open('gd32_test_${{ matrix.test_suite.name }}.json') as f:
             done
           done
 
-  # Job 4: 发布测试报告
+  # Job 5: 发布测试报告
   gd32-test-report:
     needs: [gd32-build-test, gd32-peripheral-test]
     if: always()
     runs-on: ubuntu-24.04
     permissions:
       checks: write
-  # Job 5: 发布测试报告
-  gd32-test-report:
-    needs: [gd32-build-test, gd32-peripheral-test]
-    if: always()
-    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
           path: artifacts
 
       - name: Install dependencies
@@ -443,7 +443,7 @@ with open('gd32_test_${{ matrix.test_suite.name }}.json') as f:
         run: |
           find artifacts -name '*.xml' -type f
           junitparser merge artifacts/*/*.xml merged_results.xml || echo "No XML files found"
-          
+
           if [ -f merged_results.xml ]; then
             junit2html merged_results.xml merged_results.html
           fi
