@@ -279,14 +279,7 @@ def west_build(
 
     cmd += ['-b', board_str, '-d', build_dir_str, test_path_str]
 
-    # Debug: FORCE print the exact command for debugging
-    print(f"[DEBUG] Command list: {cmd}")
-    print(f"[DEBUG] Command repr: {[repr(x) for x in cmd]}")
-    print(f"[DEBUG] Command joined: {' '.join(cmd)}")
     log.debug(f"Command: {' '.join(cmd)}")
-    log.debug(f"  board: '{board_str}'")
-    log.debug(f"  build_dir: '{build_dir_str}'")
-    log.debug(f"  test_path: '{test_path_str}'")
 
     try:
         result = subprocess.run(
@@ -314,13 +307,6 @@ def west_build(
             )
         else:
             # Extract relevant error message
-            print(f"[DEBUG] Build failed for {board}")
-            print(f"[DEBUG] Full output length: {len(output)}")
-            print(f"[DEBUG] First 1000 chars of output:")
-            print(output[:1000])
-            print(f"[DEBUG] Last 1000 chars of output:")
-            print(output[-1000:])
-            
             error_lines = [line for line in output.split('\n') if 'error:' in line.lower()]
             error_msg = '\n'.join(error_lines[-5:]) if error_lines else output[-500:]
 
