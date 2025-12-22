@@ -271,6 +271,11 @@ jobs:
           # 安装 Zephyr Python 依赖
           pip3 install --user -r scripts/requirements.txt
 
+          # 初始化 west workspace (关键步骤！)
+          west init -l .
+          
+          echo "West workspace initialized"
+
       - name: Download and setup Zephyr SDK
         run: |
           # 下载 Zephyr SDK (使用完整版或检查minimal是否可用)
