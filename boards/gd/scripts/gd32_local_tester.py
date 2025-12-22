@@ -307,7 +307,11 @@ def west_build(
             )
         else:
             # Extract relevant error message
-            error_lines = [line for line in output.split('\n') if 'error:' in line.lower() or 'fatal error:' in line.lower()]
+            error_lines = [
+                line
+                for line in output.split('\n')
+                if 'error:' in line.lower() or 'fatal error:' in line.lower()
+            ]
 
             if error_lines:
                 # Show last 5 error lines
