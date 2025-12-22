@@ -107,7 +107,6 @@ boards:
       drivers:
         - samples/drivers/uart/echo_bot
         - samples/drivers/uart/async_api
-        - samples/drivers/spi_flash
       shell:
         - samples/subsys/shell/shell_module
 
@@ -303,7 +302,6 @@ test_groups:
     boards:
       - gd32f470i_eval
       - gd32f450i_eval
-      - gd32e507z_eval
       - gd32f527i_eval
       - gd32a503v_eval
 

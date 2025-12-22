@@ -77,23 +77,30 @@ jobs:
           with open(matrix_file) as f:
               data = yaml.safe_load(f)
 
-          # 收集所有唯一的测试用例
-          test_suites = set()
-          for board_name, board_info in data.get('boards', {}).items():
-              for category, tests in board_info.get('test_suites', {}).items():
-                  for test in tests:
-                      test_suites.add(test)
+          # 从 test_groups 中收集测试用例和对应的板子
+          test_groups = data.get('test_groups', {})
+          test_suites = []
+
+          for group_name, group_info in test_groups.items():
+              tests = group_info.get('tests', [])
+              boards = group_info.get('boards', [])
+
+              # 处理 boards: all 的情况
+              if boards == 'all':
+                  boards = list(data.get('boards', {}).keys())
+              elif isinstance(boards, str):
+                  boards = [b.strip() for b in boards.split(',')]
+
+              # 为每个测试生成条目
+              for test in tests:
+                  test_suites.append({
+                      "name": test.replace('samples/', '').replace('tests/', '').replace('/', '_'),
+                      "path": test,
+                      "boards": ','.join(sorted(boards))
+                  })
 
           # 生成 GitHub Actions matrix
-          matrix = {
-              "test_suite": [
-                  {
-                      "name": test.replace('samples/', '').replace('tests/', '').replace('/', '_'),
-                      "path": test
-                  }
-                  for test in sorted(test_suites)
-              ]
-          }
+          matrix = {"test_suite": test_suites}
 
           import os
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -407,8 +414,16 @@ jobs:
           echo "ZEPHYR_SDK_INSTALL_DIR=$ZEPHYR_SDK_INSTALL_DIR"
 
           # 运行 GD32 本地测试脚本
+          # 将逗号分隔的板子列表转换为多个 -p 参数
+          IFS=',' read -ra BOARDS <<< "${{ matrix.test_suite.boards }}"
+          BOARD_ARGS=""
+          for board in "${BOARDS[@]}"; do
+            BOARD_ARGS="$BOARD_ARGS -p $board"
+          done
+
           python3 boards/gd/scripts/gd32_local_tester.py \
             -T ${{ matrix.test_suite.path }} \
+            $BOARD_ARGS \
             -j $(nproc) \
             --timeout 600 \
             --json-report gd32_test_${{ matrix.test_suite.name }}.json \
