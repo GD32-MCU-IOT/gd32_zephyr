@@ -286,14 +286,14 @@ jobs:
           # ============================================================
           # 更新 West 模块依赖
           # ============================================================
-          # 
+
           # 模块分类说明：
-          # 
+          #
           # 【核心必需】- 基本编译必须：
           #   hal_gigadevice: GD32 HAL库，包含pinctrl头文件、SOC驱动
           #   cmsis:          ARM CMSIS v5，Cortex-M标准接口
           #   cmsis_6:        ARM CMSIS v6，新特性和DSP优化
-          # 
+          #
           # 【扩展功能】- 高级测试需要：
           #   fatfs:          FAT32文件系统 (存储卡/Flash测试)
           #   littlefs:       嵌入式文件系统 (Flash磨损均衡)
@@ -303,22 +303,22 @@ jobs:
           #   mcuboot:        安全启动加载程序 (固件升级)
           #   picolibc:       轻量级C库 (减小固件大小)
           #   nanopb:         Protocol Buffers (IoT通信)
-          # 
+          #
           # 【不需要的】：
           #   bsim_hw_models: 蓝牙仿真 (仅Nordic模拟器)
           #   hal_nordic/nxp: 其他厂商HAL (不影响GD32)
           #   trusted-firmware: TEE安全固件 (高级安全特性)
           # ============================================================
-          
+
           echo "Current update strategy: ${{ env.WEST_UPDATE_STRATEGY }}"
-          
+
           # 核心模块 - 总是更新
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📦 Updating core modules..."
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           west update hal_gigadevice cmsis cmsis_6
           echo "✓ Core modules updated"
-          
+
           # 扩展模块 - 根据策略决定
           if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "extended" ] || [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
             echo ""
@@ -328,7 +328,7 @@ jobs:
             west update fatfs littlefs mbedtls net-tools || echo "⚠ Some extended modules may not exist"
             echo "✓ Extended modules updated"
           fi
-          
+
           # 完整模块 - 仅在full策略时
           if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
             echo ""
@@ -338,7 +338,7 @@ jobs:
             west update mcuboot lvgl picolibc nanopb openthread || echo "⚠ Some optional modules may not exist"
             echo "✓ Full modules updated"
           fi
-          
+
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "✅ Module update completed"
@@ -370,9 +370,23 @@ jobs:
 
           tar xf ${SDK_FILE}
 
-          # 设置 SDK (只安装ARM工具链)
+          # 设置 SDK
+          # 注意：GD32开发板包含两种架构：
+          # - ARM Cortex-M系列 (GD32F/E/A/L/C): 需要 arm-zephyr-eabi
+          # - RISC-V系列 (GD32VF103): 需要 riscv64-zephyr-elf
           cd zephyr-sdk-${ZEPHYR_SDK_VERSION}
+
+          # 安装ARM工具链（大部分GD32板子）
+          echo "Installing ARM toolchain for Cortex-M series..."
           ./setup.sh -t arm-zephyr-eabi -h -c
+
+          # 安装RISC-V工具链（GD32VF103系列）
+          echo "Installing RISC-V toolchain for GD32VF103 series..."
+          ./setup.sh -t riscv64-zephyr-elf -h -c
+
+          echo "✓ Toolchains installed:"
+          echo "  - arm-zephyr-eabi (GD32F/E/A/L/C series)"
+          echo "  - riscv64-zephyr-elf (GD32VF103 series)"
 
           # 导出 SDK 环境变量
           echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-${ZEPHYR_SDK_VERSION}" >> $GITHUB_ENV

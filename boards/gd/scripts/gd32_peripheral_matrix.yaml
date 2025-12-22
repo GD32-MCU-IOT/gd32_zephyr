@@ -14,12 +14,6 @@ boards:
     test_suites:
       basic:
         - samples/basic/blinky
-        - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
-        - samples/drivers/spi_flash
-      shell:
-        - samples/subsys/shell/shell_module
 
   gd32f450z_eval:
     series: gd32f4
@@ -32,9 +26,9 @@ boards:
       basic:
         - samples/basic/blinky
         - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
-        - samples/drivers/spi_flash
+      drivers:
+        - samples/drivers/uart/echo_bot
+        - samples/drivers/uart/async_api
       shell:
         - samples/subsys/shell/shell_module
 
@@ -45,12 +39,16 @@ boards:
       - gpio
       - i2c
       - spi
+      - eeprom
     test_suites:
       basic:
         - samples/basic/blinky
         - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/echo_bot
+        - samples/drivers/uart/async_api
+        - samples/drivers/spi_flash
+        - samples/drivers/eeprom
       shell:
         - samples/subsys/shell/shell_module
 
@@ -61,12 +59,16 @@ boards:
       - gpio
       - i2c
       - spi
+      - eeprom
     test_suites:
       basic:
         - samples/basic/blinky
-        - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/async_api
+        - samples/drivers/spi_flash
+        - samples/drivers/eeprom
+      shell:
+        - samples/subsys/shell/shell_module
 
   gd32f450v_start:
     series: gd32f4
@@ -76,7 +78,6 @@ boards:
     test_suites:
       basic:
         - samples/basic/blinky
-        - samples/hello_world
 
   gd32f403z_eval:
     series: gd32f4
@@ -88,9 +89,8 @@ boards:
     test_suites:
       basic:
         - samples/basic/blinky
-        - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/echo_bot
 
   # GD32E5 系列
   gd32e507z_eval:
@@ -104,8 +104,9 @@ boards:
       basic:
         - samples/basic/blinky
         - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/echo_bot
+        - samples/drivers/uart/async_api
         - samples/drivers/spi_flash
       shell:
         - samples/subsys/shell/shell_module
@@ -120,9 +121,6 @@ boards:
     test_suites:
       basic:
         - samples/basic/blinky
-        - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
 
   # GD32F5 系列
   gd32f527i_eval:
@@ -132,15 +130,16 @@ boards:
       - gpio
       - i2c
       - spi
-      - adc
-      - pwm
+      - eeprom
     test_suites:
       basic:
         - samples/basic/blinky
         - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/echo_bot
+        - samples/drivers/uart/async_api
         - samples/drivers/spi_flash
+        - samples/drivers/eeprom
       shell:
         - samples/subsys/shell/shell_module
 
@@ -153,10 +152,11 @@ boards:
       - i2c
     test_suites:
       basic:
-        - samples/basic/blinky
         - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/echo_bot
+      shell:
+        - samples/subsys/shell/shell_module
 
   # GD32E1 系列
   gd32e103v_eval:
@@ -165,10 +165,16 @@ boards:
       - uart
       - gpio
       - i2c
+      - eeprom
     test_suites:
       basic:
         - samples/basic/blinky
         - samples/hello_world
+      drivers:
+        - samples/drivers/uart/echo_bot
+        - samples/drivers/eeprom
+      shell:
+        - samples/subsys/shell/shell_module
 
   # GD32L2 系列
   gd32l233r_eval:
@@ -180,6 +186,10 @@ boards:
       basic:
         - samples/basic/blinky
         - samples/hello_world
+      drivers:
+        - samples/drivers/uart/echo_bot
+      shell:
+        - samples/subsys/shell/shell_module
 
   # GD32C2 系列
   gd32c231c_eval:
@@ -191,6 +201,8 @@ boards:
       basic:
         - samples/basic/blinky
         - samples/hello_world
+      drivers:
+        - samples/drivers/uart/echo_bot
 
   # GD32A5 系列
   gd32a503v_eval:
@@ -198,15 +210,23 @@ boards:
     peripherals:
       - uart
       - gpio
+      - spi
     test_suites:
       basic:
         - samples/basic/blinky
         - samples/hello_world
+      drivers:
+        - samples/drivers/uart/echo_bot
+        - samples/drivers/uart/async_api
+        - samples/drivers/spi_flash
+      shell:
+        - samples/subsys/shell/shell_module
 
   # GD32VF1 系列 (RISC-V)
   gd32vf103v_eval:
     series: gd32vf1
     arch: riscv
+    toolchain: riscv64-zephyr-elf
     peripherals:
       - uart
       - gpio
@@ -215,19 +235,21 @@ boards:
       basic:
         - samples/basic/blinky
         - samples/hello_world
-      communication:
-        - samples/drivers/i2c_scanner
+      drivers:
+        - samples/drivers/uart/echo_bot
+      shell:
+        - samples/subsys/shell/shell_module
 
   gd32vf103c_starter:
     series: gd32vf1
     arch: riscv
+    toolchain: riscv64-zephyr-elf
     peripherals:
       - uart
       - gpio
     test_suites:
       basic:
         - samples/basic/blinky
-        - samples/hello_world
 
 # 测试组定义（用于 CI 分组测试）
 test_groups:
@@ -239,11 +261,11 @@ test_groups:
       - samples/hello_world
     boards: all
 
-  # 组2: I2C 支持的开发板
-  i2c_capable:
-    description: "I2C 功能测试"
+  # 组2: UART echo_bot 驱动测试
+  uart_echo_bot:
+    description: "UART echo_bot 驱动功能测试"
     tests:
-      - samples/drivers/i2c_scanner
+      - samples/drivers/uart/echo_bot
     boards:
       - gd32f407v_start
       - gd32f450z_eval
@@ -255,59 +277,86 @@ test_groups:
       - gd32f527i_eval
       - gd32f350r_eval
       - gd32e103v_eval
+      - gd32l233r_eval
+      - gd32c231c_eval
+      - gd32a503v_eval
       - gd32vf103v_eval
 
-  # 组3: SPI 支持的开发板
-  spi_capable:
-    description: "SPI 功能测试"
+  # 组3: UART async_api 驱动测试
+  uart_async_api:
+    description: "UART async_api 驱动功能测试"
     tests:
-      - samples/drivers/spi_flash
-    boards:
-      - gd32f407v_start
-      - gd32f450z_eval
-      - gd32f470i_eval
-      - gd32f450i_eval
-      - gd32f403z_eval
-      - gd32e507z_eval
-      - gd32e507v_start
-      - gd32f527i_eval
+      # 组2: UART echo_bot 驱动测试
+      uart_echo_bot:
+        description: "UART echo_bot 驱动功能测试"
+        tests:
+          - samples/drivers/uart/echo_bot
+        boards:
+          - gd32f407v_start
+          - gd32f450z_eval
+          - gd32f470i_eval
+          - gd32f450i_eval
+          - gd32f403z_eval
+          - gd32e507z_eval
+          - gd32e507v_start
+          - gd32f527i_eval
+          - gd32f350r_eval
+          - gd32e103v_eval
+          - gd32l233r_eval
+          - gd32c231c_eval
+          - gd32a503v_eval
+          - gd32vf103v_eval
 
-  # # 组4: 网络支持的开发板
-  # network_capable:
-  #   description: "网络功能测试"
-  #   tests:
-  #     - samples/net/sockets/echo_client
-  #   boards:
-  #     - gd32f450z_eval
-  #     - gd32e507z_eval
+      # 组3: UART async_api 驱动测试
+      uart_async_api:
+        description: "UART async_api 驱动功能测试"
+        tests:
+          - samples/drivers/uart/async_api
+        boards:
+          - gd32f407v_start
+          - gd32f450z_eval
+          - gd32f470i_eval
+          - gd32f450i_eval
+          - gd32e507z_eval
+          - gd32f527i_eval
+          - gd32a503v_eval
 
-  # 组5: Shell 功能测试
-  shell_capable:
-    description: "Shell 功能测试"
-    tests:
-      - samples/subsys/shell/shell_module
-    boards:
-      - gd32f407v_start
-      - gd32f450z_eval
-      - gd32f470i_eval
-      - gd32e507z_eval
-      - gd32f527i_eval
+      # 组4: SPI Flash测试（只测试有板级配置的）
+      spi_flash:
+        description: "SPI Flash功能测试"
+        tests:
+          - samples/drivers/spi_flash
+        boards:
+          - gd32f470i_eval
+          - gd32f450i_eval
+          - gd32e507z_eval
+          - gd32f527i_eval
+          - gd32a503v_eval
 
-# CI 配置
-ci_config:
-  # 并行任务数
-  parallel_jobs: 4
+      # 组5: EEPROM测试（只测试有板级配置的）
+      eeprom:
+        description: "EEPROM功能测试"
+        tests:
+          - samples/drivers/eeprom
+        boards:
+          - gd32f470i_eval
+          - gd32f450i_eval
+          - gd32f527i_eval
+          - gd32e103v_eval
 
-  # 超时时间（秒）
-  build_timeout: 600
-
-  # 失败重试次数
-  retry_count: 2
-
-  # 清理策略
-  pristine: auto
-
-  # 报告格式
-  report_formats:
-    - json
-    - junit_xml
+      # 组6: Shell 功能测试
+      shell_capable:
+        description: "Shell 功能测试"
+        tests:
+          - samples/subsys/shell/shell_module
+        boards:
+          - gd32f450z_eval
+          - gd32f470i_eval
+          - gd32f450i_eval
+          - gd32e507z_eval
+          - gd32f527i_eval
+          - gd32f350r_eval
+          - gd32e103v_eval
+          - gd32l233r_eval
+          - gd32a503v_eval
+          - gd32vf103v_eval
