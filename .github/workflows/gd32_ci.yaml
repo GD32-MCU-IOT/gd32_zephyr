@@ -7,6 +7,14 @@ name: GD32 Boards CI Test
 #
 # 注意：代码格式检查（Checkpatch/GitLint/Identity等）由全局 compliance.yml 负责
 
+# 环境配置说明
+env:
+  # West 模块更新策略
+  # 'minimal': 只更新必需模块 (hal_gigadevice, cmsis, cmsis_6)
+  # 'extended': 额外更新常用模块 (fatfs, littlefs, mbedtls, net-tools)
+  # 'full': 更新所有相关模块 (包含 mcuboot, lvgl, picolibc 等)
+  WEST_UPDATE_STRATEGY: 'minimal'  # 可选: minimal | extended | full
+
 on:
   push:
     branches:
@@ -273,8 +281,79 @@ jobs:
 
           # 初始化 west workspace (关键步骤！)
           west init -l .
-          
           echo "West workspace initialized"
+
+          # ============================================================
+          # 更新 West 模块依赖
+          # ============================================================
+          # 
+          # 模块分类说明：
+          # 
+          # 【核心必需】- 基本编译必须：
+          #   hal_gigadevice: GD32 HAL库，包含pinctrl头文件、SOC驱动
+          #   cmsis:          ARM CMSIS v5，Cortex-M标准接口
+          #   cmsis_6:        ARM CMSIS v6，新特性和DSP优化
+          # 
+          # 【扩展功能】- 高级测试需要：
+          #   fatfs:          FAT32文件系统 (存储卡/Flash测试)
+          #   littlefs:       嵌入式文件系统 (Flash磨损均衡)
+          #   mbedtls:        TLS/SSL加密库 (安全通信)
+          #   net-tools:      网络测试工具 (Ethernet/WiFi测试)
+          #   lvgl:           GUI图形库 (LCD/显示测试)
+          #   mcuboot:        安全启动加载程序 (固件升级)
+          #   picolibc:       轻量级C库 (减小固件大小)
+          #   nanopb:         Protocol Buffers (IoT通信)
+          # 
+          # 【不需要的】：
+          #   bsim_hw_models: 蓝牙仿真 (仅Nordic模拟器)
+          #   hal_nordic/nxp: 其他厂商HAL (不影响GD32)
+          #   trusted-firmware: TEE安全固件 (高级安全特性)
+          # ============================================================
+          
+          echo "Current update strategy: ${{ env.WEST_UPDATE_STRATEGY }}"
+          
+          # 核心模块 - 总是更新
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Updating core modules..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          west update hal_gigadevice cmsis cmsis_6
+          echo "✓ Core modules updated"
+          
+          # 扩展模块 - 根据策略决定
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "extended" ] || [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Updating extended modules (FS + Network + Crypto)..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            west update fatfs littlefs mbedtls net-tools || echo "⚠ Some extended modules may not exist"
+            echo "✓ Extended modules updated"
+          fi
+          
+          # 完整模块 - 仅在full策略时
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Updating full module set (Bootloader + GUI + Advanced)..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            west update mcuboot lvgl picolibc nanopb openthread || echo "⚠ Some optional modules may not exist"
+            echo "✓ Full modules updated"
+          fi
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Module update completed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Strategy: ${{ env.WEST_UPDATE_STRATEGY }}"
+          echo "Modules updated:"
+          echo "  ✓ hal_gigadevice (GD32 HAL + pinctrl headers)"
+          echo "  ✓ cmsis (ARM CMSIS v5)"
+          echo "  ✓ cmsis_6 (ARM CMSIS v6)"
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" != "minimal" ]; then
+            echo "  ✓ Extended modules: fatfs, littlefs, mbedtls, net-tools"
+          fi
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
+            echo "  ✓ Full modules: mcuboot, lvgl, picolibc, nanopb, openthread"
+          fi
 
       - name: Download and setup Zephyr SDK
         run: |
