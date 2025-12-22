@@ -263,9 +263,27 @@ def west_build(
     if pristine != 'never':
         cmd += ['-p', pristine]
 
-    cmd += ['-b', board, '-d', str(build_dir), str(testcase.path)]
+    # Convert paths to strings and strip any whitespace
+    board_str = str(board).strip()
+    build_dir_str = str(build_dir).strip()
+    
+    # Convert test path to relative path from ZEPHYR_BASE
+    try:
+        test_path_relative = testcase.path.relative_to(zephyr_base)
+        test_path_str = str(test_path_relative)
+    except ValueError:
+        # If path is not relative to zephyr_base, use absolute path
+        test_path_str = str(testcase.path)
+    
+    test_path_str = test_path_str.strip()
 
+    cmd += ['-b', board_str, '-d', build_dir_str, test_path_str]
+
+    # Debug: log the exact command
     log.debug(f"Command: {' '.join(cmd)}")
+    log.debug(f"  board: '{board_str}'")
+    log.debug(f"  build_dir: '{build_dir_str}'")
+    log.debug(f"  test_path: '{test_path_str}'")
 
     try:
         result = subprocess.run(
