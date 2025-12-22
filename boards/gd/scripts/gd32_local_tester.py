@@ -307,14 +307,21 @@ def west_build(
             )
         else:
             # Extract relevant error message
-            error_lines = [line for line in output.split('\n') if 'error:' in line.lower()]
-            error_msg = '\n'.join(error_lines[-5:]) if error_lines else output[-500:]
+            error_lines = [line for line in output.split('\n') if 'error:' in line.lower() or 'fatal error:' in line.lower()]
+
+            if error_lines:
+                # Show last 5 error lines
+                error_msg = '\n'.join(error_lines[-5:])
+            else:
+                # No explicit error lines, show last part of output
+                output_lines = output.strip().split('\n')
+                error_msg = '\n'.join(output_lines[-10:])
 
             return BuildResult(
                 board=board,
                 testcase=testcase.name,
                 success=False,
-                message=f'Build failed: {error_msg}',
+                message=f'Build failed:\n{error_msg}',
                 duration=duration,
                 build_dir=build_dir,
                 log_output=output[-MAX_LOG_LENGTH:] if len(output) > MAX_LOG_LENGTH else output,
@@ -483,7 +490,10 @@ def print_summary(results: list[BuildResult], log: Logger):
         for r in results:
             if not r.success:
                 log.error(f"  - {r.board} :: {r.testcase}")
-                log.error(f"    {r.message[:100]}")
+                log.error(f"    {r.message}")
+                if r.log_output:
+                    log.error("    Build output (last 1000 chars):")
+                    log.error(f"    {r.log_output[-1000:]}")
 
 
 # ------------------------------------------------------------
