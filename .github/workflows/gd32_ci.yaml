@@ -50,7 +50,6 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       test_suites: ${{ steps.generate_suites.outputs.matrix }}
-      peripheral_groups: ${{ steps.generate_groups.outputs.matrix }}
 
     steps:
       - name: Checkout code
@@ -107,102 +106,6 @@ jobs:
               f.write(f"matrix={json.dumps(matrix)}\n")
 
           print("Generated test suites matrix:")
-          print(json.dumps(matrix, indent=2))
-          EOF
-
-      - name: Generate peripheral groups matrix
-        id: generate_groups
-        run: |
-          python3 - <<'EOF'
-          import yaml
-          import json
-          from pathlib import Path
-          from collections import defaultdict
-
-          # 读取外设矩阵配置
-          matrix_file = Path('boards/gd/scripts/gd32_peripheral_matrix.yaml')
-          with open(matrix_file) as f:
-              data = yaml.safe_load(f)
-
-          boards_data = data.get('boards', {})
-          groups = []
-
-          # 生成外设特定的测试组
-          # 组1: I2C 测试
-          i2c_boards = [name for name, info in boards_data.items()
-                        if 'i2c' in info.get('peripherals', [])]
-          if i2c_boards:
-              i2c_tests = set()
-              for board in i2c_boards:
-                  for tests in boards_data[board].get('test_suites', {}).values():
-                      for test in tests:
-                          if 'i2c' in test.lower():
-                              i2c_tests.add(test)
-
-              if i2c_tests:
-                  groups.append({
-                      'name': 'i2c',
-                      'boards': ','.join(sorted(i2c_boards)),
-                      'tests': ','.join(sorted(i2c_tests)),
-                      'description': 'I2C capable boards'
-                  })
-
-          # 组2: SPI 测试
-          spi_boards = [name for name, info in boards_data.items()
-                        if 'spi' in info.get('peripherals', [])]
-          if spi_boards:
-              spi_tests = set()
-              for board in spi_boards:
-                  for tests in boards_data[board].get('test_suites', {}).values():
-                      for test in tests:
-                          if 'spi' in test.lower():
-                              spi_tests.add(test)
-
-              if spi_tests:
-                  groups.append({
-                      'name': 'spi',
-                      'boards': ','.join(sorted(spi_boards)),
-                      'tests': ','.join(sorted(spi_tests)),
-                      'description': 'SPI capable boards'
-                  })
-
-          # 组3: Shell 测试
-          shell_tests = []
-          for board_name, board_info in boards_data.items():
-              for tests in board_info.get('test_suites', {}).values():
-                  for test in tests:
-                      if 'shell' in test.lower():
-                          shell_tests.append(test)
-
-          if shell_tests:
-              groups.append({
-                  'name': 'shell',
-                  'boards': ','.join(sorted(boards_data.keys())),
-                  'tests': ','.join(sorted(set(shell_tests))),
-                  'description': 'Shell subsystem tests'
-              })
-
-          # 组4: 基础测试（所有板子）
-          basic_tests = set()
-          for board_name, board_info in boards_data.items():
-              basic_suite = board_info.get('test_suites', {}).get('basic', [])
-              basic_tests.update(basic_suite)
-
-          if basic_tests:
-              groups.append({
-                  'name': 'basic',
-                  'boards': ','.join(sorted(boards_data.keys())),
-                  'tests': ','.join(sorted(basic_tests)),
-                  'description': 'Basic tests for all boards'
-              })
-
-          matrix = {'peripheral_config': groups} if groups else {'peripheral_config': []}
-
-          import os
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"matrix={json.dumps(matrix)}\n")
-
-          print("Generated peripheral groups matrix:")
           print(json.dumps(matrix, indent=2))
           EOF
 
@@ -516,52 +419,9 @@ jobs:
             "
           fi
 
-  # Job 4: 外设功能测试（使用动态生成的外设分组）
-  gd32-peripheral-test:
-    needs: [generate-test-matrix, gd32-change-detection]
-    if: needs.gd32-change-detection.outputs.has_changes == 'true'
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.generate-test-matrix.outputs.peripheral_groups) }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          pip install pyyaml junitparser
-          # 省略 Zephyr 环境设置（与上面相同）
-
-      - name: Test peripheral support
-        run: |
-          export ZEPHYR_BASE=$GITHUB_WORKSPACE
-          source zephyr-env.sh
-
-          # 分别测试每个测试用例
-          IFS=',' read -ra TESTS <<< "${{ matrix.peripheral_config.tests }}"
-          for test in "${TESTS[@]}"; do
-            echo "Testing $test on ${{ matrix.peripheral_config.description }}"
-
-            # 过滤开发板进行测试
-            IFS=',' read -ra BOARDS <<< "${{ matrix.peripheral_config.boards }}"
-            for board in "${BOARDS[@]}"; do
-              python3 boards/gd/scripts/gd32_local_tester.py \
-                -T "$test" \
-                -p "$board" \
-                --timeout 300
-            done
-          done
-
-  # Job 5: 发布测试报告
+  # Job 4: 发布测试报告
   gd32-test-report:
-    needs: [gd32-build-test, gd32-peripheral-test]
+    needs: [gd32-build-test]
     if: always()
     runs-on: ubuntu-24.04
     permissions:
