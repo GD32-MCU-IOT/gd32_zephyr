@@ -117,6 +117,23 @@
 			status = "disabled";
 		};
 
+		syscfg: syscfg@40010000 {
+			compatible = "gd,gd32-syscfg";
+			reg = <0x40010000 0x400>;
+			clocks = <&cctl GD32_CLOCK_CFGCMP>;
+		};
+
+		exti: interrupt-controller@40010400 {
+			compatible = "gd,gd32-exti";
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			reg = <0x40010400 0x400>;
+			num-lines = <28>;
+			interrupts = <5 0>, <6 0>, <7 0>;
+			interrupt-names = "line0-1", "line2-3", "line4-15";
+			status = "okay";
+		};
+
 		pinctrl: pin-controller@48000000 {
 			compatible = "gd,gd32-pinctrl-af";
 			reg = <0x48000000 0x1800>;

@@ -20,9 +20,22 @@
 		zephyr,flash-controller = &fmc;
 	};
 
+	leds {
+		compatible = "gpio-leds";
+		led0: led0 {
+			gpios = <&gpioc 10 GPIO_ACTIVE_HIGH>;
+			label = "LED0";
+		};
+	};
+
 	aliases {
+		led0 = &led0;
 		watchdog0 = &fwdgt;
 	};
+};
+
+&gpioc {
+	status = "okay";
 };
 
 &usart0 {
