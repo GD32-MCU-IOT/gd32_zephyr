@@ -45,6 +45,11 @@ struct gd32_exti_data {
 };
 
 #ifdef CONFIG_GPIO_GD32
+#if defined(CONFIG_SOC_SERIES_GD32F3X0)
+static const struct gd32_exti_range line0_1_range = {0U, 1U};
+static const struct gd32_exti_range line2_3_range = {2U, 3U};
+static const struct gd32_exti_range line4_15_range = {4U, 15U};
+#else
 static const struct gd32_exti_range line0_range = {0U, 0U};
 static const struct gd32_exti_range line1_range = {1U, 1U};
 static const struct gd32_exti_range line2_range = {2U, 2U};
@@ -52,6 +57,7 @@ static const struct gd32_exti_range line3_range = {3U, 3U};
 static const struct gd32_exti_range line4_range = {4U, 4U};
 static const struct gd32_exti_range line5_9_range = {5U, 9U};
 static const struct gd32_exti_range line10_15_range = {10U, 15U};
+#endif /* CONFIG_SOC_SERIES_GD32F3X0 */
 #endif /* CONFIG_GPIO_GD32 */
 
 /** @brief Obtain line IRQ number if enabled. */
@@ -59,6 +65,24 @@ static const struct gd32_exti_range line10_15_range = {10U, 15U};
 	COND_CODE_1(enabled, (DT_INST_IRQ_BY_NAME(0, line, irq)), (EXTI_NOTSUP))
 
 static const uint8_t line2irq[NUM_EXTI_LINES] = {
+#if defined(CONFIG_SOC_SERIES_GD32F3X0)
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line0_1),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line0_1),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line2_3),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line2_3),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line4_15),
+#else
 	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line0),
 	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line1),
 	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line2),
@@ -75,6 +99,7 @@ static const uint8_t line2irq[NUM_EXTI_LINES] = {
 	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line10_15),
 	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line10_15),
 	EXTI_LINE_IRQ_COND(CONFIG_GPIO_GD32, line10_15),
+#endif /* CONFIG_SOC_SERIES_GD32F3X0 */
 	EXTI_NOTSUP,
 	EXTI_NOTSUP,
 	EXTI_NOTSUP,
@@ -160,6 +185,19 @@ int gd32_exti_configure(uint8_t line, gd32_exti_cb_t cb, void *user)
 static int gd32_exti_init(const struct device *dev)
 {
 #ifdef CONFIG_GPIO_GD32
+#if defined(CONFIG_SOC_SERIES_GD32F3X0)
+	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, line0_1, irq),
+		    DT_INST_IRQ_BY_NAME(0, line0_1, priority),
+		    gd32_exti_isr, &line0_1_range, 0);
+
+	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, line2_3, irq),
+		    DT_INST_IRQ_BY_NAME(0, line2_3, priority),
+		    gd32_exti_isr, &line2_3_range, 0);
+
+	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, line4_15, irq),
+		    DT_INST_IRQ_BY_NAME(0, line4_15, priority),
+		    gd32_exti_isr, &line4_15_range, 0);
+#else
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, line0, irq),
 		    DT_INST_IRQ_BY_NAME(0, line0, priority),
 		    gd32_exti_isr, &line0_range, 0);
@@ -187,6 +225,7 @@ static int gd32_exti_init(const struct device *dev)
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, line10_15, irq),
 		    DT_INST_IRQ_BY_NAME(0, line10_15, priority),
 		    gd32_exti_isr, &line10_15_range, 0);
+#endif /* CONFIG_SOC_SERIES_GD32F3X0 */
 #endif /* CONFIG_GPIO_GD32 */
 
 	return 0;
