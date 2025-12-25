@@ -1,4 +1,5 @@
 # Copyright (c) 2021 ATL-Electronics
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 if(CONFIG_HAS_GD32_HAL)

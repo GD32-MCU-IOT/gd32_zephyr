@@ -11,7 +11,7 @@
 LOG_MODULE_REGISTER(i2c_gd32_common, CONFIG_I2C_LOG_LEVEL);
 
 #include "i2c-priv.h"
-#include "i2c_gd32.h"
+#include "i2c_gd32_common.h"
 
 #if defined(CONFIG_I2C_GD32_I2C_V3)
 #define DT_DRV_COMPAT gd_gd32_i2c_v3

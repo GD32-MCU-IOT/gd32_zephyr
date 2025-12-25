@@ -12,7 +12,7 @@
 LOG_MODULE_REGISTER(i2c_gd32, CONFIG_I2C_LOG_LEVEL);
 
 #include "i2c-priv.h"
-#include "i2c_gd32.h"
+#include "i2c_gd32_common.h"
 
 #ifdef CONFIG_I2C_GD32_DMA
 static uint32_t dummy_tx;
