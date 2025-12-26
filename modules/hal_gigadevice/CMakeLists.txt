@@ -1,4 +1,5 @@
 # Copyright (c) 2021 ATL-Electronics
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 if(CONFIG_HAS_GD32_HAL)
@@ -81,7 +82,10 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_EXTI     ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_FMC      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_fmc.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_FWDGT    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_fwdgt.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_GPIO     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_gpio.c)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V1   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V2   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_IPA      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_ipa.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_IREF     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_iref.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_MISC     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_misc.c)

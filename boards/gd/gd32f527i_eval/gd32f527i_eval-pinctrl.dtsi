@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2025, GigaDevice Semiconductor Inc.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -33,6 +34,41 @@
 	i2c0_default: i2c0_default {
 		group1 {
 			pinmux = <I2C0_SCL_PB6>, <I2C0_SDA_PB7>;
+			drive-open-drain;
+		};
+	};
+
+	i2c1_default: i2c1_default {
+		group1 {
+			pinmux = <I2C1_SCL_PB10>, <I2C1_SDA_PB11>;
+			drive-open-drain;
+		};
+	};
+
+	i2c2_default: i2c2_default {
+		group1 {
+			pinmux = <I2C2_SCL_PA8>, <I2C2_SDA_PC9>;
+			drive-open-drain;
+		};
+	};
+
+	i2c3_default: i2c3_default {
+		group1 {
+			pinmux = <I2C3_SCL_PF14>, <I2C3_SDA_PF15>;
+			drive-open-drain;
+		};
+	};
+
+	i2c4_default: i2c4_default {
+		group1 {
+			pinmux = <I2C4_SCL_PF1>, <I2C4_SDA_PF0>;
+			drive-open-drain;
+		};
+	};
+
+	i2c5_default: i2c5_default {
+		group1 {
+			pinmux = <I2C5_SCL_PF11>, <I2C5_SDA_PF12>;
 			drive-open-drain;
 		};
 	};

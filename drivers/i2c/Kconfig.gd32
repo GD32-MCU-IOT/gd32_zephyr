@@ -1,10 +1,87 @@
 # Copyright (c) 2021 BrainCo Inc.
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 config I2C_GD32
 	bool "GigaDevice GD32 I2C driver"
 	default y
-	depends on DT_HAS_GD_GD32_I2C_ENABLED
+	depends on DT_HAS_GD_GD32_I2C_ENABLED || \
+		   DT_HAS_GD_GD32_I2C_V2_ENABLED || \
+		   DT_HAS_GD_GD32_I2C_V3_ENABLED
 	select PINCTRL
+	select USE_GD32_I2C
 	help
-	  Enables GigaDevice GD32 I2C driver
+	  Enable I2C support on the GD32 SoCs
+
+config USE_GD32_I2C_V1
+	bool "I2C driver version 1"
+	default y
+	depends on DT_HAS_GD_GD32_I2C_ENABLED
+	select I2C_GD32_I2C_V1
+	help
+		Driver variant matching `gd,gd32-i2c` compatible.
+		This is the original driver implementation for GD32F4XX and other earlier series.
+
+config USE_GD32_I2C_V2
+	bool "I2C driver version 2"
+	default y
+	depends on DT_HAS_GD_GD32_I2C_V2_ENABLED
+	select I2C_GD32_I2C_V2
+	help
+		Driver variant matching `gd,gd32-i2c-v2` compatible.
+		This version includes enhanced features and optimizations for GD32H7XX and newer series.
+
+config USE_GD32_I2C_V3
+	bool "I2C driver version 3"
+	default y
+	depends on DT_HAS_GD_GD32_I2C_V3_ENABLED
+	select I2C_GD32_I2C_V3
+	help
+		Driver variant matching `gd,gd32-i2c-v3` compatible.
+		This is the latest version with full feature support for GD32F527 series.
+
+config I2C_GD32_I2C_V1
+	bool
+	help
+		Internal symbol for I2C driver version 1.
+
+config I2C_GD32_I2C_V2
+	bool
+	help
+		Internal symbol for I2C driver version 2.
+
+config I2C_GD32_I2C_V3
+	bool
+	help
+		Internal symbol for I2C driver version 3.
+
+config I2C_GD32_DMA
+	bool "GD32 I2C DMA support"
+	depends on I2C_GD32 && DMA
+	help
+	  Enable DMA support for GD32 I2C controllers.
+	  This can significantly improve performance for large transfers
+	  by offloading data movement from the CPU to the DMA controller.
+
+if I2C_GD32_DMA
+
+config I2C_GD32_DMA_THRESHOLD
+	int "DMA transfer threshold"
+	default 16
+	range 4 255
+	help
+	  Minimum transfer size (in bytes) to use DMA instead of PIO mode.
+	  Transfers smaller than this threshold will use PIO mode.
+	  Larger values reduce DMA setup overhead for small transfers.
+	  Default of 16 bytes provides good balance for most applications.
+
+config I2C_GD32_DMA_TIMEOUT
+	int "DMA transfer timeout (ms)"
+	default 1000
+	range 100 10000
+	help
+	  Timeout in milliseconds for DMA transfers.
+	  If a DMA transfer does not complete within this time,
+	  it will be considered failed.
+
+endif # I2C_GD32_DMA

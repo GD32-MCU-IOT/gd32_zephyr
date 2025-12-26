@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2025, GigaDevice Semiconductor Inc.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -29,11 +30,85 @@
 
 	aliases {
 		led0 = &led0;
+		eeprom-0 = &eeprom0;
+	};
+};
+&gpiob {
+	status = "okay";
+};
+&gpiof {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 7 1 0x440 0>, <&dma0 5 1 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		status = "okay";
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
 	};
 };
 
-&gpiof {
-	status = "okay";
+&i2c1 {
+	status = "disabled";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 7 7 0x440 0>, <&dma0 3 7 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+};
+
+&i2c2 {
+	status = "disabled";
+	pinctrl-0 = <&i2c2_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 4 3 0x440 0>, <&dma0 2 3 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+};
+&i2c3 {
+	status = "disabled";
+	pinctrl-0 = <&i2c3_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 6 0 0x440 0>, <&dma0 1 0 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <100000>;
+};
+
+&i2c4 {
+	status = "disabled";
+	pinctrl-0 = <&i2c4_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 3 1 0x440 0>, <&dma0 1 1 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <400000>;
+
+};
+
+&i2c5 {
+	status = "disabled";
+	pinctrl-0 = <&i2c5_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 7 6 0x440 0>, <&dma0 5 6 0x480 0>;
+	dma-names = "tx", "rx";
+	clock-frequency = <400000>;
 };
 
 &usart0 {
