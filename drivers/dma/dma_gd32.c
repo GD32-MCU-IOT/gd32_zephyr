@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 TOKITA Hiroshi <tokita.hiroshi@gmail.com>
- *
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 

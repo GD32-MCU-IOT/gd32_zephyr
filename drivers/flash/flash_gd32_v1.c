@@ -17,17 +17,31 @@ LOG_MODULE_DECLARE(flash_gd32);
 #define GD32_NV_FLASH_V1_PAGE_SIZE	DT_PROP(GD32_NV_FLASH_V1_NODE, page_size)
 
 #if defined(CONFIG_SOC_SERIES_GD32E10X) || \
-	defined(CONFIG_SOC_SERIES_GD32E50X)
+	defined(CONFIG_SOC_SERIES_GD32E50X) || \
+	defined(CONFIG_SOC_SERIES_GD32F527)
 /* Some GD32 FMC v1 series require offset and len to word aligned. */
 #define GD32_FMC_V1_WORK_ALIGNED
 #endif
 
-#ifdef FLASH_GD32_FMC_WORK_ALIGNED
-#define GD32_FMC_V1_WRITE_ERR	(FMC_STAT_PGERR | FMC_STAT_WPERR | FMC_STAT_PGAERR)
+#ifdef GD32_FMC_V1_WORK_ALIGNED
+#define GD32_FMC_V1_WRITE_ERR_COMMON	(FMC_STAT_WPERR | FMC_STAT_PGAERR)
 #else
-#define GD32_FMC_V1_WRITE_ERR	(FMC_STAT_PGERR | FMC_STAT_WPERR)
+#define GD32_FMC_V1_WRITE_ERR_COMMON	(FMC_STAT_WPERR)
 #endif
-#define GD32_FMC_V1_ERASE_ERR	FMC_STAT_WPERR
+
+#if defined(CONFIG_SOC_SERIES_GD32F527)
+/* GD32F527 does not define FMC_STAT_PGERR; use its detailed status flags. */
+#define GD32_FMC_V1_WRITE_ERR		(FMC_STAT_OPERR | FMC_STAT_PGSERR | \
+					 FMC_STAT_PGMERR | GD32_FMC_V1_WRITE_ERR_COMMON)
+#define GD32_FMC_V1_ERASE_ERR		(FMC_STAT_OPERR | FMC_STAT_WPERR)
+#else
+#ifdef GD32_FMC_V1_WORK_ALIGNED
+#define GD32_FMC_V1_WRITE_ERR		(FMC_STAT_PGERR | FMC_STAT_WPERR | FMC_STAT_PGAERR)
+#else
+#define GD32_FMC_V1_WRITE_ERR		(FMC_STAT_PGERR | FMC_STAT_WPERR)
+#endif
+#define GD32_FMC_V1_ERASE_ERR		FMC_STAT_WPERR
+#endif
 
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
 static const struct flash_pages_layout gd32_fmc_v1_layout[] = {
@@ -141,9 +155,16 @@ static int gd32_fmc_v1_page_erase(uint32_t page_addr)
 		return -EBUSY;
 	}
 
-	FMC_CTL |= FMC_CTL_PER;
 
+#ifdef CONFIG_SOC_SERIES_GD32F527
+	/* GD32F527 page erase is configured via FMC_PECFG and triggered with START. */
+	FMC_PEKEY = UNLOCK_PE_KEY;
+	FMC_PECFG = FMC_PECFG_PE_EN | (page_addr & FMC_PECFG_PE_ADDR);
+	FMC_CTL |= FMC_CTL_SER;
+#else
+	FMC_CTL |= FMC_CTL_PER;
 	FMC_ADDR = page_addr;
+#endif
 
 	FMC_CTL |= FMC_CTL_START;
 
@@ -159,7 +180,13 @@ static int gd32_fmc_v1_page_erase(uint32_t page_addr)
 	}
 
 expired_out:
+
+#ifdef CONFIG_SOC_SERIES_GD32F527
+	FMC_PECFG &= ~FMC_PECFG_PE_EN;
+	FMC_CTL &= ~FMC_CTL_SER;
+#else
 	FMC_CTL &= ~FMC_CTL_PER;
+#endif
 
 	gd32_fmc_v1_lock();
 
