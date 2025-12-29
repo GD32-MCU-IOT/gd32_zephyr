@@ -1,0 +1,87 @@
+# Copyright (c) 2025 Gigadevice Semiconductor Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# GD32 外设测试矩阵配置文件
+# 测试组定义（用于 CI 分组测试）
+test_groups:
+  # 组1: 基础功能（所有板子都必须通过）
+  essential:
+    description: "基础功能测试 - 所有开发板必须通过"
+    tests:
+      - samples/basic/blinky
+      - samples/hello_world
+    boards: all
+
+  # 组2: UART echo_bot 驱动测试
+  uart_echo_bot:
+    description: "UART echo_bot 驱动功能测试"
+    tests:
+      - samples/drivers/uart/echo_bot
+    boards:
+      - gd32a503v_eval
+      - gd32c231c_eval
+      - gd32e103v_eval
+      - gd32e507v_start
+      - gd32e507z_eval
+      - gd32f350r_eval
+      - gd32f403z_eval
+      - gd32f407v_start
+      - gd32f450i_eval
+      - gd32f450z_eval
+      - gd32f470i_eval
+      - gd32f527i_eval
+      - gd32l233r_eval
+      - gd32vf103v_eval
+
+  # 组3: UART async_api 驱动测试
+  uart_async_api:
+    description: "UART async_api 驱动功能测试"
+    tests:
+      - samples/drivers/uart/async_api
+    boards:
+      - gd32a503v_eval
+      - gd32e507z_eval
+      - gd32f450i_eval
+      - gd32f450z_eval
+      - gd32f470i_eval
+      - gd32f527i_eval
+
+  # 组4: SPI Flash测试（只测试有板级配置的）
+  spi_flash:
+    description: "SPI Flash功能测试"
+    tests:
+      - samples/drivers/spi_flash
+    boards:
+      - gd32a503v_eval
+      - gd32f450i_eval
+      - gd32f470i_eval
+      - gd32f527i_eval
+
+  # 组5: EEPROM测试（只测试有板级配置的）
+  eeprom:
+    description: "EEPROM功能测试"
+    tests:
+      - samples/drivers/eeprom
+    boards:
+      - gd32e103v_eval
+      - gd32f450i_eval
+      - gd32f470i_eval
+      - gd32f527i_eval
+
+  # 组6: Shell 功能测试
+  shell_capable:
+    description: "Shell 功能测试"
+    tests:
+      - samples/subsys/shell/shell_module
+    boards:
+      - gd32a503v_eval
+      - gd32e103v_eval
+      - gd32e507z_eval
+      - gd32f350r_eval
+      - gd32f450i_eval
+      - gd32f450z_eval
+      - gd32f470i_eval
+      - gd32f527i_eval
+      - gd32l233r_eval
+      - gd32vf103v_eval
