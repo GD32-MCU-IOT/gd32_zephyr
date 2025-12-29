@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 TOKITA Hiroshi <tokita.hiroshi@gmail.com>
- *
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -698,7 +698,7 @@ static DEVICE_API(dma, dma_gd32_driver_api) = {
                                                                                \
 	DEVICE_DT_INST_DEFINE(inst, dma_gd32_init, NULL,                       \
 			      &dma_gd32##inst##_data,                          \
-			      &dma_gd32##inst##_config, POST_KERNEL,           \
+			      &dma_gd32##inst##_config, PRE_KERNEL_1,           \
 			      CONFIG_DMA_INIT_PRIORITY, &dma_gd32_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(GD32_DMA_INIT)
