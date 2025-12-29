@@ -1,0 +1,466 @@
+name: GD32 Boards CI Test
+
+# 此 workflow 专注于 GD32 开发板的功能测试：
+# - 编译测试（多种测试用例）
+# - 外设功能测试（根据外设矩阵）
+# - 测试报告生成
+#
+# 注意：代码格式检查（Checkpatch/GitLint/Identity等）由全局 compliance.yml 负责
+
+# 环境配置说明
+env:
+  # West 模块更新策略
+  # 'minimal': 只更新必需模块 (hal_gigadevice, cmsis, cmsis_6)
+  # 'extended': 额外更新常用模块 (fatfs, littlefs, mbedtls, net-tools)
+  # 'full': 更新所有相关模块 (包含 mcuboot, lvgl, picolibc 等)
+  WEST_UPDATE_STRATEGY: 'minimal'  # 可选: minimal | extended | full
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/gd32-*'
+    paths:
+      - 'boards/gd/**'
+      - 'soc/gd/**'
+      - 'dts/gd/**'
+      - 'drivers/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'boards/gd/**'
+      - 'soc/gd/**'
+      - 'dts/gd/**'
+      - 'drivers/**'
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: 从外设矩阵生成测试配置
+  generate-test-matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      test_suites: ${{ steps.generate_suites.outputs.matrix }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Generate test suites matrix
+        id: generate_suites
+        run: |
+          python3 - <<'EOF'
+          import yaml
+          import json
+          from pathlib import Path
+
+          # 读取外设矩阵配置
+          matrix_file = Path('boards/gd/scripts/gd32_peripheral_matrix.yaml')
+          with open(matrix_file) as f:
+              data = yaml.safe_load(f)
+
+          # 从 test_groups 中收集测试用例和对应的板子
+          test_groups = data.get('test_groups', {})
+          test_suites = []
+
+          for group_name, group_info in test_groups.items():
+              tests = group_info.get('tests', [])
+              boards = group_info.get('boards', [])
+
+              # 处理 boards: all 的情况
+              if boards == 'all':
+                  boards = list(data.get('boards', {}).keys())
+              elif isinstance(boards, str):
+                  boards = [b.strip() for b in boards.split(',')]
+
+              # 为每个测试生成条目
+              for test in tests:
+                  test_suites.append({
+                      "name": test.replace('samples/', '').replace('tests/', '').replace('/', '_'),
+                      "path": test,
+                      "boards": ','.join(sorted(boards))
+                  })
+
+          # 生成 GitHub Actions matrix
+          matrix = {"test_suite": test_suites}
+
+          import os
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"matrix={json.dumps(matrix)}\n")
+
+          print("Generated test suites matrix:")
+          print(json.dumps(matrix, indent=2))
+          EOF
+
+  # Job 2: 检测 GD32 相关改动
+  gd32-change-detection:
+    runs-on: ubuntu-24.04
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      changed_boards: ${{ steps.detect_boards.outputs.boards }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Check if GD32 files changed
+        id: check_changes
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD)
+          fi
+
+          if echo "$CHANGED_FILES" | grep -E '^(boards/gd|soc/gd|dts/gd|drivers/)'; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "GD32 相关文件发生变更"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "无 GD32 相关文件变更"
+          fi
+
+      - name: Detect changed boards
+        id: detect_boards
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          # 检测变更的开发板
+          BOARDS=$(find boards/gd -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | grep -v scripts | sort | tr '\n' ',' | sed 's/,$//')
+          echo "boards=$BOARDS" >> $GITHUB_OUTPUT
+          echo "检测到的 GD32 开发板: $BOARDS"
+
+  # Job 3: GD32 开发板编译测试（使用动态生成的测试矩阵）
+  gd32-build-test:
+    needs: [generate-test-matrix, gd32-change-detection]
+    if: needs.gd32-change-detection.outputs.has_changes == 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-test-matrix.outputs.test_suites) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyyaml junitparser
+
+      - name: Setup Zephyr environment
+        run: |
+          # 安装系统依赖
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake ninja-build gperf ccache dfu-util \
+            device-tree-compiler wget python3-dev python3-pip \
+            python3-setuptools python3-tk python3-wheel xz-utils \
+            file make gcc gcc-multilib g++-multilib libsdl2-dev \
+            libmagic1
+
+          # 安装 west 到用户目录并添加到PATH
+          pip3 install --user west
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          # 安装 Zephyr Python 依赖
+          pip3 install --user -r scripts/requirements.txt
+
+          # 初始化 west workspace (关键步骤！)
+          west init -l .
+          echo "West workspace initialized"
+
+          # ============================================================
+          # 更新 West 模块依赖
+          # ============================================================
+
+          # 模块分类说明：
+          #
+          # 【核心必需】- 基本编译必须：
+          #   hal_gigadevice: GD32 HAL库，包含pinctrl头文件、SOC驱动
+          #   cmsis:          ARM CMSIS v5，Cortex-M标准接口
+          #   cmsis_6:        ARM CMSIS v6，新特性和DSP优化
+          #
+          # 【扩展功能】- 高级测试需要：
+          #   fatfs:          FAT32文件系统 (存储卡/Flash测试)
+          #   littlefs:       嵌入式文件系统 (Flash磨损均衡)
+          #   mbedtls:        TLS/SSL加密库 (安全通信)
+          #   net-tools:      网络测试工具 (Ethernet/WiFi测试)
+          #   lvgl:           GUI图形库 (LCD/显示测试)
+          #   mcuboot:        安全启动加载程序 (固件升级)
+          #   picolibc:       轻量级C库 (减小固件大小)
+          #   nanopb:         Protocol Buffers (IoT通信)
+          #
+          # 【不需要的】：
+          #   bsim_hw_models: 蓝牙仿真 (仅Nordic模拟器)
+          #   hal_nordic/nxp: 其他厂商HAL (不影响GD32)
+          #   trusted-firmware: TEE安全固件 (高级安全特性)
+          # ============================================================
+
+          echo "Current update strategy: ${{ env.WEST_UPDATE_STRATEGY }}"
+
+          # 核心模块 - 总是更新
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Updating core modules..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          west update hal_gigadevice cmsis cmsis_6
+          echo "✓ Core modules updated"
+
+          # 扩展模块 - 根据策略决定
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "extended" ] || [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Updating extended modules (FS + Network + Crypto)..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            west update fatfs littlefs mbedtls net-tools || echo "⚠ Some extended modules may not exist"
+            echo "✓ Extended modules updated"
+          fi
+
+          # 完整模块 - 仅在full策略时
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Updating full module set (Bootloader + GUI + Advanced)..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            west update mcuboot lvgl picolibc nanopb openthread || echo "⚠ Some optional modules may not exist"
+            echo "✓ Full modules updated"
+          fi
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Module update completed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Strategy: ${{ env.WEST_UPDATE_STRATEGY }}"
+          echo "Modules updated:"
+          echo "  ✓ hal_gigadevice (GD32 HAL + pinctrl headers)"
+          echo "  ✓ cmsis (ARM CMSIS v5)"
+          echo "  ✓ cmsis_6 (ARM CMSIS v6)"
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" != "minimal" ]; then
+            echo "  ✓ Extended modules: fatfs, littlefs, mbedtls, net-tools"
+          fi
+          if [ "${{ env.WEST_UPDATE_STRATEGY }}" = "full" ]; then
+            echo "  ✓ Full modules: mcuboot, lvgl, picolibc, nanopb, openthread"
+          fi
+
+      - name: Download and setup Zephyr SDK
+        run: |
+          # 下载 Zephyr SDK (使用完整版或检查minimal是否可用)
+          cd ~
+          ZEPHYR_SDK_VERSION=$(cat $GITHUB_WORKSPACE/SDK_VERSION)
+
+          # 尝试下载minimal版本，如果失败则使用完整版
+          SDK_FILE="zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          if ! wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/${SDK_FILE}; then
+            SDK_FILE="zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz"
+            wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/${SDK_FILE}
+          fi
+
+          tar xf ${SDK_FILE}
+
+          # 设置 SDK
+          # 注意：GD32开发板包含两种架构：
+          # - ARM Cortex-M系列 (GD32F/E/A/L/C): 需要 arm-zephyr-eabi
+          # - RISC-V系列 (GD32VF103): 需要 riscv64-zephyr-elf
+          cd zephyr-sdk-${ZEPHYR_SDK_VERSION}
+
+          # 安装ARM工具链（大部分GD32板子）
+          echo "Installing ARM toolchain for Cortex-M series..."
+          ./setup.sh -t arm-zephyr-eabi -h -c
+
+          # 安装RISC-V工具链（GD32VF103系列）
+          echo "Installing RISC-V toolchain for GD32VF103 series..."
+          ./setup.sh -t riscv64-zephyr-elf -h -c
+
+          echo "✓ Toolchains installed:"
+          echo "  - arm-zephyr-eabi (GD32F/E/A/L/C series)"
+          echo "  - riscv64-zephyr-elf (GD32VF103 series)"
+
+          # 导出 SDK 环境变量
+          echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-${ZEPHYR_SDK_VERSION}" >> $GITHUB_ENV
+
+      - name: Run GD32 build test
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}
+        run: |
+          # 确保 west 在 PATH 中
+          export PATH="$HOME/.local/bin:$PATH"
+
+          # 设置 Zephyr 环境
+          source zephyr-env.sh
+
+          # 验证环境
+          west --version
+          echo "ZEPHYR_BASE=$ZEPHYR_BASE"
+          echo "ZEPHYR_SDK_INSTALL_DIR=$ZEPHYR_SDK_INSTALL_DIR"
+
+          # 运行 GD32 本地测试脚本
+          # 将逗号分隔的板子列表转换为多个 -p 参数
+          IFS=',' read -ra BOARDS <<< "${{ matrix.test_suite.boards }}"
+          BOARD_ARGS=""
+          for board in "${BOARDS[@]}"; do
+            BOARD_ARGS="$BOARD_ARGS -p $board"
+          done
+
+          python3 boards/gd/scripts/gd32_local_tester.py \
+            -T ${{ matrix.test_suite.path }} \
+            $BOARD_ARGS \
+            -j $(nproc) \
+            --timeout 600 \
+            --json-report gd32_test_${{ matrix.test_suite.name }}.json \
+            --junit-xml gd32_test_${{ matrix.test_suite.name }}.xml
+
+      - name: Generate firmware size report
+        if: always()
+        run: |
+          echo "# GD32 Firmware Size Report - ${{ matrix.test_suite.name }}" > size_report.md
+          echo "" >> size_report.md
+          echo "| Board | Test | ELF Size | BIN Size | Flash Usage |" >> size_report.md
+          echo "|-------|------|----------|----------|-------------|" >> size_report.md
+
+          for build_dir in boards/gd/scripts/gd32_build_*/; do
+            if [ -f "$build_dir/zephyr/zephyr.elf" ]; then
+              board=$(basename $build_dir | sed 's/gd32_build_//' | sed 's/_samples.*//' | sed 's/_tests.*//')
+              test=$(basename $build_dir | sed 's/.*_\(samples\|tests\)/\1/')
+
+              if [ -f "$build_dir/zephyr/zephyr.elf" ]; then
+                elf_size=$(stat -c%s "$build_dir/zephyr/zephyr.elf" 2>/dev/null || echo "0")
+              else
+                elf_size=0
+              fi
+
+              if [ -f "$build_dir/zephyr/zephyr.bin" ]; then
+                bin_size=$(stat -c%s "$build_dir/zephyr/zephyr.bin" 2>/dev/null || echo "0")
+              else
+                bin_size=0
+              fi
+
+              elf_kb=$((elf_size / 1024))
+              bin_kb=$((bin_size / 1024))
+
+              echo "| $board | $test | ${elf_kb} KB | ${bin_kb} KB | ${bin_kb} KB |" >> size_report.md
+            fi
+          done
+
+          echo "" >> size_report.md
+          echo "Generated at: $(date)" >> size_report.md
+          cat size_report.md
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: gd32-test-results-${{ matrix.test_suite.name }}
+          path: |
+            gd32_test_*.json
+            gd32_test_*.xml
+            size_report.md
+
+      - name: Upload successful build artifacts (binaries)
+        if: success()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: gd32-binaries-${{ matrix.test_suite.name }}
+          path: |
+            boards/gd/scripts/gd32_build_*/zephyr/zephyr.elf
+            boards/gd/scripts/gd32_build_*/zephyr/zephyr.bin
+            boards/gd/scripts/gd32_build_*/zephyr/zephyr.hex
+            boards/gd/scripts/gd32_build_*/zephyr/zephyr.map
+          retention-days: 5
+
+      - name: Upload failed build artifacts (debug)
+        if: failure()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: gd32-failed-builds-${{ matrix.test_suite.name }}
+          path: |
+            boards/gd/scripts/gd32_build_*/zephyr/zephyr.elf
+            boards/gd/scripts/gd32_build_*/zephyr/zephyr.map
+            boards/gd/scripts/gd32_build_*/zephyr/.config
+            boards/gd/scripts/gd32_build_*/build.log
+          retention-days: 3
+
+      - name: Check build status
+        if: always()
+        run: |
+          if [ -f gd32_test_${{ matrix.test_suite.name }}.json ]; then
+            python3 -c "
+          import json
+          with open('gd32_test_${{ matrix.test_suite.name }}.json') as f:
+              data = json.load(f)
+              failed = data.get('summary', {}).get('failed', 0)
+              if failed > 0:
+                  print(f'❌ {failed} 个构建失败')
+                  exit(1)
+              else:
+                  print('✅ 所有构建通过')
+            "
+          fi
+
+  # Job 4: 发布测试报告
+  gd32-test-report:
+    needs: [gd32-build-test]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      checks: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          path: artifacts
+
+      - name: Install dependencies
+        run: |
+          pip install junitparser junit2html
+
+      - name: Merge test results
+        run: |
+          find artifacts -name '*.xml' -type f
+          junitparser merge artifacts/*/*.xml merged_results.xml || echo "No XML files found"
+
+          if [ -f merged_results.xml ]; then
+            junit2html merged_results.xml merged_results.html
+          fi
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@82082dac68ad6a19d980f8ce817e108b9f496c2a # v2.18.0
+        with:
+          check_name: GD32 Build Test Results
+          files: |
+            merged_results.xml
+          comment_mode: off
+
+      - name: Upload merged results
+        if: always()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: gd32-final-test-report
+          path: |
+            merged_results.xml
+            merged_results.html
+          retention-days: 5
