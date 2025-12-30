@@ -1,0 +1,18 @@
+# Copyright (c) 2025, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_GD32F50X
+	bool
+	select SOC_FAMILY_GD_GD32
+	help
+	  Enable support for GigaDevice GD32F50X MCU series
+
+config SOC_SERIES
+	default "gd32f50x" if SOC_SERIES_GD32F50X
+
+config SOC_GD32F503
+	bool
+	select SOC_SERIES_GD32F50X
+
+config SOC
+	default "gd32f503" if SOC_GD32F503

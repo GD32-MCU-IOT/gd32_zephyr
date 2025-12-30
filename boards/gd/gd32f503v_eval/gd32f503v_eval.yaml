@@ -1,0 +1,14 @@
+identifier: gd32f503v_eval
+name: GD32F503V-EVAL
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+ram: 128
+flash: 512
+supported:
+  - gpio
+  - uart
+  - pinctrl

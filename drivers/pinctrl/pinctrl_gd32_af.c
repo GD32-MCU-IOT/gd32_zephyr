@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021 Teslabs Engineering S.L.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,6 +20,7 @@ BUILD_ASSERT((GD32_OTYPE_PP == GPIO_OTYPE_PP) &&
 	     (GD32_OTYPE_OD == GPIO_OTYPE_OD),
 	     "pinctrl output type definitions != HAL definitions");
 
+#ifndef CONFIG_SOC_SERIES_GD32F50X
 BUILD_ASSERT(
 #if !defined(CONFIG_SOC_SERIES_GD32C2X1)
 	      (GD32_OSPEED_2MHZ == GPIO_OSPEED_2MHZ) &&
@@ -42,6 +44,7 @@ BUILD_ASSERT(
 #endif
 	     1U,
 	     "pinctrl output speed definitions != HAL definitions");
+#endif
 
 /** Utility macro that expands to the GPIO port address if it exists */
 #define GD32_PORT_ADDR_OR_NONE(nodelabel)				       \
