@@ -20,9 +20,9 @@ BUILD_ASSERT((GD32_OTYPE_PP == GPIO_OTYPE_PP) &&
 	     (GD32_OTYPE_OD == GPIO_OTYPE_OD),
 	     "pinctrl output type definitions != HAL definitions");
 
-#ifndef CONFIG_SOC_SERIES_GD32F50X
 BUILD_ASSERT(
-#if !defined(CONFIG_SOC_SERIES_GD32C2X1)
+#if !defined(CONFIG_SOC_SERIES_GD32C2X1) && \
+	!defined(CONFIG_SOC_SERIES_GD32F50X)
 	      (GD32_OSPEED_2MHZ == GPIO_OSPEED_2MHZ) &&
 #endif
 #if defined(CONFIG_SOC_SERIES_GD32F3X0) || \
@@ -30,6 +30,11 @@ BUILD_ASSERT(
 	defined(CONFIG_SOC_SERIES_GD32L23X)
 	     (GD32_OSPEED_10MHZ == GPIO_OSPEED_10MHZ) &&
 	     (GD32_OSPEED_50MHZ == GPIO_OSPEED_50MHZ) &&
+#elif defined(CONFIG_SOC_SERIES_GD32F50X)
+	     (GD32_OSPEED_2MHZ == GPIO_OSPEED_LEVEL0) &&
+	     (GD32_OSPEED_10MHZ == GPIO_OSPEED_LEVEL1) &&
+	     (GD32_OSPEED_50MHZ == GPIO_OSPEED_LEVEL2) &&
+	     (GD32_OSPEED_MAX == GPIO_OSPEED_LEVEL3) &&
 #elif defined(CONFIG_SOC_SERIES_GD32F527)
 	     (GD32_OSPEED_10MHZ == GPIO_OSPEED_10MHZ) &&
 	     (GD32_OSPEED_50MHZ == GPIO_OSPEED_50MHZ) &&
@@ -44,7 +49,6 @@ BUILD_ASSERT(
 #endif
 	     1U,
 	     "pinctrl output speed definitions != HAL definitions");
-#endif
 
 /** Utility macro that expands to the GPIO port address if it exists */
 #define GD32_PORT_ADDR_OR_NONE(nodelabel)				       \

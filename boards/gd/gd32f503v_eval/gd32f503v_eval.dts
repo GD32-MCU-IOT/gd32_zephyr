@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <gd/gd32f50x/gd32f503ve.dtsi>
+#include <gd/gd32f50x/gd32f503vg.dtsi>
 #include "gd32f503v_eval-pinctrl.dtsi"
 
 / {
@@ -22,17 +22,17 @@
 
 	leds {
 		compatible = "gpio-leds";
-		led2: led2 {
+		led1: led1 {
 			gpios = <&gpioc 7 GPIO_ACTIVE_HIGH>;
+			label = "LED1";
+		};
+		led2: led2 {
+			gpios = <&gpioc 8 GPIO_ACTIVE_HIGH>;
 			label = "LED2";
 		};
 		led3: led3 {
-			gpios = <&gpioc 8 GPIO_ACTIVE_HIGH>;
-			label = "LED3";
-		};
-		led4: led4 {
 			gpios = <&gpioc 9 GPIO_ACTIVE_HIGH>;
-			label = "LED4";
+			label = "LED3";
 		};
 	};
 

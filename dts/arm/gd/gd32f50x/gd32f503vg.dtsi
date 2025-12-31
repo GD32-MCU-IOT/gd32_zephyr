@@ -9,11 +9,11 @@
 #include <gd/gd32f50x/gd32f50x.dtsi>
 
 &cpu0 {
-	clock-frequency = <DT_FREQ_M(200)>;
+	clock-frequency = <DT_FREQ_M(252)>;
 };
 
 &flash0 {
-	reg = <0x08000000 DT_SIZE_K(512)>;
+	reg = <0x08000000 DT_SIZE_K(1024)>;
 };
 
 &sram0 {

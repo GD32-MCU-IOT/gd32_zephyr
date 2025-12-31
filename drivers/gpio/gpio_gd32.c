@@ -17,7 +17,7 @@
 
 #include <zephyr/drivers/gpio/gpio_utils.h>
 
-#if defined(CONFIG_GD32_HAS_AF_PINMUX) && !defined(CONFIG_SOC_SERIES_GD32F50X)
+#if defined(CONFIG_GD32_HAS_AF_PINMUX)
 /** SYSCFG DT node */
 #define SYSCFG_NODE DT_NODELABEL(syscfg)
 #else
