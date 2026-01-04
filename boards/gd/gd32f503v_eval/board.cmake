@@ -1,4 +1,4 @@
-# Copyright (c) 2025, GigaDevice Semiconductor Inc.
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 board_runner_args(jlink "--device=GD32F503VE" "--speed=4000")
