@@ -1,0 +1,24 @@
+/*
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef ZEPHYR_SOC_GD_GD32_GD32F50X_GD32_REGS_H_
+#define ZEPHYR_SOC_GD_GD32_GD32F50X_GD32_REGS_H_
+
+/* RCU register offsets (based on GD32F503 datasheet and HAL) */
+#define RCU_CFG0_OFFSET      0x04U
+#define RCU_AHBEN_OFFSET     0x14U
+#define RCU_APB2EN_OFFSET    0x18U
+#define RCU_APB1EN_OFFSET    0x1CU
+#define RCU_ADDAPB1EN_OFFSET 0xE4U
+
+#define RCU_CFG0_AHBPSC_POS  4U
+#define RCU_CFG0_AHBPSC_MSK  (BIT_MASK(4) << RCU_CFG0_AHBPSC_POS)
+#define RCU_CFG0_APB1PSC_POS 8U
+#define RCU_CFG0_APB1PSC_MSK (BIT_MASK(3) << RCU_CFG0_APB1PSC_POS)
+#define RCU_CFG0_APB2PSC_POS 11U
+#define RCU_CFG0_APB2PSC_MSK (BIT_MASK(3) << RCU_CFG0_APB2PSC_POS)
+
+#endif /* ZEPHYR_SOC_GD_GD32_GD32F50X_GD32_REGS_H_ */
