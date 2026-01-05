@@ -987,7 +987,7 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
-	uint32_t pclk1, freq;
+	uint32_t pclk1;
 	int err = 0;
 
 	k_sem_take(&data->bus_mutex, K_FOREVER);

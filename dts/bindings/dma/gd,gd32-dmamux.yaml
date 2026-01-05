@@ -1,0 +1,101 @@
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32 DMAMUX controller
+
+  GD32 MCUs with DMAMUX (DMA request multiplexer) route peripheral request
+  lines to DMA channels. This binding is for MCUs like GD32F50x that have
+  a standalone DMAMUX peripheral.
+
+  The DMAMUX acts as a proxy for the underlying DMA controller. Peripherals
+  reference the DMAMUX rather than the DMA controller directly.
+
+  Clients connected to the DMAMUX must use a 3-cell DMA specifier:
+    1. channel: DMAMUX output channel number (0 .. dma-channels-1)
+    2. slot: DMAMUX request line ID (peripheral request selection)
+    3. channel-config: A 32-bit mask specifying the DMA channel configuration
+       - bit 6-7:   Direction (see dma.h)
+                    0x0: MEMORY to MEMORY
+                    0x1: MEMORY to PERIPH
+                    0x2: PERIPH to MEMORY
+                    0x3: reserved
+       - bit 9:     Peripheral address increment
+                    0x0: no address increment between transfers
+                    0x1: increment address between transfers
+       - bit 10:    Memory address increment
+                    0x0: no address increment between transfers
+                    0x1: increment address between transfers
+       - bit 11-12: Peripheral data width
+                    0x0: Byte (8 bits)
+                    0x1: Half-word (16 bits)
+                    0x2: Word (32 bits)
+                    0x3: reserved
+       - bit 13-14: Memory data width
+                    0x0: Byte (8 bits)
+                    0x1: Half-word (16 bits)
+                    0x2: Word (32 bits)
+                    0x3: reserved
+       - bit 16-17: Priority level
+                    0x0: low
+                    0x1: medium
+                    0x2: high
+                    0x3: very high
+
+  Example for GD32F50x:
+
+    dmamux: dmamux@40020800 {
+        compatible = "gd,gd32-dmamux";
+        reg = <0x40020800 0x400>;
+        #dma-cells = <3>;
+        dma-channels = <12>;
+        dma-generators = <4>;
+        dma-requests = <108>;
+        clocks = <&cctl GD32_CLOCK_DMAMUX>;
+        status = "disabled";
+    };
+
+  Example I2C client:
+
+    &i2c0 {
+        status = "okay";
+        dmas = <&dmamux 0 GD32_DMA_REQ_I2C0_RX 0x00000000>,
+               <&dmamux 1 GD32_DMA_REQ_I2C0_TX 0x00000000>;
+        dma-names = "rx", "tx";
+    };
+
+compatible: "gd,gd32-dmamux"
+
+include: dmamux-controller.yaml
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    required: true
+
+  "#dma-cells":
+    const: 3
+
+  dma-channels:
+    required: true
+    description: |
+      Total number of DMAMUX output channels.
+      For GD32F50x: 12 channels (DMA0 CH0-6 + DMA1 CH0-4)
+
+  dma-generators:
+    description: |
+      Number of request generators supported.
+      For GD32F50x: 4 generators
+
+  dma-requests:
+    required: true
+    description: |
+      Number of peripheral request inputs.
+      For GD32F50x: 108 request lines
+
+dma-cells:
+  - channel
+  - slot
+  - config
