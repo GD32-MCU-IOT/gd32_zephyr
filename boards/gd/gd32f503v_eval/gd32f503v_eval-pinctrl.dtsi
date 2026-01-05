@@ -1,0 +1,33 @@
+/*
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32f503v(g-e-c)xx-pinctrl.h>
+
+&pinctrl {
+
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PA9>, <USART0_RX_PA10>;
+			bias-pull-up;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SCL_PB6>, <I2C0_SDA_PB7>;
+			drive-open-drain;
+		};
+	};
+
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_SCK_PA5>, <SPI0_MOSI_PA7>,
+				 <SPI0_MISO_PA6>,
+				 /* Use pinmux to pullup pg10 and pg11. */
+				 <SPI0_IO2_PA2>, <SPI0_IO3_PA3>;
+		};
+	};
+};

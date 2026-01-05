@@ -57,6 +57,11 @@ if(${CONFIG_SOC_SERIES_GD32C2X1})
   zephyr_compile_definitions(GD32C2X1)
 endif()
 
+# GD32F50X series HAL public headers require extra definitions
+if(${CONFIG_SOC_SERIES_GD32F50X})
+  zephyr_compile_definitions(GD32F50X)
+endif()
+
 # Global includes to be used outside hal_gigadevice
 zephyr_include_directories(${gd32_soc_sys_dir}/include)
 zephyr_include_directories(${gd32_std_dir}/include)
@@ -108,5 +113,8 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_WWDGT    ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_PKCAU     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_pkcau.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sai.c)
+
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
 
 endif()
