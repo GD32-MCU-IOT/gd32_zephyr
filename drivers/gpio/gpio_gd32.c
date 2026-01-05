@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021 Teslabs Engineering S.L.
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,7 +17,7 @@
 
 #include <zephyr/drivers/gpio/gpio_utils.h>
 
-#ifdef CONFIG_GD32_HAS_AF_PINMUX
+#if defined(CONFIG_GD32_HAS_AF_PINMUX)
 /** SYSCFG DT node */
 #define SYSCFG_NODE DT_NODELABEL(syscfg)
 #else
@@ -86,7 +87,7 @@ static int gpio_gd32_configure_extiss(const struct device *port,
 	volatile uint32_t *extiss;
 
 	switch (pin / EXTISS_STEP) {
-#ifdef CONFIG_GD32_HAS_AF_PINMUX
+#if defined(CONFIG_GD32_HAS_AF_PINMUX) && !defined(CONFIG_SOC_SERIES_GD32F50X)
 	case 0U:
 		extiss = &SYSCFG_EXTISS0;
 		break;
@@ -272,7 +273,7 @@ static int gpio_gd32_port_toggle_bits(const struct device *port,
 {
 	const struct gpio_gd32_config *config = port->config;
 
-#ifdef CONFIG_GD32_HAS_AF_PINMUX
+#if defined(CONFIG_GD32_HAS_AF_PINMUX) && !defined(CONFIG_SOC_SERIES_GD32F50X)
 	GPIO_TG(config->reg) = pins;
 #else
 	GPIO_OCTL(config->reg) ^= pins;

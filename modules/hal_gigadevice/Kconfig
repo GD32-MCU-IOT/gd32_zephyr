@@ -1,4 +1,5 @@
 # Copyright (c) 2021 ATL-Electronics
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 config ZEPHYR_HAL_GIGADEVICE_MODULE
@@ -23,7 +24,8 @@ if HAS_GD32_HAL
 choice GD32_HXTAL_FREQUENCY
 	prompt "High speed external oscillator clock frequency"
 	default GD32_HXTAL_FIRMWARE_DEFINED if \
-		SOC_SERIES_GD32F403 || SOC_SERIES_GD32F4XX || SOC_SERIES_GD32F3X0 || SOC_SERIES_GD32F527 || SOC_SERIES_GD32C2X1
+		SOC_SERIES_GD32F403 || SOC_SERIES_GD32F4XX || SOC_SERIES_GD32F3X0 || SOC_SERIES_GD32F527 || SOC_SERIES_GD32C2X1 \
+		|| SOC_SERIES_GD32F50X
 	default GD32_HXTAL_25MHZ if SOC_SERIES_GD32VF103 || SOC_SERIES_GD32E50X
 	default GD32_HXTAL_8MHZ if SOC_SERIES_GD32E10X
 	help
@@ -282,6 +284,11 @@ config USE_GD32_WWDGT
 	bool
 	help
 	  Enable GD32 Window Watchdog Timer (WWDGT) HAL module driver
+
+config USE_GD32_CAU
+	bool
+	help
+	  Enable GD32 Cryptographic Accelerator Unit (CAU) HAL module driver
 
 config USE_GD32_HAU
 	bool
