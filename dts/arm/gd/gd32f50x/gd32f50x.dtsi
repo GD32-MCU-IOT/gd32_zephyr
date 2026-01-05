@@ -96,7 +96,7 @@
 		};
 
 		i2c0: i2c@40005400 {
-			compatible = "gd,gd32-i2c";
+			compatible = "gd,gd32-i2c-v2";
 			reg = <0x40005400 0x400>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -109,7 +109,7 @@
 		};
 
 		i2c1: i2c@40005800 {
-			compatible = "gd,gd32-i2c";
+			compatible = "gd,gd32-i2c-v2";
 			reg = <0x40005800 0x400>;
 			#address-cells = <1>;
 			#size-cells = <0>;
