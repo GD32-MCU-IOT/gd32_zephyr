@@ -125,18 +125,37 @@ static int i2c_gd32_init(const struct device *dev)
 }
 
 #ifdef CONFIG_I2C_GD32_DMA
-#define DMA_INITIALIZER(idx, dir)                                                                  \
-	{                                                                                          \
-		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),                         \
-		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),                           \
-		.slot = COND_CODE_1(\
-		DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),             \
-		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0)),                            \
-			 .config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),                    \
-			 .fifo_threshold = COND_CODE_1(\
-		DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1), \
-		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)), \
-		(0)),         \
+/*
+ * DMA cell mapping based on binding type:
+ * - gd,gd32-dma (2 cells): channel, config
+ * - gd,gd32-dma-v1 (4 cells): channel, slot, config, fifo_threshold
+ * - gd,gd32-dmamux (3 cells): channel, slot, config
+ *
+ * Both gd,gd32-dma-v1 and gd,gd32-dmamux have 'slot' cell.
+ * Only gd,gd32-dma-v1 has 'fifo_threshold' cell.
+ */
+#define DMA_IS_V1(idx, dir) \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dma_v1)
+
+#define DMA_IS_DMAMUX(idx, dir) \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dmamux)
+
+/* Get slot value: try v1 first, then dmamux, default to 0 */
+#define DMA_GET_SLOT(idx, dir) \
+	COND_CODE_1(DMA_IS_V1(idx, dir), \
+		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
+		(COND_CODE_1(DMA_IS_DMAMUX(idx, dir), \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))
+
+#define DMA_INITIALIZER(idx, dir)                                       \
+	{                                                               \
+		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),\
+		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel), \
+		.slot = DMA_GET_SLOT(idx, dir),                          \
+		.config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),   \
+		.fifo_threshold = COND_CODE_1(DMA_IS_V1(idx, dir),       \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir,               \
+				fifo_threshold)), (0)),                    \
 	}
 
 #define DMAS_DECL(idx)                                                                             \
