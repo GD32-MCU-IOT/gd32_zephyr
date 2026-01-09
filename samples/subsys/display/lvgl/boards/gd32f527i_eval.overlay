@@ -1,0 +1,48 @@
+/*
+ * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#include <zephyr/dt-bindings/clock/gd32f527-clocks.h>
+#include "gd32f527i_eval_tli.dtsi"
+/ {
+	chosen {
+		zephyr,display = &tli;
+	};
+
+	soc {
+		tli: tli@40016800 {
+			compatible = "gd,gd32-tli";
+			reg = <0x40016800 0x400>;
+			clocks = <&cctl GD32_CLOCK_TLI>;
+			status = "okay";
+
+			pinctrl-0 = <&tli_default>;
+			pinctrl-names = "default";
+
+			disp-en-gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
+			bl-ctrl-gpios = <&gpioh 6 GPIO_ACTIVE_HIGH>;
+
+			hsync = <41>;    /* Horizontal Sync */
+			vsync = <10>;    /* Vertical Sync */
+			hbp = <43>;      /* Horizontal Back Porch */
+			vbp = <12>;      /* Vertical Back Porch */
+			hfp = <8>;       /* Horizontal Front Porch */
+			vfp = <8>;       /* Vertical Front Porch */
+			width = <480>;
+			height = <272>;
+
+			/* 25MHz * 216 / 3 / 180 = 10 MHz */
+			pllsai-n = <216>;
+			pllsai-r = <3>;
+			pllsair-div = <180>;
+		};
+	};
+};
+
+&gpioa { status = "okay"; };
+&gpiob { status = "okay"; };
+&gpioe { status = "okay"; };
+&gpiof { status = "okay"; };
+&gpiog { status = "okay"; };
+&gpioh { status = "okay"; };
+&gpioi { status = "okay"; };
