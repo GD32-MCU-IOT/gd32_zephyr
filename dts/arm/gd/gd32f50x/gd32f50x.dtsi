@@ -96,7 +96,7 @@
 		};
 
 		i2c0: i2c@40005400 {
-			compatible = "gd,gd32-i2c";
+			compatible = "gd,gd32-i2c-v2";
 			reg = <0x40005400 0x400>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -109,7 +109,7 @@
 		};
 
 		i2c1: i2c@40005800 {
-			compatible = "gd,gd32-i2c";
+			compatible = "gd,gd32-i2c-v2";
 			reg = <0x40005800 0x400>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -236,6 +236,40 @@
 				resets = <&rctl GD32_RESET_GPIOE>;
 				status = "disabled";
 			};
+		};
+
+		dma0: dma@40020000 {
+			compatible = "gd,gd32-dma";
+			reg = <0x40020000 0x400>;
+			interrupts = <11 0>, <12 0>, <13 0>, <14 0>,
+				     <15 0>, <16 0>, <17 0>;
+			clocks = <&cctl GD32_CLOCK_DMA0>;
+			dma-channels = <7>;
+			gd,mem2mem;
+			#dma-cells = <2>;
+			status = "disabled";
+		};
+
+		dma1: dma@40020400 {
+			compatible = "gd,gd32-dma";
+			reg = <0x40020400 0x400>;
+			interrupts = <56 0>, <57 0>, <58 0>, <59 0>, <60 0>;
+			clocks = <&cctl GD32_CLOCK_DMA1>;
+			dma-channels = <5>;
+			gd,mem2mem;
+			#dma-cells = <2>;
+			status = "disabled";
+		};
+
+		dmamux: dmamux@40020800 {
+			compatible = "gd,gd32-dmamux";
+			reg = <0x40020800 0x400>;
+			#dma-cells = <3>;
+			dma-channels = <12>;
+			dma-generators = <4>;
+			dma-requests = <108>;
+			clocks = <&cctl GD32_CLOCK_DMAMUX>;
+			status = "disabled";
 		};
 	};
 };

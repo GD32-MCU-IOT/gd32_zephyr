@@ -8,3 +8,21 @@ config DMA_GD32
 	select USE_GD32_DMA
 	help
 	  DMA driver for GigaDevice GD32 series MCUs.
+
+config DMAMUX_GD32
+	bool "GigaDevice GD32 DMAMUX driver"
+	default y
+	depends on DT_HAS_GD_GD32_DMAMUX_ENABLED
+	depends on DMA_GD32
+	help
+	  DMAMUX driver for GigaDevice GD32 series MCUs with DMA request
+	  multiplexer (e.g., GD32F50x). The DMAMUX routes peripheral DMA
+	  requests to DMA channels.
+
+config DMAMUX_GD32_INIT_PRIORITY
+	int "GD32 DMAMUX init priority"
+	depends on DMAMUX_GD32
+	default 41
+	help
+	  DMAMUX driver device must be initialized after the DMA driver.
+	  Default 41 is higher than CONFIG_DMA_INIT_PRIORITY (default 40).
