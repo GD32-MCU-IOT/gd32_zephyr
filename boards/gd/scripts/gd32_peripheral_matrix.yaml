@@ -69,6 +69,7 @@ test_groups:
       - gd32f450i_eval
       - gd32f470i_eval
       - gd32f527i_eval
+      - gd32f503v_eval
 
   # 组6: Shell 功能测试
   shell_capable:
