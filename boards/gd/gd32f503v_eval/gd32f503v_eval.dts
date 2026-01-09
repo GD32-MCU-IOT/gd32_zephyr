@@ -71,10 +71,24 @@
 	status = "okay";
 };
 
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&dmamux {
+	status = "okay";
+};
+
 &i2c0 {
 	status = "okay";
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 0 16 0x480>, <&dmamux 1 17 0x440>;
+	dma-names = "rx", "tx";
 	clock-frequency = <100000>;
 	eeprom0: eeprom@50 {
 		compatible = "atmel,at24";
@@ -85,6 +99,15 @@
 		address-width = <8>;
 		timeout = <5>;
 	};
+};
+
+&i2c1 {
+	status = "disabled";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 2 18 0x480>, <&dmamux 3 19 0x440>;
+	dma-names = "rx", "tx";
+	clock-frequency = <100000>;
 };
 
 &spi0 {

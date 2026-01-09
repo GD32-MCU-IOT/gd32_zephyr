@@ -66,22 +66,21 @@ config I2C_GD32_DMA
 if I2C_GD32_DMA
 
 config I2C_GD32_DMA_THRESHOLD
-	int "DMA transfer threshold"
-	default 16
-	range 4 255
+	int "DMA transfer threshold (bytes)"
+	default 8
 	help
 	  Minimum transfer size (in bytes) to use DMA instead of PIO mode.
 	  Transfers smaller than this threshold will use PIO mode.
-	  Larger values reduce DMA setup overhead for small transfers.
-	  Default of 16 bytes provides good balance for most applications.
+	  Note: valid values are from 1 to 255 (bytes). Default is 8.
+
 
 config I2C_GD32_DMA_TIMEOUT
 	int "DMA transfer timeout (ms)"
-	default 1000
-	range 100 10000
+	default 500
 	help
-	  Timeout in milliseconds for DMA transfers.
-	  If a DMA transfer does not complete within this time,
-	  it will be considered failed.
+	  Timeout in milliseconds for DMA transfers. If a transfer does not
+	  complete within this time, the driver falls back to PIO mode.
+	  Note: valid values are from 100 to 10000 (milliseconds). Default is 500.
+
 
 endif # I2C_GD32_DMA
