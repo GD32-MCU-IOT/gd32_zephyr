@@ -33,6 +33,7 @@ zephyr_library_sources_ifdef(CONFIG_INTEL_MULTIBOOTFB_DISPLAY display_intel_mult
 zephyr_library_sources_ifdef(CONFIG_IST3931 display_ist3931.c)
 zephyr_library_sources_ifdef(CONFIG_LED_STRIP_MATRIX display_led_strip_matrix.c)
 zephyr_library_sources_ifdef(CONFIG_LPM013M126 display_lpm013m126.c)
+zephyr_library_sources_ifdef(CONFIG_GD32_TLI display_gd32_tli.c)
 zephyr_library_sources_ifdef(CONFIG_LS0XX ls0xx.c)
 zephyr_library_sources_ifdef(CONFIG_MAX7219 display_max7219.c)
 zephyr_library_sources_ifdef(CONFIG_MICROBIT_DISPLAY mb_display.c)
