@@ -17,7 +17,6 @@
 
 #include <gd32_tli.h>
 #include <gd32_rcu.h>
-#include <gd32_gpio.h>
 
 LOG_MODULE_REGISTER(display_gd32_tli, CONFIG_DISPLAY_LOG_LEVEL);
 
@@ -323,76 +322,11 @@ static int display_gd32_tli_init(const struct device *dev)
 		}
 	}
 
-	/* Configure TLI pins: Try pinctrl first, fallback to manual HAL configuration */
-	bool pinctrl_success = false;
-
-	if (config->pctrl != NULL) {
-		ret = pinctrl_apply_state(config->pctrl, PINCTRL_STATE_DEFAULT);
-		if (ret == 0) {
-			LOG_INF("TLI pins configured via pinctrl");
-			pinctrl_success = true;
-		} else {
-			LOG_WRN("Pinctrl configuration failed (ret=%d), "
-				 "falling back to manual GPIO setup", ret);
-		}
-	}
-
-	/* Fallback: Manual GPIO configuration (when pinctrl is unavailable or fails) */
-	if (!pinctrl_success) {
-		LOG_INF("Configuring TLI pins manually (HAL GPIO API)");
-
-		/* Enable GPIO clocks */
-		rcu_periph_clock_enable(RCU_GPIOE);
-		rcu_periph_clock_enable(RCU_GPIOF);
-		rcu_periph_clock_enable(RCU_GPIOG);
-		rcu_periph_clock_enable(RCU_GPIOH);
-		rcu_periph_clock_enable(RCU_GPIOI);
-
-		/* PE4-PE6: TLI_R2-R4 */
-		gpio_af_set(GPIOE, GPIO_AF_14, GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6);
-		gpio_mode_set(GPIOE, GPIO_MODE_AF, GPIO_PUPD_NONE,
-					GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6);
-		gpio_output_options_set(GPIOE, GPIO_OTYPE_PP, GPIO_OSPEED_MAX,
-						GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6);
-
-		/* PF10: TLI_R1 */
-		gpio_af_set(GPIOF, GPIO_AF_14, GPIO_PIN_10);
-		gpio_mode_set(GPIOF, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO_PIN_10);
-		gpio_output_options_set(GPIOF, GPIO_OTYPE_PP, GPIO_OSPEED_MAX, GPIO_PIN_10);
-
-		/* PG6-PG7, PG10-PG12: TLI_R0, TLI_CLK, TLI_G0-G1, TLI_B0 */
-	gpio_af_set(GPIOG, GPIO_AF_14, GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_10 |
-			    GPIO_PIN_11 | GPIO_PIN_12);
-		gpio_mode_set(GPIOG, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO_PIN_6 | GPIO_PIN_7 |
-			      GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12);
-		gpio_output_options_set(GPIOG, GPIO_OTYPE_PP, GPIO_OSPEED_MAX,
-						GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_10 |
-						GPIO_PIN_11 | GPIO_PIN_12);
-
-		/* PH2-PH3, PH8-PH15: TLI_HSYNC, TLI_VSYNC, TLI_R5-R7, TLI_G2-G5, TLI_B2 */
-		gpio_af_set(GPIOH, GPIO_AF_14, GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_8 |
-			    GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 |
-			    GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15);
-		gpio_mode_set(GPIOH, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO_PIN_2 | GPIO_PIN_3 |
-			      GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 |
-			      GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15);
-		gpio_output_options_set(GPIOH, GPIO_OTYPE_PP, GPIO_OSPEED_MAX,
-						GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_8 |
-						GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 |
-						GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 |
-						GPIO_PIN_15);
-
-		/* PI0-PI2, PI4-PI7, PI9-PI10: TLI_B3, TLI_G6-G7, TLI_B4-B7, TLI_B1, TLI_DE */
-		gpio_af_set(GPIOI, GPIO_AF_14, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 |
-			    GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 |
-			    GPIO_PIN_9 | GPIO_PIN_10);
-		gpio_mode_set(GPIOI, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO_PIN_0 | GPIO_PIN_1 |
-			      GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 |
-			      GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_10);
-		gpio_output_options_set(GPIOI, GPIO_OTYPE_PP, GPIO_OSPEED_MAX,
-						GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 |
-						GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 |
-						GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_10);
+	/* Configure DT provided pins */
+	ret = pinctrl_apply_state(config->pctrl, PINCTRL_STATE_DEFAULT);
+	if (ret < 0) {
+		LOG_ERR("TLI pinctrl setup failed");
+		return ret;
 	}
 
 	/* Enable TLI peripheral clock */
