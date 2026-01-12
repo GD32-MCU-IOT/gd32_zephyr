@@ -128,6 +128,7 @@ static int dmamux_gd32_configure(const struct device *dev, uint32_t channel,
 	const struct dmamux_gd32_channel_map *map;
 	uint32_t request_id;
 	int ret;
+	struct dma_config dma_cfg;
 
 	if (channel >= cfg->channel_count) {
 		LOG_ERR("DMAMUX channel %d out of range (max %d)",
@@ -149,16 +150,19 @@ static int dmamux_gd32_configure(const struct device *dev, uint32_t channel,
 		return -ENODEV;
 	}
 
-	/* Store user callback and wrap it */
+	/* Store user callback for later routing */
 	data->callbacks[channel] = config->dma_callback;
 	data->user_data[channel] = config->user_data;
 
-	/* Replace callback with our wrapper */
-	config->dma_callback = dmamux_gd32_dma_callback;
-	config->user_data = (void *)dev;
+	/* Create a copy of config to avoid modifying the caller's structure */
+	memcpy(&dma_cfg, config, sizeof(dma_cfg));
 
-	/* Configure the underlying DMA channel */
-	ret = dma_config(map->dma_dev, map->dma_channel, config);
+	/* Replace callback with our wrapper in the copy */
+	dma_cfg.dma_callback = dmamux_gd32_dma_callback;
+	dma_cfg.user_data = (void *)dev;
+
+	/* Configure the underlying DMA channel with the modified copy */
+	ret = dma_config(map->dma_dev, map->dma_channel, &dma_cfg);
 	if (ret < 0) {
 		LOG_ERR("DMAMUX: Failed to configure DMA %s ch%d: %d",
 			map->dma_dev->name, map->dma_channel, ret);
