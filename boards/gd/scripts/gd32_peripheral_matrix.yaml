@@ -47,6 +47,7 @@ test_groups:
       - gd32f450z_eval
       - gd32f470i_eval
       - gd32f527i_eval
+      - gd32f503v_eval
 
   # 组4: SPI Flash测试（只测试有板级配置的）
   spi_flash:
@@ -58,6 +59,7 @@ test_groups:
       - gd32f450i_eval
       - gd32f470i_eval
       - gd32f527i_eval
+      - gd32f503v_eval
 
   # 组5: EEPROM测试（只测试有板级配置的）
   eeprom:
@@ -87,3 +89,4 @@ test_groups:
       - gd32f527i_eval
       - gd32l233r_eval
       - gd32vf103v_eval
+      - gd32f503v_eval

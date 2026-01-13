@@ -36,19 +36,41 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 #define USART_DATA_REG(reg) ((reg) + 0x04)
 #define USART_CTL2_REG(reg) ((reg) + 0x14)
 
-/* DMA Initialization Macros */
+/*
+ * DMA Initialization Macros with DMAMUX support
+ *
+ * DMA cell mapping based on binding type:
+ * - gd,gd32-dma (3 cells): channel, slot, config
+ * - gd,gd32-dma-v1 (4 cells): channel, slot, config, fifo_threshold
+ * - gd,gd32-dmamux (3 cells): channel, slot, config
+ *
+ * Both gd,gd32-dma-v1 and gd,gd32-dmamux have 'slot' cell.
+ * Only gd,gd32-dma-v1 has 'fifo_threshold' cell.
+ */
+#define DMA_IS_V1(idx, dir) \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dma_v1)
+
+#define DMA_IS_DMAMUX(idx, dir) \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dmamux)
+
+/* Get slot value: try v1 first, then dmamux, then standard dma, default to 0 */
+#define DMA_GET_SLOT(idx, dir) \
+	COND_CODE_1(DMA_IS_V1(idx, dir), \
+		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
+		(COND_CODE_1(DMA_IS_DMAMUX(idx, dir), \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
+			(COND_CODE_1(DT_INST_NODE_HAS_PROP(idx, dmas), \
+				(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))))
+
 #define USART_DMA_INITIALIZER(idx, dir)                                       \
 	{                                                                      \
 		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),         \
 		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),           \
-		.slot = COND_CODE_1(                                               \
-			DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),                     \
-			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0)),             \
+		.slot = DMA_GET_SLOT(idx, dir),                                    \
 		.config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),             \
-		.fifo_threshold = COND_CODE_1(                                     \
-			DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1),                     \
-			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)),         \
-			(0)),                                                           \
+		.fifo_threshold = COND_CODE_1(DMA_IS_V1(idx, dir),                 \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)),     \
+			(0)),                                                       \
 	}
 
 #define USART_DMAS_DECL(idx)                                                   \

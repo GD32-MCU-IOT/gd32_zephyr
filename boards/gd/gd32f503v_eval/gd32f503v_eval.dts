@@ -114,8 +114,9 @@
 	status = "okay";
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
-	cs-gpios = <&gpioa 8 GPIO_ACTIVE_LOW>;
-
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 5 10 0x480>, <&dmamux 6 11 0x440>;
+	dma-names = "rx", "tx";
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;
@@ -131,4 +132,6 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart0_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 0 20 0x480>, <&dmamux 1 21 0x440>;
+	dma-names = "rx", "tx";
 };
