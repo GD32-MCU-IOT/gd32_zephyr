@@ -19,6 +19,7 @@
 		zephyr,sram = &sram0;
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
+		zephyr,display = &tli;
 	};
 
 	leds {
@@ -34,16 +35,14 @@
 		eeprom-0 = &eeprom0;
 	};
 };
-&gpiob {
-	status = "okay";
-};
-&gpiof {
-	status = "okay";
-};
 
-&gpioi {
-	status = "okay";
-};
+&gpioa { status = "okay"; };
+&gpiob { status = "okay"; };
+&gpioe { status = "okay"; };
+&gpiof { status = "okay"; };
+&gpiog { status = "okay"; };
+&gpioh { status = "okay"; };
+&gpioi { status = "okay"; };
 
 &dma0 {
 	status = "okay";
@@ -143,4 +142,23 @@
 		status = "okay";
 		jedec-id = [c8 40 15];
 	};
+};
+
+&tli {
+	status = "okay";
+
+	pinctrl-0 = <&tli_default>;
+	pinctrl-names = "default";
+
+	disp-en-gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
+	bl-ctrl-gpios = <&gpioh 6 GPIO_ACTIVE_HIGH>;
+
+	hsync = <41>;
+	vsync = <10>;
+	hbp = <2>;
+	vbp = <2>;
+	hfp = <2>;
+	vfp = <2>;
+	width = <480>;
+	height = <272>;
 };

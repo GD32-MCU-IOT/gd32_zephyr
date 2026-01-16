@@ -65,7 +65,7 @@ struct display_gd32_tli_config {
 	uint16_t height;
 	uint16_t pllsai_n;
 	uint16_t pllsai_r;
-	uint8_t pllsair_div;
+	uint32_t pllsair_div;
 };
 
 struct display_gd32_tli_data {
