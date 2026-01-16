@@ -1,0 +1,109 @@
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: GD32 TLI (TFT-LCD Interface) display controller
+
+compatible: "gd,gd32-tli"
+
+include: [base.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    required: true
+
+  disp-en-gpios:
+    type: phandle-array
+    description: |
+      Display enable GPIO signal (optional).
+      This signal is used to enable/disable the LCD panel.
+
+  bl-ctrl-gpios:
+    type: phandle-array
+    description: |
+      Backlight control GPIO signal (optional).
+      This signal is used to control the LCD backlight on/off.
+
+  hsync:
+    type: int
+    required: true
+    description: Horizontal synchronization pulse width in pixels
+
+  vsync:
+    type: int
+    required: true
+    description: Vertical synchronization pulse width in lines
+
+  hbp:
+    type: int
+    required: true
+    description: Horizontal back porch in pixels
+
+  vbp:
+    type: int
+    required: true
+    description: Vertical back porch in lines
+
+  hfp:
+    type: int
+    required: true
+    description: Horizontal front porch in pixels
+
+  vfp:
+    type: int
+    required: true
+    description: Vertical front porch in lines
+
+  width:
+    type: int
+    required: true
+    description: Active display width in pixels
+
+  height:
+    type: int
+    required: true
+    description: Active display height in lines
+
+  pllsai-n:
+    type: int
+    required: true
+    description: PLLSAI N multiplication factor
+
+  pllsai-r:
+    type: int
+    required: true
+    description: PLLSAI R division factor
+
+  pllsair-div:
+    type: int
+    required: true
+    description: |
+      PLLSAI R clock divider for TLI clock
+      Valid values: 2, 4, 8, 16 (RCU_PLLSAIR_DIVx)
+
+  pixel-format:
+    type: int
+    default: 0
+    description: |
+      Default pixel format for the display.
+      Supported values (matching Zephyr display_pixel_format enum):
+        0  - PIXEL_FORMAT_RGB_888 (not commonly used, default to RGB565)
+        1  - PIXEL_FORMAT_MONO01
+        2  - PIXEL_FORMAT_MONO10
+        3  - PIXEL_FORMAT_ARGB_8888 (32-bit, 4 bytes per pixel)
+        4  - PIXEL_FORMAT_RGB_888 (24-bit, 3 bytes per pixel)
+        5  - PIXEL_FORMAT_RGB_565 (16-bit, 2 bytes per pixel) - Default
+        6  - PIXEL_FORMAT_BGR_565 (16-bit, 2 bytes per pixel)
+      The driver will use RGB565 if not specified.
+
+      GD32 TLI hardware pixel formats (PPF[2:0]):
+        000 - ARGB8888  (4 bytes/pixel)
+        001 - RGB888    (3 bytes/pixel)
+        010 - RGB565    (2 bytes/pixel)
+        011 - ARGB1555  (2 bytes/pixel)
+        100 - ARGB4444  (2 bytes/pixel)
+        101 - L8        (1 byte/pixel)
+        110 - AL44      (1 byte/pixel)
+        111 - AL88      (2 bytes/pixel)
