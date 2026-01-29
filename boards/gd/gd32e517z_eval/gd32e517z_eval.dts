@@ -1,0 +1,142 @@
+/*
+ * Copyright (c) 2025, GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <arm/gd/gd32e51x/gd32e517ze.dtsi>
+#include "gd32e517z_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "GigaDevice GD32E517Z-EVAL";
+	compatible = "gd,gd32e517z-eval";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,console = &usart0;
+		zephyr,shell-uart = &usart0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led1: led1 {
+			gpios = <&gpiog 10 GPIO_ACTIVE_HIGH>;
+		};
+
+		led2: led2 {
+			gpios = <&gpiog 11 GPIO_ACTIVE_HIGH>;
+		};
+
+		led3: led3 {
+			gpios = <&gpiog 12 GPIO_ACTIVE_HIGH>;
+		};
+
+		led4: led4 {
+			gpios = <&gpiog 13 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		key_a: key_a {
+			label = "KEY_A";
+			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_A>;
+		};
+
+		key_b: key_b {
+			label = "KEY_B";
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_B>;
+		};
+
+		key_c: key_c {
+			label = "KEY_C";
+			gpios = <&gpiof 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_C>;
+		};
+
+		key_d: key_d {
+			label = "KEY_D";
+			gpios = <&gpiof 14 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_D>;
+		};
+
+		key_cet: key_cet {
+			label = "KEY_CET";
+			gpios = <&gpiof 15 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	aliases {
+		led0 = &led1;
+		sw0 = &key_a;
+	};
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&gpiof {
+	status = "okay";
+};
+
+&gpiog {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 4 0>, <&dma0 3 0>;
+	dma-names = "rx", "tx";
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	nor_flash: gd25q16@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
+};
+
+&spi1 {
+	status = "disabled";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+};
+
+&i2c0 {
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+};
