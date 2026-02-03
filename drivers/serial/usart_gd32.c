@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, ATL Electronics
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
