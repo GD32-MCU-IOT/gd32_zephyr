@@ -1,0 +1,6 @@
+board:
+  name: gd32h759i_eval
+  full_name: GD32H759I-EVAL
+  vendor: gd
+  socs:
+    - name: gd32h759

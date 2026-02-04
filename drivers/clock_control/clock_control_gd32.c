@@ -40,13 +40,35 @@ static const uint8_t apb2_exp[8] = {
 };
 #endif
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+/** APB3 prescaler exponents */
+static const uint8_t apb3_exp[8] = {0, 0, 0, 0, 1, 2, 3, 4};
+/** APB4 prescaler exponents */
+static const uint8_t apb4_exp[8] = {0, 0, 0, 0, 1, 2, 3, 4};
+#endif
+
 struct clock_control_gd32_config {
 	uint32_t base;
 };
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+uint32_t rcu_pll_clock_freq_cal(uint32_t pllinputfreq, uint32_t pll_psc, uint32_t pll_n,
+								uint32_t fracn, uint32_t pll_pqr)
+{
+	float freq;
+
+	freq = ((float)pllinputfreq / (float)pll_psc) *
+		   ((float)pll_n + ((float)fracn / (float)0x2000));
+
+	freq = freq / (float)pll_pqr;
+
+	return (uint32_t)freq;
+}
+#endif
+
 #if DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_timer)
 /* timer identifiers */
-#define TIMER_ID_OR_NONE(nodelabel)                                            \
+#define TIMER_ID_OR_NONE(nodelabel)                                        \
 	COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(nodelabel)),          \
 		    (DT_CLOCKS_CELL(DT_NODELABEL(nodelabel), id),), ())
 
@@ -68,6 +90,19 @@ static const uint16_t timer_ids[] = {
 	TIMER_ID_OR_NONE(timer14) /* */
 	TIMER_ID_OR_NONE(timer15) /* */
 	TIMER_ID_OR_NONE(timer16) /* */
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	TIMER_ID_OR_NONE(timer22) /* */
+	TIMER_ID_OR_NONE(timer23) /* */
+	TIMER_ID_OR_NONE(timer30) /* */
+	TIMER_ID_OR_NONE(timer31) /* */
+	TIMER_ID_OR_NONE(timer40) /* */
+	TIMER_ID_OR_NONE(timer41) /* */
+	TIMER_ID_OR_NONE(timer42) /* */
+	TIMER_ID_OR_NONE(timer43) /* */
+	TIMER_ID_OR_NONE(timer44) /* */
+	TIMER_ID_OR_NONE(timer50) /* */
+	TIMER_ID_OR_NONE(timer51) /* */
+#endif
 };
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_timer) */
 
@@ -102,40 +137,53 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 	const struct clock_control_gd32_config *config = dev->config;
 	uint16_t id = *(uint16_t *)sys;
 	uint32_t cfg;
+	uint32_t ahb_freq;
 	uint8_t psc;
 
 	cfg = sys_read32(config->base + RCU_CFG0_OFFSET);
+	psc = (cfg & RCU_CFG0_AHBPSC_MSK) >> RCU_CFG0_AHBPSC_POS;
+	ahb_freq = CPU_FREQ >> ahb_exp[psc];
 
 	switch (GD32_CLOCK_ID_OFFSET(id)) {
-#if defined(CONFIG_SOC_SERIES_GD32F4XX) || \
-	defined(CONFIG_SOC_SERIES_GD32F527) || \
-	defined(CONFIG_SOC_SERIES_GD32C2X1)
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
+	defined(CONFIG_SOC_SERIES_GD32C2X1) || defined(CONFIG_SOC_SERIES_GD32H7XX)
 	case RCU_AHB1EN_OFFSET:
 	case RCU_AHB2EN_OFFSET:
-#if defined(CONFIG_SOC_SERIES_GD32F4XX)
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
+	defined(CONFIG_SOC_SERIES_GD32H7XX)
 	case RCU_AHB3EN_OFFSET:
+#endif
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	case RCU_AHB4EN_OFFSET:
 #endif
 #else
 	case RCU_AHBEN_OFFSET:
 #endif
-		psc = (cfg & RCU_CFG0_AHBPSC_MSK) >> RCU_CFG0_AHBPSC_POS;
-		*rate = CPU_FREQ >> ahb_exp[psc];
+		*rate = ahb_freq;
 		break;
 	case RCU_APB1EN_OFFSET:
-#if !defined(CONFIG_SOC_SERIES_GD32VF103) && \
-	!defined(CONFIG_SOC_SERIES_GD32A50X) && \
-	!defined(CONFIG_SOC_SERIES_GD32L23X) && \
-	!defined(CONFIG_SOC_SERIES_GD32F527) && \
-	!defined(CONFIG_SOC_SERIES_GD32C2X1)
+#if !defined(CONFIG_SOC_SERIES_GD32VF103) && !defined(CONFIG_SOC_SERIES_GD32A50X) && \
+	!defined(CONFIG_SOC_SERIES_GD32L23X) && !defined(CONFIG_SOC_SERIES_GD32C2X1) && \
+	!defined(CONFIG_SOC_SERIES_GD32H7XX)
 	case RCU_ADDAPB1EN_OFFSET:
 #endif
 		psc = (cfg & RCU_CFG0_APB1PSC_MSK) >> RCU_CFG0_APB1PSC_POS;
-		*rate = CPU_FREQ >> apb1_exp[psc];
+		*rate = ahb_freq >> apb1_exp[psc];
 		break;
 #if !defined(CONFIG_SOC_SERIES_GD32C2X1)
 	case RCU_APB2EN_OFFSET:
 		psc = (cfg & RCU_CFG0_APB2PSC_MSK) >> RCU_CFG0_APB2PSC_POS;
-		*rate = CPU_FREQ >> apb2_exp[psc];
+		*rate = ahb_freq >> apb2_exp[psc];
+		break;
+#endif
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	case RCU_APB3EN_OFFSET:
+		psc = (cfg & RCU_CFG0_APB3PSC_MSK) >> RCU_CFG0_APB3PSC_POS;
+		*rate = ahb_freq >> apb3_exp[psc];
+		break;
+	case RCU_APB4EN_OFFSET:
+		psc = (cfg & RCU_CFG0_APB4PSC_MSK) >> RCU_CFG0_APB4PSC_POS;
+		*rate = ahb_freq >> apb4_exp[psc];
 		break;
 #endif
 	default:

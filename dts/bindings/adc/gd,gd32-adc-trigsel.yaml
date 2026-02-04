@@ -1,0 +1,13 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: GigaDevice GD32 ADC with TRIGSEL
+
+compatible: "gd,gd32-adc-trigsel"
+
+include:
+  - name: gd,gd32-adc.yaml
+
+properties:
+  trigger-select:
+    required: true
