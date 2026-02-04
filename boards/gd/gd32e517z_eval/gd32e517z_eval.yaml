@@ -1,0 +1,17 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32e517z_eval
+name: GigaDevice GD32E517Z-EVAL
+type: mcu
+arch: arm
+ram: 128
+flash: 512
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - pwm
+  - gpio
+  - counter
+vendor: gd
