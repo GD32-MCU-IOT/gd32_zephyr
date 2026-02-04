@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, ATL Electronics
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -40,12 +40,13 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * DMA Initialization Macros with DMAMUX support
  *
  * DMA cell mapping based on binding type:
- * - gd,gd32-dma (3 cells): channel, slot, config
+ * - gd,gd32-dma (2 cells): channel, config
  * - gd,gd32-dma-v1 (4 cells): channel, slot, config, fifo_threshold
  * - gd,gd32-dmamux (3 cells): channel, slot, config
  *
  * Both gd,gd32-dma-v1 and gd,gd32-dmamux have 'slot' cell.
  * Only gd,gd32-dma-v1 has 'fifo_threshold' cell.
+ * Standard gd,gd32-dma does NOT have 'slot' cell.
  */
 #define DMA_IS_V1(idx, dir) \
 	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dma_v1)
@@ -53,14 +54,13 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 #define DMA_IS_DMAMUX(idx, dir) \
 	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dmamux)
 
-/* Get slot value: try v1 first, then dmamux, then standard dma, default to 0 */
+/* Get slot value: v1 and dmamux have slot cell, standard dma does not */
 #define DMA_GET_SLOT(idx, dir) \
 	COND_CODE_1(DMA_IS_V1(idx, dir), \
 		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
 		(COND_CODE_1(DMA_IS_DMAMUX(idx, dir), \
 			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
-			(COND_CODE_1(DT_INST_NODE_HAS_PROP(idx, dmas), \
-				(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))))
+			(0))))
 
 #define USART_DMA_INITIALIZER(idx, dir)                                       \
 	{                                                                      \
