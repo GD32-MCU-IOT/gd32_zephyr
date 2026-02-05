@@ -1,4 +1,5 @@
 # Copyright (c) 2022 BrainCo Inc.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 description: GigaDevice GD32 ADC
@@ -51,6 +52,40 @@ properties:
 
   pinctrl-names:
     required: true
+
+  trigger-select:
+    type: int
+    default: 0
+    description: |
+      Trigger input source select.
+
+      If not specified, defaults to software trigger (0).
+
+      Example values:
+        * TRIGSEL_INPUT_TIMER0_CH0   - 0x13
+        * TRIGSEL_INPUT_TIMER0_CH1   - 0x14
+        * TRIGSEL_INPUT_TIMER0_CH2   - 0x15
+        * TRIGSEL_INPUT_TIMER0_CH3   - 0x16
+        * TRIGSEL_INPUT_TIMER0_MCH0  - 0x17
+        * TRIGSEL_INPUT_TIMER0_MCH1  - 0x18
+        * TRIGSEL_INPUT_TIMER0_MCH2  - 0x19
+        * TRIGSEL_INPUT_TIMER0_MCH3  - 0x1A
+        * TRIGSEL_INPUT_TIMER1_CH0   - 0x26
+        * TRIGSEL_INPUT_TIMER1_CH1   - 0x27
+        * TRIGSEL_INPUT_TIMER1_CH2   - 0x28
+        * TRIGSEL_INPUT_TIMER1_CH3   - 0x29
+        * TRIGSEL_INPUT_TIMER2_CH0   - 0x2C
+        * TRIGSEL_INPUT_TIMER2_CH1   - 0x2D
+        * TRIGSEL_INPUT_TIMER2_CH2   - 0x2E
+        * TRIGSEL_INPUT_TIMER2_CH3   - 0x2F
+        * TRIGSEL_INPUT_TIMER3_CH0   - 0x32
+        * TRIGSEL_INPUT_TIMER3_CH1   - 0x33
+        * TRIGSEL_INPUT_TIMER3_CH2   - 0x34
+        * TRIGSEL_INPUT_TIMER3_CH3   - 0x35
+        * TRIGSEL_INPUT_TIMER4_CH0   - 0x38
+        * TRIGSEL_INPUT_TIMER4_CH1   - 0x39
+        * TRIGSEL_INPUT_TIMER4_CH2   - 0x3A
+        * TRIGSEL_INPUT_TIMER4_CH3   - 0x3B
 
 io-channel-cells:
   - input

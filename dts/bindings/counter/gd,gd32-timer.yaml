@@ -1,4 +1,5 @@
 # Copyright (c) 2021 Teslabs Engineering S.L.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 description: GigaDevice GD32 timer
@@ -36,3 +37,27 @@ properties:
     description: |
       Indicates if timer has advanced features. Such features include break
       inputs, dead-time insertion, etc.
+
+  alignedmode:
+    type: int
+    default: 0 # TIMER_COUNTER_EDGE- reset state
+    description: |
+      Sets timer counter mode.
+      * TIMER_COUNTER_EDGE         - value:0x00; edge-aligned mode.
+      * TIMER_COUNTER_CENTER_DOWN  - value:0x20; center-aligned and counting down assert mode.
+      * TIMER_COUNTER_CENTER_UP    - value:0x40; center-aligned and counting up assert mode.
+      * TIMER_COUNTER_CENTER_BOTH  - value:0x60; center-aligned and counting up/down assert mode.
+
+  counterdirection:
+    type: int
+    default: 0 # TIMER_COUNTER_UP - reset state
+    description: |
+      Sets timer counter mode.
+      * TIMER_COUNTER_UP                      -value:0x00; counter up direction.
+      * TIMER_COUNTER_DOWN                    -value:0x10; counter down direction.
+
+  deadtime:
+    type: int
+    default: 0 #  reset state
+    description: Sets the deadtime of channels. The value is from 0 to 255.
+                 Please refer to the product manual for more details.

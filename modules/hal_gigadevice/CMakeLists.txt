@@ -70,6 +70,11 @@ if(${CONFIG_SOC_SERIES_GD32E51X})
   endif()
 endif()
 
+# GD32H7XX series HAL public headers require extra definitions
+if(${CONFIG_SOC_SERIES_GD32H7XX})
+  zephyr_compile_definitions(GD32H7XX)
+endif()
+
 # Global includes to be used outside hal_gigadevice
 zephyr_include_directories(${gd32_soc_sys_dir}/include)
 zephyr_include_directories(${gd32_std_dir}/include)
@@ -104,7 +109,9 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_IREF     ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_MISC     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_misc.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_PMU      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_pmu.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_RCU      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_rcu.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_RSPDIF   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_rspdif.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_RTC      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_rtc.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_RTDEC    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_rtdec.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_SDIO     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sdio.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_SHRTIMER ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_shrtimer.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_SPI      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_spi.c)
@@ -112,6 +119,7 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_SYSCFG   ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TIMER    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_timer.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TLI      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_tli.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TMU      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_tmu.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_TRIGSEL  ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_trigsel.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TRNG     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_trng.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TSI      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_tsi.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USART    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_usart.c)
