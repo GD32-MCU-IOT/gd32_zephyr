@@ -105,13 +105,12 @@ typedef uint32_t pinctrl_soc_pin_t;
  */
 
 #ifdef CONFIG_PINCTRL_GD32_AF
-#if !defined(CONFIG_SOC_SERIES_GD32C2X1)
+#if !defined(CONFIG_SOC_SERIES_GD32C2X1) && !defined(CONFIG_SOC_SERIES_GD32H7XX)
 /** Maximum 2MHz */
 #define GD32_OSPEED_2MHZ 0U
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32F3X0) || \
-	defined(CONFIG_SOC_SERIES_GD32A50X) || \
+#if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32A50X) || \
 	defined(CONFIG_SOC_SERIES_GD32L23X)
 
 /** Maximum 10MHz */
@@ -119,38 +118,46 @@ typedef uint32_t pinctrl_soc_pin_t;
 /** Maximum 50MHz */
 #define GD32_OSPEED_50MHZ 3U
 /** Maximum speed */
-#define GD32_OSPEED_MAX 3U
-#elif defined(CONFIG_SOC_SERIES_GD32F527) || \
-	defined(CONFIG_SOC_SERIES_GD32F50X)
+#define GD32_OSPEED_MAX   3U
+#elif defined(CONFIG_SOC_SERIES_GD32F527) || defined(CONFIG_SOC_SERIES_GD32F50X)
 /** Maximum 10MHz */
 #define GD32_OSPEED_10MHZ 1U
 /** Maximum 50MHz */
 #define GD32_OSPEED_50MHZ 2U
 /** Maximum speed */
-#define GD32_OSPEED_MAX 3U
+#define GD32_OSPEED_MAX   3U
 #elif defined(CONFIG_SOC_SERIES_GD32C2X1)
 /** Maximum 10MHz */
 #define GD32_OSPEED_10MHZ 0U
 /** Maximum 60MHz */
 #define GD32_OSPEED_60MHZ 1U
+#elif defined(CONFIG_SOC_SERIES_GD32H7XX)
+/** Maximum 10MHz */
+#define GD32_OSPEED_12MHZ      0U
+/** Maximum 60MHz */
+#define GD32_OSPEED_60MHZ      1U
+/** Maximum 10MHz */
+#define GD32_OSPEED_85MHZ      2U
+/** Maximum 60MHz */
+#define GD32_OSPEED_100_220MHZ 3U
 #else
 /** Maximum 25MHz */
 #define GD32_OSPEED_25MHZ 1U
 /** Maximum 50MHz */
 #define GD32_OSPEED_50MHZ 2U
 /** Maximum speed */
-#define GD32_OSPEED_MAX 3U
+#define GD32_OSPEED_MAX   3U
 #endif
 
 #else /* CONFIG_PINCTRL_GD32_AF */
 /** Maximum 10MHz */
 #define GD32_OSPEED_10MHZ 0U
 /** Maximum 2MHz */
-#define GD32_OSPEED_2MHZ 1U
+#define GD32_OSPEED_2MHZ  1U
 /** Maximum 50MHz */
 #define GD32_OSPEED_50MHZ 2U
 /** Maximum speed */
-#define GD32_OSPEED_MAX 3U
+#define GD32_OSPEED_MAX   3U
 #endif /* CONFIG_PINCTRL_GD32_AF */
 
 /** @} */

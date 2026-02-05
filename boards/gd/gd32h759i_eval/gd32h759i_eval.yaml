@@ -1,0 +1,23 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32h759i_eval
+name: GigaDevice GD32H759I-EVAL
+type: mcu
+arch: arm
+ram: 384
+flash: 3840
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - pwm
+  - counter
+  - dma
+  - spi
+  - uart
+  - gpio
+  - dmamux
+  - adc
+  - can

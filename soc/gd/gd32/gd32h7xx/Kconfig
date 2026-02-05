@@ -1,0 +1,18 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_GD32H7XX
+	select ARM
+	select CPU_HAS_ARM_MPU
+	select CPU_HAS_FPU
+	select CPU_CORTEX_M7
+	select GD32_HAS_AF_PINMUX
+	select GD32_HAS_IRC_32K
+	select HAS_SWO
+	select CPU_CORTEX_M_HAS_DWT
+	select CPU_HAS_CUSTOM_FIXED_SOC_MPU_REGIONS
+	select CPU_HAS_FPU_DOUBLE_PRECISION
+	select CPU_HAS_ICACHE
+	select CPU_HAS_DCACHE
+	select SOC_RESET_HOOK
+	select SOC_EARLY_INIT_HOOK

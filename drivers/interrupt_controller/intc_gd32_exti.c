@@ -118,9 +118,13 @@ __unused static void gd32_exti_isr(const void *isr_data)
 	const struct gd32_exti_range *range = isr_data;
 
 	for (uint8_t i = range->min; i <= range->max; i++) {
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+		if ((EXTI_PD0 & BIT(i)) != 0U) {
+			EXTI_PD0 = BIT(i);
+#else
 		if ((EXTI_PD & BIT(i)) != 0U) {
 			EXTI_PD = BIT(i);
-
+#endif
 			if (data->cbs[i].cb != NULL) {
 				data->cbs[i].cb(i, data->cbs[i].user);
 			}
@@ -133,7 +137,11 @@ void gd32_exti_enable(uint8_t line)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	EXTI_INTEN0 |= BIT(line);
+#else
 	EXTI_INTEN |= BIT(line);
+#endif
 
 	irq_enable(line2irq[line]);
 }
@@ -143,7 +151,11 @@ void gd32_exti_disable(uint8_t line)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	EXTI_INTEN0 &= ~BIT(line);
+#else
 	EXTI_INTEN &= ~BIT(line);
+#endif
 }
 
 void gd32_exti_trigger(uint8_t line, uint8_t trigger)
@@ -151,6 +163,19 @@ void gd32_exti_trigger(uint8_t line, uint8_t trigger)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	if ((trigger & GD32_EXTI_TRIG_RISING) != 0U) {
+		EXTI_RTEN0 |= BIT(line);
+	} else {
+		EXTI_RTEN0 &= ~BIT(line);
+	}
+
+	if ((trigger & GD32_EXTI_TRIG_FALLING) != 0U) {
+		EXTI_FTEN0 |= BIT(line);
+	} else {
+		EXTI_FTEN0 &= ~BIT(line);
+	}
+#else
 	if ((trigger & GD32_EXTI_TRIG_RISING) != 0U) {
 		EXTI_RTEN |= BIT(line);
 	} else {
@@ -162,6 +187,7 @@ void gd32_exti_trigger(uint8_t line, uint8_t trigger)
 	} else {
 		EXTI_FTEN &= ~BIT(line);
 	}
+#endif
 }
 
 int gd32_exti_configure(uint8_t line, gd32_exti_cb_t cb, void *user)

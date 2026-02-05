@@ -1,0 +1,198 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <arm/gd/gd32h7xx/gd32h7xx.dtsi>
+
+/ {
+	soc {
+		syscfg: syscfg@58000400 {
+			compatible = "gd,gd32-syscfg";
+			reg = <0x58000400 0x400>;
+			clocks = <&cctl GD32_CLOCK_SYSCFG>;
+		};
+
+		timer7: timer@40010400 {
+			compatible = "gd,gd32-timer";
+			reg = <0x40010400 0x400>;
+			interrupts = <59 0>, <60 0>, <61 0>, <62 0>;
+			interrupt-names = "brk", "up", "trgcom", "cc";
+			clocks = <&cctl GD32_CLOCK_TIMER7>;
+			resets = <&rctl GD32_RESET_TIMER7>;
+			is-advanced;
+			channels = <4>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer14: timer@40014000 {
+			compatible = "gd,gd32-timer";
+			reg = <0x40014000 0x400>;
+			interrupts = <132 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER14>;
+			resets = <&rctl GD32_RESET_TIMER14>;
+			channels = <2>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer15: timer@40014400 {
+			compatible = "gd,gd32-timer";
+			reg = <0x40014400 0x400>;
+			interrupts = <133 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER15>;
+			resets = <&rctl GD32_RESET_TIMER15>;
+			channels = <1>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer16: timer@40014800 {
+			compatible = "gd,gd32-timer";
+			reg = <0x40014800 0x400>;
+			interrupts = <134 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER16>;
+			resets = <&rctl GD32_RESET_TIMER16>;
+			channels = <1>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer22: timer@4000e000 {
+			compatible = "gd,gd32-timer";
+			reg = <0x4000e000 0x400>;
+			interrupts = <177 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER22>;
+			resets = <&rctl GD32_RESET_TIMER22>;
+			is-32bit;
+			channels = <4>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer23: timer@4000e400 {
+			compatible = "gd,gd32-timer";
+			reg = <0x4000e400 0x400>;
+			interrupts = <178 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER23>;
+			resets = <&rctl GD32_RESET_TIMER23>;
+			is-32bit;
+			channels = <4>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer40: timer@4001d000 {
+			compatible = "gd,gd32-timer";
+			reg = <0x4001d000 0x400>;
+			interrupts = <181 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER40>;
+			resets = <&rctl GD32_RESET_TIMER40>;
+			channels = <2>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer41: timer@4001d400 {
+			compatible = "gd,gd32-timer";
+			reg = <0x4001d400 0x400>;
+			interrupts = <182 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER41>;
+			resets = <&rctl GD32_RESET_TIMER41>;
+			channels = <2>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+	};
+
+	/* AXI SRAM */
+	sram0: memory@24000000 {
+		reg = <0x24000000 DT_SIZE_K(384)>;
+		compatible = "mmio-sram";
+	};
+
+	/* SRAM0 */
+	sram1: memory@30000000 {
+		reg = <0x30000000 DT_SIZE_K(16)>;
+		compatible = "zephyr,memory-region", "mmio-sram";
+		zephyr,memory-region = "SRAM1";
+	};
+
+	/* SRAM1 */
+	sram2: memory@30040000 {
+		reg = <0x30040000 DT_SIZE_K(16)>;
+		compatible = "zephyr,memory-region", "mmio-sram";
+		zephyr,memory-region = "SRAM2";
+	};
+
+	/* Data TCM RAM */
+	dtcm: memory@20000000 {
+		compatible = "zephyr,memory-region", "arm,dtcm";
+		reg = <0x20000000 DT_SIZE_K(64)>;
+		zephyr,memory-region = "DTCM";
+	};
+
+	/* Instruction TCM RAM (64KB as `TCM_AXI_SHARED` is `000`) */
+	itcm: memory@0 {
+		compatible = "zephyr,memory-region", "arm,itcm";
+		reg = <0x00000000 DT_SIZE_K(64)>;
+		zephyr,memory-region = "ITCM";
+	};
+
+
+};
+
+&flash0 {
+	reg = <0x08000000 DT_SIZE_K(3840)>;
+};

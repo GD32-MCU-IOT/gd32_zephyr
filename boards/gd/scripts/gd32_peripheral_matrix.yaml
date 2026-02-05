@@ -35,6 +35,7 @@ test_groups:
       - gd32vf103v_eval
       - gd32f503v_eval
       - gd32e517z_eval
+      - gd32h759i_eval
 
   # 组3: UART async_api 驱动测试
   uart_async_api:
@@ -94,3 +95,4 @@ test_groups:
       - gd32vf103v_eval
       - gd32f503v_eval
       - gd32e517z_eval
+      - gd32h759i_eval

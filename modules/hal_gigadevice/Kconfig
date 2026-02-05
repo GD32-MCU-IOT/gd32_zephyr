@@ -205,6 +205,17 @@ config USE_GD32_RTC
 	help
 	  Enable GD32 Real-Time Clock (RTC) HAL module driver
 
+config USE_GD32_RTDEC
+	bool
+	help
+	  Enable GD32 Real-Time Decryption (RTDEC) HAL module driver
+
+config USE_GD32_RSPDIF
+	bool
+	help
+	  Enable GD32 Receiver of Sony/Philips Digital Interface (RSPDIF)
+	  HAL module driver
+
 config USE_GD32_SDIO
 	bool
 	help
@@ -245,6 +256,11 @@ config USE_GD32_TMU
 	bool
 	help
 	  Enable GD32 Trigonometric Math Unit (TMU) HAL module driver
+
+config USE_GD32_TRIGSEL
+	bool
+	help
+	  Enable GD32 Trigsel Registers (TRIGSEL) HAL module driver
 
 config USE_GD32_TRNG
 	bool
