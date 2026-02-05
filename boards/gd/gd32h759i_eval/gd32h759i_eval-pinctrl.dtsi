@@ -1,0 +1,117 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32h759i(g-i-m)xx-pinctrl.h>
+
+&pinctrl {
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PA9>, <USART0_RX_PA10>;
+		};
+	};
+
+	usart1_default: usart1_default {
+		group1 {
+			pinmux = <USART1_TX_PA2>, <USART1_RX_PA3>;
+		};
+	};
+
+    adc0_default: adc0_default {
+		group1 {
+			pinmux = <ADC012_IN12_PC2>;
+		};
+	};
+
+	dac_default: dac_default {
+		group1 {
+			pinmux = <DAC0_OUT0_PA4>;
+		};
+	};
+
+	pwm0_default: pwm0_default {
+		group1 {
+			pinmux = <TIMER0_CH0_PA8>, <TIMER0_MCH0_PA7>, <TIMER0_CH1_PE11>,
+					<TIMER0_MCH1_PB0>, <TIMER0_CH2_PA10>, <TIMER0_MCH2_PE12>;
+		};
+	};
+
+	pwm1_default: pwm1_default {
+		group1 {
+			pinmux = <TIMER1_CH2_PB10>;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SCL_PB6>, <I2C0_SDA_PB7>;
+			drive-open-drain;
+		};
+	};
+
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_SCK_PA5>, <SPI0_MOSI_PA7>,
+				 <SPI0_MISO_PA6>;
+		};
+	};
+
+	spi1_default: spi1_default {
+		group1 {
+			pinmux = <SPI1_SCK_PB13>, <SPI1_MISO_PC2>,
+				 <SPI1_MOSI_PC3>;
+		};
+	};
+
+	spi2_default: spi2_default {
+		group1 {
+			pinmux = <SPI2_SCK_PB3>, <SPI2_MISO_PB4>,
+				 <SPI2_MOSI_PB5>;
+		};
+	};
+
+	spi3_default: spi3_default {
+		group1 {
+			pinmux = <SPI3_SCK_PE2>, <SPI3_MOSI_PE6>,
+				 <SPI3_MISO_PE5>,
+				 /* Use pinmux to pullup pd14 and pd15. */
+				 <SPI3_IO2_PD14>, <SPI3_IO3_PD15>;
+		};
+	};
+
+	spi4_default: spi4_default {
+		group1 {
+			pinmux = <SPI4_SCK_PF7>, <SPI4_MOSI_PF9>,
+				 <SPI4_MISO_PF8>,
+				 /* Use pinmux to pullup ph8 and ph9. */
+				 <SPI4_IO2_PH8>, <SPI4_IO3_PH9>;
+		};
+	};
+
+	spi5_default: spi5_default {
+		group1 {
+			pinmux = <SPI5_SCK_PA5>, <SPI5_MOSI_PA7>,
+				 <SPI5_MISO_PA6>;
+		};
+	};
+
+	can0_default: can0_default {
+		group1 {
+			pinmux = <CAN0_RX_PD0>, <CAN0_TX_PD1>;
+		};
+	};
+
+	can1_default: can1_default {
+		group1 {
+			pinmux = <CAN1_RX_PB5>, <CAN1_TX_PB6>;
+		};
+	};
+
+	can2_default: can2_default {
+		group1 {
+			pinmux = <CAN2_RX_PF6>, <CAN2_TX_PF7>;
+		};
+	};
+};
