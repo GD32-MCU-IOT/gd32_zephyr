@@ -22,6 +22,20 @@
 #endif
 #include <gd32_i2c.h>
 
+/* I2C clock frequency limits (MHz) - define if not provided by HAL */
+#ifndef I2CCLK_MAX
+#define I2CCLK_MAX         ((uint32_t)120U)   /* Maximum I2C clock frequency */
+#endif
+#ifndef I2CCLK_MIN
+#define I2CCLK_MIN         ((uint32_t)2U)     /* Minimum I2C clock frequency for standard mode */
+#endif
+#ifndef I2CCLK_FM_MIN
+#define I2CCLK_FM_MIN      ((uint32_t)4U)     /* Minimum I2C clock frequency for fast mode */
+#endif
+#ifndef I2CCLK_FM_PLUS_MIN
+#define I2CCLK_FM_PLUS_MIN ((uint32_t)8U)     /* Minimum I2C clock frequency for fast mode plus */
+#endif
+
 #ifdef CONFIG_I2C_GD32_I2C_V3
 /* I2C0/1/2: legacy IP, I2C3/4/5: novel ADD IP */
 #ifdef CONFIG_SOC_SERIES_GD32F527
