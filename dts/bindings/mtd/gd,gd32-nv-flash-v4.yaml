@@ -1,0 +1,23 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Flash memory binding of GD32 FMC v4.
+
+  GD32 series use this type flash memory:
+    - GD32H7xx
+
+include: soc-nv-flash.yaml
+
+compatible: gd,gd32-nv-flash-v4
+
+properties:
+  max-erase-time-ms:
+    type: int
+    required: true
+    description: Max erase time(millisecond) of a flash page
+
+  page-size:
+    type: int
+    required: true
+    description: Flash memory page size
