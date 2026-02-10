@@ -64,6 +64,7 @@ test_groups:
       - gd32f527i_eval
       - gd32f503v_eval
       - gd32e517z_eval
+      - gd32h759i_eval
 
   # 组5: EEPROM测试（只测试有板级配置的）
   eeprom:
@@ -76,6 +77,7 @@ test_groups:
       - gd32f470i_eval
       - gd32f527i_eval
       - gd32f503v_eval
+      - gd32h759i_eval
 
   # 组6: Shell 功能测试
   shell_capable:

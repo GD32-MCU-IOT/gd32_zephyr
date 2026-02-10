@@ -4,7 +4,7 @@
 config SOC_FLASH_GD32
 	bool "GigaDevice GD32 flash driver"
 	default y
-	depends on (GD32_NV_FLASH_V1 || GD32_NV_FLASH_V2 || GD32_NV_FLASH_V3)
+	depends on (GD32_NV_FLASH_V1 || GD32_NV_FLASH_V2 || GD32_NV_FLASH_V3 || GD32_NV_FLASH_V4)
 	select FLASH_HAS_DRIVER_ENABLED
 	select FLASH_HAS_PAGE_LAYOUT
 	select FLASH_HAS_EXPLICIT_ERASE
@@ -32,3 +32,11 @@ config GD32_NV_FLASH_V3
 	depends on DT_HAS_GD_GD32_NV_FLASH_V3_ENABLED
 	help
 	  Enable the generic backend for GD32 FMC v3 flash driver.
+
+config GD32_NV_FLASH_V4
+	bool
+	default y
+	depends on DT_HAS_GD_GD32_NV_FLASH_V4_ENABLED
+	select USE_GD32_FMC
+	help
+	  Enable the generic backend for GD32 FMC v4 flash driver.
