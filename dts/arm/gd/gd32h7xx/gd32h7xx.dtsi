@@ -57,7 +57,7 @@
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "gd,gd32-nv-flash-v1", "soc-nv-flash";
+				compatible = "gd,gd32-nv-flash-v4", "soc-nv-flash";
 				write-block-size = <2>;
 				max-erase-time-ms = <8000>;
 				page-size = <DT_SIZE_K(4)>;
@@ -90,6 +90,60 @@
 			status = "disabled";
 		};
 
+		usart2: usart@40004800 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40004800 0x400>;
+			interrupts = <39 1>;
+			clocks = <&cctl GD32_CLOCK_USART2>;
+			resets = <&rctl GD32_RESET_USART2>;
+			status = "disabled";
+		};
+
+		uart3: usart@40004c00 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40004c00 0x400>;
+			interrupts = <52 0>;
+			clocks = <&cctl GD32_CLOCK_UART3>;
+			resets = <&rctl GD32_RESET_UART3>;
+			status = "disabled";
+		};
+
+		uart4: usart@40005000 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40005000 0x400>;
+			interrupts = <53 0>;
+			clocks = <&cctl GD32_CLOCK_UART4>;
+			resets = <&rctl GD32_RESET_UART4>;
+			status = "disabled";
+		};
+
+		usart5: usart@40011400 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40011400 0x400>;
+			interrupts = <71 0>;
+			clocks = <&cctl GD32_CLOCK_USART5>;
+			resets = <&rctl GD32_RESET_USART5>;
+			status = "disabled";
+		};
+
+		uart6: usart@40007800 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40007800 0x400>;
+			interrupts = <82 0>;
+			clocks = <&cctl GD32_CLOCK_UART6>;
+			resets = <&rctl GD32_RESET_UART6>;
+			status = "disabled";
+		};
+
+		uart7: usart@40007c00 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40007c00 0x400>;
+			interrupts = <83 0>;
+			clocks = <&cctl GD32_CLOCK_UART7>;
+			resets = <&rctl GD32_RESET_UART7>;
+			status = "disabled";
+		};
+
 		adc0: adc@40012400 {
 			compatible = "gd,gd32-adc-trigsel", "gd,gd32-adc";
 			reg = <0x40012400 0x100>;
@@ -100,6 +154,58 @@
 			status = "disabled";
 			#io-channel-cells = <1>;
 			trigger-select = <0x0>;
+		};
+
+		i2c0: i2c@40005400 {
+			compatible = "gd,gd32-i2c-v2";
+			reg = <0x40005400 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			interrupts = <31 0>, <32 0>;
+			interrupt-names = "event", "error";
+			clocks = <&cctl GD32_CLOCK_I2C0>;
+			resets = <&rctl GD32_RESET_I2C0>;
+			status = "disabled";
+		};
+
+		i2c1: i2c@40005800 {
+			compatible = "gd,gd32-i2c-v2";
+			reg = <0x40005800 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			interrupts = <33 0>, <34 0>;
+			interrupt-names = "event", "error";
+			clocks = <&cctl GD32_CLOCK_I2C1>;
+			resets = <&rctl GD32_RESET_I2C1>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@4000c000 {
+			compatible = "gd,gd32-i2c-v2";
+			reg = <0x4000c000 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			interrupts = <72 0>, <73 0>;
+			interrupt-names = "event", "error";
+			clocks = <&cctl GD32_CLOCK_I2C1>;
+			resets = <&rctl GD32_RESET_I2C1>;
+			status = "disabled";
+		};
+
+		i2c3: i2c@40005c00 {
+			compatible = "gd,gd32-i2c-v2";
+			reg = <0x40005c00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			interrupts = <95 0>, <96 0>;
+			interrupt-names = "event", "error";
+			clocks = <&cctl GD32_CLOCK_I2C3>;
+			resets = <&rctl GD32_RESET_I2C3>;
+			status = "disabled";
 		};
 
 		spi0: spi@40013000 {

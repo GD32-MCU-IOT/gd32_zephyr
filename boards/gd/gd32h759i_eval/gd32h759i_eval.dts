@@ -60,6 +60,7 @@
 		pwm-led1 = &pwm_led1;
 		pwm-led2 = &pwm_led2;
 		pwm-led3 = &pwm_led3;
+		eeprom-0 = &eeprom0;
 	};
 };
 
@@ -148,6 +149,13 @@
 	pinctrl-names = "default";
 };
 
+&usart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart2_default>;
+	pinctrl-names = "default";
+};
+
 &fwdgt {
 	status = "okay";
 };
@@ -164,6 +172,22 @@
 	status = "okay";
 };
 
+&i2c1 {
+	status = "okay";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		status = "okay";
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
 &spi0 {
 	status = "okay";
 	pinctrl-0 = <&spi0_default>;
@@ -171,13 +195,6 @@
 	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
 	dmas = <&dma0 0 48 (2<<16) 0>, <&dma0 1 47 (3<<16) 0>;
 	dma-names = "tx", "rx";
-};
-
-&spi1 {
-	status = "okay";
-	pinctrl-0 = <&spi1_default>;
-	pinctrl-names = "default";
-	cs-gpios = <&gpioa 13 GPIO_ACTIVE_LOW>;
 };
 
 &spi2 {
@@ -198,7 +215,15 @@
 	status = "okay";
 	pinctrl-0 = <&spi4_default>;
 	pinctrl-names = "default";
-	cs-gpios = <&gpiof 6 GPIO_ACTIVE_LOW>;
+	cs-gpios = <&gpioh 5 GPIO_ACTIVE_LOW>;
+	nor_flash: gd25q16@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
 };
 
 &spi5 {

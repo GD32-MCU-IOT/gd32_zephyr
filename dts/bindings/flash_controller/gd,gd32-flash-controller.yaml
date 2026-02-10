@@ -14,6 +14,9 @@ description: |
   GD32 FMC v3: its flash memory has 2 banks, use sector size as the minimum operating
   unit, the sector size is not equal.
 
+  GD32 FMC v4: its flash memory has 1 bank, page size is equal in the bank,
+  flash size is smaller than 3840KB, with flash RTDEC. Such as GD32H7xx.
+
 compatible: "gd,gd32-flash-controller"
 
 include: flash-controller.yaml

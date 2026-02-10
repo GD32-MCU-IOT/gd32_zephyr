@@ -32,6 +32,55 @@ LOG_MODULE_REGISTER(spi_gd32);
 
 #define GD32_SPI_PSC_MAX	0x7U
 
+/*
+ * Some GD32 series uses different register layout like ads GD32H7 series.
+ * Define compatibility macros to minimize code changes.
+ */
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+
+#define SPI_DATA_TX(spix) SPI_TDATA(spix)
+#define SPI_DATA_RX(spix) SPI_RDATA(spix)
+
+#define SPI_STAT_TX_FLAG SPI_STAT_TP
+#define SPI_STAT_RX_FLAG SPI_STAT_RP
+
+#define SPI_TRANSFER_ONGOING(spix) (!(SPI_STAT(spix) & SPI_STAT_TC))
+
+#define SPI_DMA_ENABLE(spix)  (SPI_CFG0(spix) |= (SPI_CFG0_DMATEN | SPI_CFG0_DMAREN))
+#define SPI_DMA_DISABLE(spix) (SPI_CFG0(spix) &= ~(SPI_CFG0_DMATEN | SPI_CFG0_DMAREN))
+
+#define SPI_INT_DISABLE_ALL(spix)                                                                  \
+	(SPI_INT(spix) &= ~(SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_RXOREIE | SPI_INT_TXUREIE |      \
+			    SPI_INT_CRCERIE | SPI_INT_CONFEIE))
+
+#define SPI_INT_ENABLE_TRANSCEIVE(spix) (SPI_INT(spix) |= (SPI_INT_RPIE | SPI_INT_TPIE))
+
+#define SPI_INT_ENABLE_ERR(spix)                                                                   \
+	(SPI_INT(spix) |= (SPI_INT_RXOREIE | SPI_INT_TXUREIE | SPI_INT_CRCERIE | SPI_INT_CONFEIE))
+
+#else /* CONFIG_SOC_SERIES_GD32H7XX */
+
+#define SPI_DATA_TX(spix) SPI_DATA(spix)
+#define SPI_DATA_RX(spix) SPI_DATA(spix)
+
+#define SPI_STAT_TX_FLAG SPI_STAT_TBE
+#define SPI_STAT_RX_FLAG SPI_STAT_RBNE
+
+#define SPI_TRANSFER_ONGOING(spix)                                                                 \
+	(!(SPI_STAT(spix) & SPI_STAT_TBE) || (SPI_STAT(spix) & SPI_STAT_TRANS))
+
+#define SPI_DMA_ENABLE(spix)  (SPI_CTL1(spix) |= (SPI_CTL1_DMATEN | SPI_CTL1_DMAREN))
+#define SPI_DMA_DISABLE(spix) (SPI_CTL1(spix) &= ~(SPI_CTL1_DMATEN | SPI_CTL1_DMAREN))
+
+#define SPI_INT_DISABLE_ALL(spix)                                                                  \
+	(SPI_CTL1(spix) &= ~(SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE))
+
+#define SPI_INT_ENABLE_TRANSCEIVE(spix) (SPI_CTL1(spix) |= (SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE))
+
+#define SPI_INT_ENABLE_ERR(spix) (SPI_CTL1(spix) |= SPI_CTL1_ERRIE)
+
+#endif /* CONFIG_SOC_SERIES_GD32H7XX */
+
 #ifdef CONFIG_SPI_GD32_DMA
 
 enum spi_gd32_dma_direction {
@@ -137,6 +186,64 @@ static int spi_gd32_configure(const struct device *dev,
 
 	SPI_CTL0(cfg->reg) &= ~SPI_CTL0_SPIEN;
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	uint32_t cfg0 = SPI_CFG0(cfg->reg);
+	uint32_t cfg1 = SPI_CFG1(cfg->reg);
+
+	/* Master mode and full duplex */
+	cfg1 |= SPI_MASTER;
+
+	/* Data size */
+	cfg0 &= ~SPI_CFG0_DZ;
+	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
+		cfg0 |= SPI_DATASIZE_8BIT;
+		cfg0 |= SPI_CFG0_BYTEN; /* Enable byte access */
+	} else if (SPI_WORD_SIZE_GET(config->operation) == 16) {
+		cfg0 |= SPI_DATASIZE_16BIT;
+	} else if (SPI_WORD_SIZE_GET(config->operation) == 32) {
+		cfg0 |= SPI_DATASIZE_32BIT;
+		cfg0 |= SPI_CFG0_WORDEN; /* Enable word access */
+	} else {
+		return -ENOTSUP;
+	}
+
+	/* NSS mode */
+	if (spi_cs_is_gpio(config)) {
+		cfg1 |= SPI_NSS_SOFT;
+	} else {
+		cfg1 |= (SPI_NSS_HARD | SPI_CFG1_NSSDRV);
+	}
+	cfg1 |= SPI_CFG1_NSSDRV;
+
+	/* LSB/MSB */
+	if (config->operation & SPI_TRANSFER_LSB) {
+		cfg1 |= SPI_ENDIAN_LSB;
+	}
+
+	/* Clock polarity and phase */
+	if (config->operation & SPI_MODE_CPOL) {
+		cfg1 |= SPI_CFG1_CKPL;
+	}
+	if (config->operation & SPI_MODE_CPHA) {
+		cfg1 |= SPI_CFG1_CKPH;
+	}
+
+	/* Prescaler */
+	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&cfg->clkid,
+				     &bus_freq);
+	cfg0 &= ~SPI_CFG0_PSC;
+	for (uint8_t i = 0U; i <= GD32_SPI_PSC_MAX; i++) {
+		bus_freq >>= 1;
+		if (bus_freq <= config->frequency) {
+			cfg0 |= CFG0_PSC(i);
+			break;
+		}
+	}
+
+	SPI_CFG0(cfg->reg) = cfg0;
+	SPI_CFG1(cfg->reg) = cfg1;
+	SPI_I2SCTL(cfg->reg) &= ~SPI_I2SCTL_I2SSEL;
+#else  /* CONFIG_SOC_SERIES_GD32H7XX */
 	SPI_CTL0(cfg->reg) |= SPI_MASTER;
 	SPI_CTL0(cfg->reg) &= ~SPI_TRANSMODE_BDTRANSMIT;
 
@@ -185,6 +292,7 @@ static int spi_gd32_configure(const struct device *dev,
 			break;
 		}
 	}
+#endif /* CONFIG_SOC_SERIES_GD32H7XX */
 
 	data->ctx.config = config;
 
@@ -196,9 +304,14 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 	struct spi_gd32_data *data = dev->data;
 	const struct spi_gd32_config *cfg = dev->config;
 	struct spi_context *ctx = &data->ctx;
-	uint16_t tx_frame = 0U, rx_frame = 0U;
 
-	while ((SPI_STAT(cfg->reg) & SPI_STAT_TBE) == 0) {
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	uint32_t tx_frame = 0U, rx_frame = 0U;
+#else
+	uint16_t tx_frame = 0U, rx_frame = 0U;
+#endif
+
+	while ((SPI_STAT(cfg->reg) & SPI_STAT_TX_FLAG) == 0) {
 		/* NOP */
 	}
 
@@ -207,37 +320,68 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 			tx_frame = UNALIGNED_GET((uint8_t *)(data->ctx.tx_buf));
 		}
 		/* For 8 bits mode, spi will forced SPI_DATA[15:8] to 0. */
-		SPI_DATA(cfg->reg) = tx_frame;
+		SPI_DATA_TX(cfg->reg) = tx_frame;
 
 		spi_context_update_tx(ctx, 1, 1);
-	} else {
+	} else if (SPI_WORD_SIZE_GET(ctx->config->operation) == 16) {
 		if (spi_context_tx_buf_on(ctx)) {
-			tx_frame = UNALIGNED_GET((uint8_t *)(data->ctx.tx_buf));
+			tx_frame = UNALIGNED_GET((uint16_t *)(data->ctx.tx_buf));
 		}
-		SPI_DATA(cfg->reg) = tx_frame;
+		SPI_DATA_TX(cfg->reg) = tx_frame;
 
 		spi_context_update_tx(ctx, 2, 1);
 	}
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	else if (SPI_WORD_SIZE_GET(ctx->config->operation) == 32) {
+		if (spi_context_tx_buf_on(ctx)) {
+			tx_frame = UNALIGNED_GET((uint32_t *)(data->ctx.tx_buf));
+		}
+		SPI_DATA_TX(cfg->reg) = tx_frame;
+		spi_context_update_tx(ctx, 4, 1);
+	}
+#endif
+	else {
+		uint32_t frame_size = SPI_WORD_SIZE_GET(ctx->config->operation);
 
-	while ((SPI_STAT(cfg->reg) & SPI_STAT_RBNE) == 0) {
+		LOG_ERR("Unsupported frame size %d bits", frame_size);
+		return -ENOTSUP;
+	}
+
+	while ((SPI_STAT(cfg->reg) & SPI_STAT_RX_FLAG) == 0) {
 		/* NOP */
 	}
 
 	if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 8) {
 		/* For 8 bits mode, spi will forced SPI_DATA[15:8] to 0. */
-		rx_frame = SPI_DATA(cfg->reg);
+		rx_frame = SPI_DATA_RX(cfg->reg);
 		if (spi_context_rx_buf_on(ctx)) {
 			UNALIGNED_PUT(rx_frame, (uint8_t *)data->ctx.rx_buf);
 		}
 
 		spi_context_update_rx(ctx, 1, 1);
-	} else {
-		rx_frame = SPI_DATA(cfg->reg);
+	} else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 16) {
+		rx_frame = SPI_DATA_RX(cfg->reg);
 		if (spi_context_rx_buf_on(ctx)) {
 			UNALIGNED_PUT(rx_frame, (uint16_t *)data->ctx.rx_buf);
 		}
 
 		spi_context_update_rx(ctx, 2, 1);
+	}
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
+		rx_frame = SPI_DATA_RX(cfg->reg);
+		if (spi_context_rx_buf_on(ctx)) {
+			UNALIGNED_PUT(rx_frame, (uint32_t *)data->ctx.rx_buf);
+		}
+
+		spi_context_update_rx(ctx, 4, 1);
+	}
+#endif
+	else {
+		uint32_t frame_size = SPI_WORD_SIZE_GET(data->ctx.config->operation);
+
+		LOG_ERR("Unsupported frame size %d bits", frame_size);
+		return -ENOTSUP;
 	}
 
 	return spi_gd32_get_err(cfg);
@@ -274,15 +418,27 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 8) {
 		dma_cfg->source_data_size = 1;
 		dma_cfg->dest_data_size = 1;
-	} else {
+	} else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 16) {
 		dma_cfg->source_data_size = 2;
 		dma_cfg->dest_data_size = 2;
+	}
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
+		dma_cfg->source_data_size = 4;
+		dma_cfg->dest_data_size = 4;
+	}
+#endif
+	else {
+		uint32_t frame_size = SPI_WORD_SIZE_GET(data->ctx.config->operation);
+
+		LOG_ERR("Unsupported frame size %d bits", frame_size);
+		return -ENOTSUP;
 	}
 
 	block_cfg->block_size = spi_context_max_continuous_chunk(&data->ctx);
 
 	if (dir == TX) {
-		block_cfg->dest_address = (uint32_t)&SPI_DATA(cfg->reg);
+		block_cfg->dest_address = (uint32_t)&SPI_DATA_TX(cfg->reg);
 		block_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		if (spi_context_tx_buf_on(&data->ctx)) {
 			block_cfg->source_address = (uint32_t)data->ctx.tx_buf;
@@ -294,7 +450,7 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	}
 
 	if (dir == RX) {
-		block_cfg->source_address = (uint32_t)&SPI_DATA(cfg->reg);
+		block_cfg->source_address = (uint32_t)&SPI_DATA_RX(cfg->reg);
 		block_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 
 		if (spi_context_rx_buf_on(&data->ctx)) {
@@ -311,6 +467,10 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 		LOG_ERR("dma_config %p failed %d\n", dma->dev, ret);
 		return ret;
 	}
+
+#ifdef CONFIG_DCACHE
+	SCB_CleanInvalidateDCache();
+#endif
 
 	ret = dma_start(dma->dev, dma->channel);
 	if (ret < 0) {
@@ -339,7 +499,7 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 		}
 	}
 
-	SPI_CTL1(cfg->reg) |= (SPI_CTL1_DMATEN | SPI_CTL1_DMAREN);
+	SPI_DMA_ENABLE(cfg->reg);
 
 on_error:
 	if (ret < 0) {
@@ -375,6 +535,10 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 
 	spi_context_cs_control(&data->ctx, true);
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	SPI_CTL0(cfg->reg) |= (uint32_t)SPI_CTL0_MSTART;
+#endif
+
 #ifdef CONFIG_SPI_GD32_INTERRUPT
 #ifdef CONFIG_SPI_GD32_DMA
 	if (spi_gd32_dma_enabled(dev)) {
@@ -389,10 +553,13 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 	} else
 #endif
 	{
-		SPI_STAT(cfg->reg) &=
-			~(SPI_STAT_RBNE | SPI_STAT_TBE | SPI_GD32_ERR_MASK);
-		SPI_CTL1(cfg->reg) |=
-			(SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE);
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+		SPI_STATC(cfg->reg) &= ~(SPI_STAT_RP | SPI_STAT_TP | SPI_GD32_ERR_MASK);
+		SPI_INT(cfg->reg) |= (SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_FEIE);
+#else
+		SPI_STAT(cfg->reg) &= ~(SPI_STAT_RBNE | SPI_STAT_TBE | SPI_GD32_ERR_MASK);
+		SPI_CTL1(cfg->reg) |= (SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE);
+#endif
 	}
 	ret = spi_context_wait_for_completion(&data->ctx);
 #else
@@ -408,20 +575,21 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 #endif
 #endif
 
-	while (!(SPI_STAT(cfg->reg) & SPI_STAT_TBE) ||
-		(SPI_STAT(cfg->reg) & SPI_STAT_TRANS)) {
+	while (SPI_TRANSFER_ONGOING(cfg->reg)) {
 		/* Wait until last frame transfer complete. */
 	}
 
 #ifdef CONFIG_SPI_GD32_DMA
 dma_error:
-	SPI_CTL1(cfg->reg) &=
-		~(SPI_CTL1_DMATEN | SPI_CTL1_DMAREN);
+	SPI_DMA_DISABLE(cfg->reg);
 #endif
 	spi_context_cs_control(&data->ctx, false);
 
-	SPI_CTL0(cfg->reg) &=
-		~(SPI_CTL0_SPIEN);
+	SPI_CTL0(cfg->reg) &= ~(SPI_CTL0_SPIEN);
+
+#ifdef CONFIG_DCACHE
+	SCB_CleanInvalidateDCache();
+#endif
 
 error:
 	spi_context_release(&data->ctx, ret);
@@ -456,8 +624,11 @@ static void spi_gd32_complete(const struct device *dev, int status)
 	struct spi_gd32_data *data = dev->data;
 	const struct spi_gd32_config *cfg = dev->config;
 
-	SPI_CTL1(cfg->reg) &=
-		~(SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE);
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	SPI_INT(cfg->reg) &= ~(SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_FEIE);
+#else
+	SPI_CTL1(cfg->reg) &= ~(SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE);
+#endif
 
 #ifdef CONFIG_SPI_GD32_DMA
 	for (size_t i = 0; i < spi_gd32_dma_enabled_num(dev); i++) {
@@ -534,9 +705,22 @@ static void spi_gd32_dma_callback(const struct device *dma_dev, void *arg,
 		if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 8) {
 			spi_context_update_tx(&data->ctx, 1, chunk_len);
 			spi_context_update_rx(&data->ctx, 1, chunk_len);
-		} else {
+		} else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 16) {
 			spi_context_update_tx(&data->ctx, 2, chunk_len);
 			spi_context_update_rx(&data->ctx, 2, chunk_len);
+		}
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+		else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
+			spi_context_update_tx(&data->ctx, 4, chunk_len);
+			spi_context_update_rx(&data->ctx, 4, chunk_len);
+		}
+#endif
+		else {
+			uint32_t frame_size = SPI_WORD_SIZE_GET(data->ctx.config->operation);
+
+			LOG_ERR("Unsupported frame size %d bits", frame_size);
+			spi_gd32_complete(dev, -ENOTSUP);
+			return;
 		}
 
 		if (spi_gd32_transfer_ongoing(data)) {
