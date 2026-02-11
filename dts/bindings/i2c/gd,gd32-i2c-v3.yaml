@@ -25,3 +25,15 @@ properties:
 
   pinctrl-names:
     required: true
+
+  dmas:
+    type: phandle-array
+    description: |
+      Optional DMA channels used by the I2C peripheral. If specified, these
+      channels can be used to handle RX and TX transactions over DMA.
+
+  dma-names:
+    type: string-array
+    description: |
+      Names of the optional DMA channels. Expected values are "rx" for
+      the RX channel and "tx" for the TX channel.

@@ -78,6 +78,19 @@ static int i2c_gd32_init(const struct device *dev)
 		return err;
 	}
 
+	/* GD32E51x I2C2 (ADD IP at 0x4000C000) requires additional AFIO configuration */
+	/* PA8 -> I2C2_SCL: AFIO_PCFA bit 16-17 = 1 */
+	/* PC9 -> I2C2_SDA: AFIO_PCFC bit 18-19 = 2 */
+	if (cfg->reg == 0x4000C000U) {
+		volatile uint32_t *afio_pcfa = (volatile uint32_t *)0x4001003CU;
+		volatile uint32_t *afio_pcfc = (volatile uint32_t *)0x40010044U;
+
+		/* Configure PA8 for I2C2_SCL: set PCFA[17:16] = 01 */
+		*afio_pcfa = (*afio_pcfa & ~(3U << 16)) | (1U << 16);
+		/* Configure PC9 for I2C2_SDA: set PCFC[19:18] = 10 */
+		*afio_pcfc = (*afio_pcfc & ~(3U << 18)) | (2U << 18);
+	}
+
 	/* Mutex semaphore to protect the i2c api in multi-thread env. */
 	k_sem_init(&data->bus_mutex, 1, 1);
 

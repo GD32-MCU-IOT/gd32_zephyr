@@ -102,7 +102,6 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_FWDGT    ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_GPIO     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_gpio.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V1   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V2   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_IPA      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_ipa.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_IREF     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_iref.c)
@@ -126,9 +125,12 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_USART    ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_WWDGT    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_wwdgt.c)
 
 # For GD32F527
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_PKCAU     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_pkcau.c)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sai.c)
+if(${CONFIG_SOC_SERIES_GD32F527})
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_PKCAU     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_pkcau.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sai.c)
+endif()
 
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)

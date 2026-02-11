@@ -77,7 +77,7 @@
 	aliases {
 		led0 = &led1;
 		sw0 = &key_a;
-		eeprom-0 = &eeprom0;
+		eeprom-0 = &eeprom2;
 	};
 };
 
@@ -157,8 +157,9 @@
 	status = "okay";
 	pinctrl-0 = <&i2c1_default>;
 	pinctrl-names = "default";
-	dmas = <&dma0 3 0>, <&dma0 4 0>;
-	dma-names = "rx", "tx";
+	/* I2C1 DMA disabled: shares CH3/CH4 with I2C2, using PIO for I2C1 */
+	/* dmas = <&dma0 4 0>, <&dma0 3 0>; */
+	/* dma-names = "rx", "tx"; */
 
 	eeprom1: eeprom@50 {
 		compatible = "atmel,at24";
@@ -174,6 +175,7 @@
 	status = "okay";
 	pinctrl-0 = <&i2c2_default>;
 	pinctrl-names = "default";
+	/* I2C2 ADD IP uses DMA0 CH3 (TX) and CH4 (RX) - shared with I2C1 */
 	dmas = <&dma0 4 0>, <&dma0 3 0>;
 	dma-names = "rx", "tx";
 
