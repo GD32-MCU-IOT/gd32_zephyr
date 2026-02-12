@@ -6,6 +6,7 @@ config SPI_GD32
 	default y
 	depends on DT_HAS_GD_GD32_SPI_ENABLED
 	select PINCTRL
+	select USE_GD32_SPI
 	help
 	  Enables Gigadevice GD32 SPI driver.
 
