@@ -23,7 +23,7 @@
 #include <gd32_i2c.h>
 
 #ifdef CONFIG_I2C_GD32_I2C_V3
-/* I2C legacy/ADD IP detection macros for mixed-mode SoCs */
+/* I2C0/1/2: legacy IP, I2C3/4/5: novel ADD IP */
 #ifdef CONFIG_SOC_SERIES_GD32F527
 #define GD32_I2C_IS_LEGACY(periph) ((periph) == I2C0 || (periph) == I2C1 || (periph) == I2C2)
 #endif
@@ -147,7 +147,7 @@
 #endif /* CONFIG_SOC_SERIES_GD32E51X */
 
 #define GD32_I2C_IS_ADD(periph)    (!GD32_I2C_IS_LEGACY(periph))
-#endif /* CONFIG_I2C_GD32_I2C_V3 */
+#endif
 
 /* Bus error */
 #define I2C_GD32_ERR_BERR BIT(0)
