@@ -32,20 +32,6 @@
 /* E51x: I2C0/1 = legacy IP, I2C2 = ADD IP */
 #define GD32_I2C_IS_LEGACY(periph) ((periph) == I2C0 || (periph) == I2C1)
 
-/* I2C clock frequency limits (MHz) - E51x HAL does not define these */
-#ifndef I2CCLK_MAX
-#define I2CCLK_MAX         ((uint32_t)120U)
-#endif
-#ifndef I2CCLK_MIN
-#define I2CCLK_MIN         ((uint32_t)2U)
-#endif
-#ifndef I2CCLK_FM_MIN
-#define I2CCLK_FM_MIN      ((uint32_t)4U)
-#endif
-#ifndef I2CCLK_FM_PLUS_MIN
-#define I2CCLK_FM_PLUS_MIN ((uint32_t)8U)
-#endif
-
 /* E51x HAL compatibility layer - map I2C_ADD_* to I2C2_* */
 /* Registers */
 #define I2C_ADD_CTL0(periph)           I2C2_CTL0(periph)
