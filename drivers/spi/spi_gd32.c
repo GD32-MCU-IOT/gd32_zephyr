@@ -32,8 +32,15 @@ LOG_MODULE_REGISTER(spi_gd32);
 
 #define GD32_SPI_PSC_MAX	0x7U
 
+#if defined(CONFIG_DCACHE) && !defined(CONFIG_NOCACHE_MEMORY)
+/* currently, manual cache coherency management is only done on dummy_rx_tx */
+#define GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED 1
+#else
+#define GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED 0
+#endif /* defined(CONFIG_DCACHE) && !defined(CONFIG_NOCACHE_MEMORY) */
+
 /*
- * Some GD32 series uses different register layout like ads GD32H7 series.
+ * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
 #if defined(CONFIG_SOC_SERIES_GD32H7XX)
@@ -307,6 +314,12 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 
 #if defined(CONFIG_SOC_SERIES_GD32H7XX)
 	uint32_t tx_frame = 0U, rx_frame = 0U;
+
+	/* Set transfer count and start transfer */
+	const size_t chunk_len = spi_context_max_continuous_chunk(ctx);
+
+	spi_current_data_num_config(cfg->reg, chunk_len);
+	spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
 #else
 	uint16_t tx_frame = 0U, rx_frame = 0U;
 #endif
@@ -469,7 +482,7 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	}
 
 #ifdef CONFIG_DCACHE
-	SCB_CleanInvalidateDCache();
+	/* SCB_CleanInvalidateDCache(); */
 #endif
 
 	ret = dma_start(dma->dev, dma->channel);
@@ -489,6 +502,17 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 	struct dma_status stat;
 	int ret = 0;
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	/* Disable SPI before configuring transfer count */
+	spi_disable(cfg->reg);
+	/* Configure SPI transfer count for GD32H7 */
+	spi_current_data_num_config(cfg->reg, chunk_len);
+	spi_i2s_data_transmit(cfg->reg, 0x5A);
+
+	/* Re-enable SPI after DMA configuration */
+	spi_enable(cfg->reg);
+#endif
+
 	for (size_t i = 0; i < spi_gd32_dma_enabled_num(dev); i++) {
 		dma_get_status(cfg->dma[i].dev, cfg->dma[i].channel, &stat);
 		if ((chunk_len != data->dma[i].count) && !stat.busy) {
@@ -499,7 +523,13 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 		}
 	}
 
+	/* Enable SPI DMA requests AFTER DMA channels are started */
 	SPI_DMA_ENABLE(cfg->reg);
+
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+	/* Start SPI master transfer for GD32H7 */
+	spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
+#endif
 
 on_error:
 	if (ret < 0) {
@@ -534,10 +564,6 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
 
 	spi_context_cs_control(&data->ctx, true);
-
-#if defined(CONFIG_SOC_SERIES_GD32H7XX)
-	SPI_CTL0(cfg->reg) |= (uint32_t)SPI_CTL0_MSTART;
-#endif
 
 #ifdef CONFIG_SPI_GD32_INTERRUPT
 #ifdef CONFIG_SPI_GD32_DMA
@@ -588,7 +614,7 @@ dma_error:
 	SPI_CTL0(cfg->reg) &= ~(SPI_CTL0_SPIEN);
 
 #ifdef CONFIG_DCACHE
-	SCB_CleanInvalidateDCache();
+	/* SCB_CleanInvalidateDCache(); */
 #endif
 
 error:
@@ -673,6 +699,24 @@ static bool spi_gd32_chunk_transfer_finished(const struct device *dev)
 	return (MIN(dma[TX].count, dma[RX].count) >= chunk_len);
 }
 
+static bool spi_gd32_chunk_tx_transfer_finished(const struct device *dev)
+{
+	struct spi_gd32_data *data = dev->data;
+	struct spi_gd32_dma_data *dma = data->dma;
+	const size_t chunk_len = spi_context_max_continuous_chunk(&data->ctx);
+
+	return (dma[TX].count >= chunk_len);
+}
+
+static bool spi_gd32_chunk_rx_transfer_finished(const struct device *dev)
+{
+	struct spi_gd32_data *data = dev->data;
+	struct spi_gd32_dma_data *dma = data->dma;
+	const size_t chunk_len = spi_context_max_continuous_chunk(&data->ctx);
+
+	return (dma[RX].count >= chunk_len);
+}
+
 static void spi_gd32_dma_callback(const struct device *dma_dev, void *arg,
 				  uint32_t channel, int status)
 {
@@ -736,9 +780,14 @@ static void spi_gd32_dma_callback(const struct device *dma_dev, void *arg,
 		}
 	}
 
-	err = spi_gd32_start_dma_transceive(dev);
-	if (err) {
-		spi_gd32_complete(dev, err);
+	/* Check whether both TX and RX transfers are not finished */
+	if (!spi_gd32_chunk_tx_transfer_finished(dev) &&
+	    !spi_gd32_chunk_rx_transfer_finished(dev)) {
+		SPI_DMA_DISABLE(cfg->reg);
+		err = spi_gd32_start_dma_transceive(dev);
+		if (err) {
+			spi_gd32_complete(dev, err);
+		}
 	}
 }
 
