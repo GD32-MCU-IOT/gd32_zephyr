@@ -49,6 +49,10 @@
 #define DMA_CHMADDR(dma, ch) REG32((dma + 0x14UL) + 0x14UL * (uint32_t)(ch))
 #endif
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+#define GD32_DMA_V1_NO_SUBPERIPHERAL
+#endif
+
 #define GD32_DMA_INTF(dma)	  DMA_INTF(dma)
 #define GD32_DMA_INTC(dma)	  DMA_INTC(dma)
 #define GD32_DMA_CHCTL(dma, ch)	  DMA_CHCTL((dma), (ch))
@@ -195,6 +199,7 @@ gd32_dma_periph_width_config(uint32_t reg, dma_channel_enum ch, uint32_t pwidth)
 }
 
 #if DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1)
+#if !defined(GD32_DMA_V1_NO_SUBPERIPHERAL)
 static inline void
 gd32_dma_channel_subperipheral_select(uint32_t reg, dma_channel_enum ch,
 				      dma_subperipheral_enum sub_periph)
@@ -205,6 +210,7 @@ gd32_dma_channel_subperipheral_select(uint32_t reg, dma_channel_enum ch,
 		(ctl & (~DMA_CHXCTL_PERIEN)) |
 		((uint32_t)sub_periph << CHXCTL_PERIEN_OFFSET);
 }
+#endif
 #endif
 
 static inline void
@@ -414,11 +420,13 @@ static int dma_gd32_config(const struct device *dev, uint32_t channel,
 	}
 
 #if DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1)
+#if !defined(GD32_DMA_V1_NO_SUBPERIPHERAL)
 	if (dma_cfg->dma_slot > 0xF) {
 		LOG_ERR("dma_slot must be <7 (%" PRIu32 ")",
 			dma_cfg->dma_slot);
 		return -EINVAL;
 	}
+#endif
 #endif
 
 	gd32_dma_deinit(cfg->reg, channel);
@@ -473,10 +481,12 @@ static int dma_gd32_config(const struct device *dev, uint32_t channel,
 				     dma_gd32_periph_width(periph_cfg->width));
 	gd32_dma_circulation_disable(cfg->reg, channel);
 #if DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_dma_v1)
+#if !defined(GD32_DMA_V1_NO_SUBPERIPHERAL)
 	if (dma_cfg->channel_direction != MEMORY_TO_MEMORY) {
 		gd32_dma_channel_subperipheral_select(cfg->reg, channel,
 						      dma_cfg->dma_slot);
 	}
+#endif
 #endif
 
 	data->channels[channel].callback = dma_cfg->dma_callback;
