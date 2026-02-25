@@ -51,6 +51,7 @@ test_groups:
       - gd32f527i_eval
       - gd32f503v_eval
       - gd32e517z_eval
+      - gd32h759i_eval
 
   # 组4: SPI Flash测试（只测试有板级配置的）
   spi_flash:

@@ -32,9 +32,31 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 #include <zephyr/drivers/dma/dma_gd32.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
-/* USART Register Offset Definitions */
-#define USART_DATA_REG(reg) ((reg) + 0x04)
-#define USART_CTL2_REG(reg) ((reg) + 0x14)
+
+/*
+ * Some GD32 series uses different register layout like as GD32H7 series.
+ * Define compatibility macros to minimize code changes.
+ */
+#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX)
+#define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
+#define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
+#else
+#define USART_DATA_TX(usartx) (&USART_DATA(usartx))
+#define USART_DATA_RX(usartx) (&USART_DATA(usartx))
+#endif
+
+#ifndef USART_TRANSMIT_DMA_ENABLE
+#define USART_TRANSMIT_DMA_ENABLE USART_DENT_ENABLE
+#endif
+#ifndef USART_TRANSMIT_DMA_DISABLE
+#define USART_TRANSMIT_DMA_DISABLE USART_DENT_DISABLE
+#endif
+#ifndef USART_RECEIVE_DMA_ENABLE
+#define USART_RECEIVE_DMA_ENABLE USART_DENR_ENABLE
+#endif
+#ifndef USART_RECEIVE_DMA_DISABLE
+#define USART_RECEIVE_DMA_DISABLE USART_DENR_DISABLE
+#endif
 
 /*
  * DMA Initialization Macros with DMAMUX support
@@ -146,7 +168,7 @@ static int usart_gd32_async_callback_set(
 }
 
 /**
- * @brief TX timeout handler - based on STM32 implementation
+ * @brief TX timeout handler
  *
  * This function is called when TX operation times out.
  * It aborts the current TX operation.
@@ -187,7 +209,7 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 	k_work_cancel_delayable(&data->async_tx_timeout_work);
 
 	dma_stop(data->dma[USART_DMA_TX].dev, data->dma[USART_DMA_TX].channel);
-	usart_dma_transmit_config(cfg->reg, DISABLE);
+	usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 	/* Chain transmission continue */
 	if (data->async_tx_blk) {
 		const struct dma_block_config *next = gd32_async_tx_next_block(data);
@@ -206,7 +228,7 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 				dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
 				dma_cfg->user_data = (void *)dev;
 				dma_stop(dma->dev, dma->channel);
-				usart_dma_transmit_config(cfg->reg, USART_CTL2_DENT);
+				usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_ENABLE);
 				if (dma_config(dma->dev, dma->channel, dma_cfg) == 0 &&
 					dma_start(dma->dev, dma->channel) == 0) {
 					/* start TX timeout timer */
@@ -287,16 +309,16 @@ static int usart_gd32_async_tx(const struct device *dev,
 		dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
 		dma_cfg->user_data = (void *)dev;
 		dma_stop(dma->dev, dma->channel);
-		usart_dma_transmit_config(cfg->reg, USART_CTL2_DENT);
+		usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_ENABLE);
 		ret = dma_config(dma->dev, dma->channel, dma_cfg);
 		if (ret != 0) {
-			usart_dma_transmit_config(cfg->reg, DISABLE);
+			usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 			data->async_tx_buf = NULL;
 			return ret;
 		}
 		ret = dma_start(dma->dev, dma->channel);
 		if (ret != 0) {
-			usart_dma_transmit_config(cfg->reg, DISABLE);
+			usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 			data->async_tx_buf = NULL;
 			return ret;
 		}
@@ -311,7 +333,7 @@ static int usart_gd32_async_tx(const struct device *dev,
 	memset(blk_cfg, 0, sizeof(struct dma_block_config));
 	blk_cfg->block_size = len;
 	blk_cfg->source_address = (uint32_t)buf;
-	blk_cfg->dest_address = (uint32_t)USART_DATA_REG(cfg->reg);
+	blk_cfg->dest_address = (uint32_t)USART_DATA_TX(cfg->reg);
 	blk_cfg->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 	blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 	dma_cfg->head_block = blk_cfg;
@@ -323,16 +345,16 @@ static int usart_gd32_async_tx(const struct device *dev,
 	dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
 	dma_cfg->user_data = (void *)dev;
 	dma_stop(dma->dev, dma->channel);
-	usart_dma_transmit_config(cfg->reg, USART_CTL2_DENT);
+	usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_ENABLE);
 	ret = dma_config(dma->dev, dma->channel, dma_cfg);
 	if (ret != 0) {
-		usart_dma_transmit_config(cfg->reg, DISABLE);
+		usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 		data->async_tx_buf = NULL;
 		return ret;
 	}
 	ret = dma_start(dma->dev, dma->channel);
 	if (ret != 0) {
-		usart_dma_transmit_config(cfg->reg, DISABLE);
+		usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 		data->async_tx_buf = NULL;
 		return ret;
 	}
@@ -354,7 +376,7 @@ static int usart_gd32_async_tx_abort(const struct device *dev)
 	k_work_cancel_delayable(&data->async_tx_timeout_work);
 
 	dma_stop(dma->dev, dma->channel);
-	usart_dma_transmit_config(cfg->reg, DISABLE);
+	usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 	if (data->async_tx_buf && data->async_cb) {
 		struct uart_event evt = {
 			.type = UART_TX_ABORTED,
@@ -369,7 +391,7 @@ static int usart_gd32_async_tx_abort(const struct device *dev)
 }
 
 /**
- * @brief STM32-style timeout handler with automatic timeout reset
+ * @brief Timeout handler with automatic timeout reset
  *
  * This handler is based on IDLE interrupt delay report and provides
  * automatic timeout management for RX operations.
@@ -409,15 +431,15 @@ static void usart_gd32_async_rx_timeout_work(struct k_work *work)
 	/*
 	 * Note: No need to restart DMA like the old code did.
 	 * After flush, DMA continues running and will automatically receive
-	 * more data into the remaining buffer space (STM32 behavior).
+	 * more data into the remaining buffer space.
 	 */
 }
 
 /**
- * @brief STM32-style DMA RX flush function (aligned with STM32 behavior)
+ * @brief DMA RX flush function
  *
  * Flushes any pending RX data from DMA buffer without stopping DMA.
- * This maintains continuous reception capability like STM32 driver.
+ * This maintains continuous reception capability like GD32 driver.
  */
 static void usart_gd32_dma_rx_flush(const struct device *dev)
 {
@@ -430,7 +452,7 @@ static void usart_gd32_dma_rx_flush(const struct device *dev)
 	struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
 	struct dma_status stat;
 
-	/* Get current DMA status without stopping DMA (STM32 style) */
+	/* Get current DMA status without stopping DMA (GD32 style) */
 	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
 		size_t rx_rcv_len = data->async_rx_len - stat.pending_length;
 
@@ -454,7 +476,7 @@ static void usart_gd32_dma_rx_flush(const struct device *dev)
 
 	/*
 	 * Note: Unlike the old version, we don't stop DMA or disable RX here.
-	 * DMA continues running for continuous reception (STM32 behavior).
+	 * DMA continues running for continuous reception.
 	 * The application must call uart_rx_disable() if it wants to stop.
 	 */
 }
@@ -475,7 +497,7 @@ static void usart_gd32_async_dma_rx_callback(
 	}
 
 	/* Stop current DMA operation properly */
-	usart_dma_receive_config(cfg->reg, DISABLE);
+	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
 	dma_stop(data->dma[USART_DMA_RX].dev, data->dma[USART_DMA_RX].channel);
 	k_work_cancel_delayable(&data->async_rx_timeout_work);
 
@@ -552,7 +574,7 @@ static int usart_gd32_async_rx_enable(
 	memset(dma_cfg, 0, sizeof(struct dma_config));
 	memset(blk_cfg, 0, sizeof(struct dma_block_config));
 	blk_cfg->block_size = len;
-	blk_cfg->source_address = (uint32_t)USART_DATA_REG(cfg->reg);
+	blk_cfg->source_address = (uint32_t)USART_DATA_RX(cfg->reg);
 	blk_cfg->dest_address = (uint32_t)buf;
 	blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 	blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
@@ -570,29 +592,23 @@ static int usart_gd32_async_rx_enable(
 	/* 1. Configure DMA */
 	ret = dma_config(dma->dev, dma->channel, dma_cfg);
 	if (ret != 0) {
-		usart_dma_receive_config(cfg->reg, DISABLE);
+		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
 		data->async_rx_enabled = false;
 		data->async_rx_buf = NULL;
 		return ret;
 	}
 	/* 2. Enable USART DMA */
-	usart_dma_receive_config(cfg->reg, USART_CTL2_DENR);
-	/* Read CTL2 to confirm DENR bit is set */
-	uint32_t ctl2_after_enable = REG32(USART_CTL2_REG(cfg->reg));
-
-	if ((ctl2_after_enable & USART_CTL2_DENR) == 0) {
-		/* Note: DENR bit check for debug purposes */
-	}
+	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);
 	/* 3. Start DMA */
 	ret = dma_start(dma->dev, dma->channel);
 	if (ret != 0) {
-		usart_dma_receive_config(cfg->reg, DISABLE);
+		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
 		data->async_rx_enabled = false;
 		data->async_rx_buf = NULL;
 		return ret;
 	}
 	/* 3.5 Forcefully write DENR again to prevent hardware conflicts */
-	usart_dma_receive_config(cfg->reg, USART_CTL2_DENR);
+	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);
 
 	/* Debug: Check DMA status and CTL2 */
 	struct dma_status start_stat;
@@ -635,7 +651,7 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	usart_gd32_dma_rx_flush(dev);
 
 	/* Disable USART DMA */
-	usart_dma_receive_config(cfg->reg, DISABLE);
+	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
 
 	/* Cancel timeout timer */
 	k_work_cancel_delayable(&data->async_rx_timeout_work);
@@ -682,12 +698,12 @@ static int usart_gd32_async_rx_buf_rsp(
 
 	/* Ensure DMA is stopped before reconfiguration */
 	dma_stop(dma->dev, dma->channel);
-	usart_dma_receive_config(cfg->reg, DISABLE);
+	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
 
 	/* Setup new DMA configuration */
 	memset(blk_cfg, 0, sizeof(struct dma_block_config));
 	blk_cfg->block_size = len;
-	blk_cfg->source_address = (uint32_t)USART_DATA_REG(cfg->reg);
+	blk_cfg->source_address = (uint32_t)USART_DATA_RX(cfg->reg);
 	blk_cfg->dest_address = (uint32_t)buf;
 	blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 	blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
@@ -714,12 +730,12 @@ static int usart_gd32_async_rx_buf_rsp(
 	}
 
 	/* Enable USART DMA reception */
-	usart_dma_receive_config(cfg->reg, USART_CTL2_DENR);
+	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);
 
 	/* Start DMA */
 	ret = dma_start(dma->dev, dma->channel);
 	if (ret != 0) {
-		usart_dma_receive_config(cfg->reg, DISABLE);
+		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
 		data->async_rx_enabled = false;
 		data->async_rx_buf = NULL;
 		return ret;
@@ -738,11 +754,7 @@ static void usart_gd32_isr(const struct device *dev)
 	struct gd32_usart_data *const data = dev->data;
 #ifdef CONFIG_UART_ASYNC_API
 	const struct gd32_usart_config *cfg = dev->config;
-	uint32_t stat_reg;
 	bool idle_flag, rbne_flag, tc_flag;
-
-	/* Read interrupt status */
-	stat_reg = REG32(cfg->reg);  /* USART_STAT0 */
 
 	/* Check all possible interrupt sources */
 	idle_flag = usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_IDLE);
@@ -754,16 +766,17 @@ static void usart_gd32_isr(const struct device *dev)
 		 * GD32 IDLE flag clearing requires reading status register
 		 * first then data register
 		 */
-		uint32_t status = REG32(cfg->reg); /* read USART_STAT0 */
-		uint32_t data_reg = REG32(cfg->reg + 0x04); /* read USART_DATA */
-		(void)status;
-		(void)data_reg; /* avoid compiler warnings */
+		usart_data_receive(cfg->reg);
 
 		/* Double-check if flag is still set */
-		if (usart_interrupt_flag_get(cfg->reg,
-				     USART_INT_FLAG_IDLE)) {
+		if (usart_flag_get(cfg->reg, USART_FLAG_IDLE)) {
 			/* force clear if still set */
-			usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
+			usart_flag_clear(cfg->reg, USART_FLAG_IDLE);
+		}
+
+		if (usart_flag_get(cfg->reg, USART_FLAG_ORERR)) {
+			/* force clear if still set */
+			usart_flag_clear(cfg->reg, USART_FLAG_ORERR);
 		}
 
 		/* IDLE interrupt: data transmission completed,

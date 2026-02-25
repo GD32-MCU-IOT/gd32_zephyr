@@ -46,7 +46,7 @@
 
 	pwm1_default: pwm1_default {
 		group1 {
-			pinmux = <TIMER1_CH2_PB10>;
+			pinmux = <TIMER1_CH2_PA2>;
 		};
 	};
 

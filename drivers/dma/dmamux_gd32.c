@@ -46,13 +46,24 @@ LOG_MODULE_REGISTER(dmamux_gd32, CONFIG_DMA_LOG_LEVEL);
  *
  * Access macro for channel config register by base address and channel number
  */
-#define DMAMUX_CHxCFG(base, ch) REG32((base) + (ch) * 4U)
-#define DMAMUX_INTF(base)       REG32((base) + 0x80U)
-#define DMAMUX_INTC(base)       REG32((base) + 0x84U)
+#define GD32_DMAMUX_RM_CHxCFG(base, ch) REG32((base) + (ch) * 4U)
+#define GD32_DMAMUX_RM_INTF(base)       REG32((base) + 0x80U)
+#define GD32_DMAMUX_RM_INTC(base)       REG32((base) + 0x84U)
+#define GD32_DMAMUX_RM_CHXCFG_MUXID     BITS(0, 7)
 
-/* DMA0 has 7 channels (0-6), DMA1 has 5 channels (0-4) */
-#define DMA0_CHANNEL_COUNT 7
-#define DMA1_CHANNEL_COUNT 5
+/* Get DMA channel counts from device tree */
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(dma0))
+#define DMA0_CHANNEL_COUNT DT_PROP(DT_NODELABEL(dma0), dma_channels)
+#else
+#define DMA0_CHANNEL_COUNT 0
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(dma1))
+#define DMA1_CHANNEL_COUNT DT_PROP(DT_NODELABEL(dma1), dma_channels)
+#else
+#define DMA1_CHANNEL_COUNT 0
+#endif
+
 #define MAX_DMAMUX_CHANNELS (DMA0_CHANNEL_COUNT + DMA1_CHANNEL_COUNT)
 
 /* Each DMAMUX channel maps to a specific DMA controller and channel */
@@ -86,13 +97,13 @@ static void dmamux_gd32_set_request(const struct dmamux_gd32_config *cfg,
 {
 	uint32_t reg_val;
 
-	reg_val = DMAMUX_CHxCFG(cfg->base, channel);
-	reg_val &= ~BITS(0, 7);
-	reg_val |= (request_id & BITS(0, 7));
-	DMAMUX_CHxCFG(cfg->base, channel) = reg_val;
+	reg_val = GD32_DMAMUX_RM_CHxCFG(cfg->base, channel);
+	reg_val &= ~GD32_DMAMUX_RM_CHXCFG_MUXID;
+	reg_val |= (request_id & GD32_DMAMUX_RM_CHXCFG_MUXID);
+	GD32_DMAMUX_RM_CHxCFG(cfg->base, channel) = reg_val;
 
-	LOG_DBG("DMAMUX ch%d: set request ID %d (reg=0x%08x)",
-		channel, request_id, DMAMUX_CHxCFG(cfg->base, channel));
+	LOG_DBG("DMAMUX ch%d: set request ID %d (reg=0x%08x)", channel, request_id,
+		GD32_DMAMUX_RM_CHxCFG(cfg->base, channel));
 }
 
 /**
@@ -270,12 +281,11 @@ static int dmamux_gd32_init(const struct device *dev)
 
 	/* Clear all channel configurations */
 	for (uint32_t i = 0; i < cfg->channel_count; i++) {
-		DMAMUX_CHxCFG(cfg->base, i) = 0;
+		GD32_DMAMUX_RM_CHxCFG(cfg->base, i) = 0;
 	}
 
 	/* Clear interrupt flags */
-	DMAMUX_INTC(cfg->base) = 0xFFFFFFFF;
-
+	GD32_DMAMUX_RM_INTC(cfg->base) = 0xFFFFFFFF;
 	/* Verify DMA controllers are ready */
 	for (uint32_t i = 0; i < cfg->channel_count; i++) {
 		if (!device_is_ready(cfg->channel_map[i].dma_dev)) {
@@ -303,8 +313,8 @@ static DEVICE_API(dma, dmamux_gd32_api) = {
  * Channel map generation macros
  *
  * Maps DMAMUX channels to underlying DMA controllers:
- *   DMAMUX ch0-6  -> DMA0 ch0-6
- *   DMAMUX ch7-11 -> DMA1 ch0-4
+ *   For F50x: DMAMUX ch0-6  -> DMA0 ch0-6； DMAMUX ch7-11 -> DMA1 ch0-4
+ *   For H7xx: DMAMUX ch0-7  -> DMA0 ch0-7； DMAMUX ch8-18 -> DMA1 ch0-7
  */
 
 #define DMAMUX_DMA0_DEV DEVICE_DT_GET_OR_NULL(DT_NODELABEL(dma0))

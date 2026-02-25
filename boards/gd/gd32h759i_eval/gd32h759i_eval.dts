@@ -8,6 +8,7 @@
 
 #include <gd/gd32h7xx/gd32h759im.dtsi>
 #include "gd32h759i_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
 
 / {
 	model = "GigaDevice GD32H759I-EVAL";
@@ -140,6 +141,9 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart0_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 0 51 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 1 52 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
 };
 
 &usart1 {
@@ -172,10 +176,21 @@
 	status = "okay";
 };
 
+&dma1 {
+	status = "okay";
+};
+
+&dmamux {
+	status = "okay";
+};
+
 &i2c1 {
 	status = "okay";
 	pinctrl-0 = <&i2c1_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 2 43 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 3 44 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
 	clock-frequency = <100000>;
 	eeprom0: eeprom@50 {
 		compatible = "atmel,at24";
@@ -193,8 +208,6 @@
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
-	dmas = <&dma0 0 48 (2<<16) 0>, <&dma0 1 47 (3<<16) 0>;
-	dma-names = "tx", "rx";
 };
 
 &spi2 {
@@ -216,6 +229,9 @@
 	pinctrl-0 = <&spi4_default>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioh 5 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 4 99 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 5 100 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;
