@@ -224,7 +224,7 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 				blk_cfg->source_address &&
 				blk_cfg->dest_address) {
 				dma_cfg->head_block = blk_cfg;
-				dma_cfg->channel_direction = MEMORY_TO_PERIPHERAL;
+				dma_cfg->channel_direction = GD32_DMA_CONFIG_DIRECTION(dma->config);
 				dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
 				dma_cfg->user_data = (void *)dev;
 				dma_stop(dma->dev, dma->channel);
@@ -303,7 +303,7 @@ static int usart_gd32_async_tx(const struct device *dev,
 		dma_cfg->head_block = blk_cfg;
 		dma_cfg->block_count = 1U;
 		dma_cfg->dma_slot = dma->slot;
-		dma_cfg->channel_direction = MEMORY_TO_PERIPHERAL;
+		dma_cfg->channel_direction = GD32_DMA_CONFIG_DIRECTION(dma->config);
 		dma_cfg->source_data_size = 1;
 		dma_cfg->dest_data_size = 1;
 		dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
@@ -339,7 +339,7 @@ static int usart_gd32_async_tx(const struct device *dev,
 	dma_cfg->head_block = blk_cfg;
 	dma_cfg->block_count = 1U;
 	dma_cfg->dma_slot = dma->slot;
-	dma_cfg->channel_direction = MEMORY_TO_PERIPHERAL;
+	dma_cfg->channel_direction = GD32_DMA_CONFIG_DIRECTION(dma->config);
 	dma_cfg->source_data_size = 1;
 	dma_cfg->dest_data_size = 1;
 	dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
@@ -581,7 +581,7 @@ static int usart_gd32_async_rx_enable(
 	dma_cfg->head_block = blk_cfg;
 	dma_cfg->block_count = 1U;
 	dma_cfg->dma_slot = dma->slot;
-	dma_cfg->channel_direction = PERIPHERAL_TO_MEMORY;
+	dma_cfg->channel_direction = GD32_DMA_CONFIG_DIRECTION(dma->config);
 	dma_cfg->source_data_size = 1;
 	dma_cfg->dest_data_size = 1;
 	dma_cfg->dma_callback = usart_gd32_async_dma_rx_callback;

@@ -426,7 +426,7 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	dma_cfg->channel_priority =
 		GD32_DMA_CONFIG_PRIORITY(cfg->dma[dir].config);
 	dma_cfg->channel_direction =
-		dir == TX ? MEMORY_TO_PERIPHERAL : PERIPHERAL_TO_MEMORY;
+		GD32_DMA_CONFIG_DIRECTION(cfg->dma[dir].config);
 
 	if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 8) {
 		dma_cfg->source_data_size = 1;

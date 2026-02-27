@@ -8,6 +8,7 @@
 #include <arm/gd/gd32e51x/gd32e517ze.dtsi>
 #include "gd32e517z_eval-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
 
 / {
 	model = "GigaDevice GD32E517Z-EVAL";
@@ -110,7 +111,8 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart0_default>;
 	pinctrl-names = "default";
-	dmas = <&dma0 4 0>, <&dma0 3 0>;
+	dmas = <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
 	dma-names = "rx", "tx";
 };
 
@@ -140,7 +142,8 @@
 	status = "okay";
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
-	dmas = <&dma0 6 0>, <&dma0 5 0>;
+	dmas = <&dma0 6 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 5 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
 	dma-names = "rx", "tx";
 
 	eeprom0: eeprom@50 {
@@ -157,9 +160,7 @@
 	status = "okay";
 	pinctrl-0 = <&i2c1_default>;
 	pinctrl-names = "default";
-	/* I2C1 DMA disabled: shares CH3/CH4 with I2C2, using PIO for I2C1 */
-	/* dmas = <&dma0 4 0>, <&dma0 3 0>; */
-	/* dma-names = "rx", "tx"; */
+	/*I2C1 DMA disabled: shares CH3/CH4 with I2C2, using PIO for I2C1*/
 
 	eeprom1: eeprom@50 {
 		compatible = "atmel,at24";
@@ -176,7 +177,8 @@
 	pinctrl-0 = <&i2c2_default>;
 	pinctrl-names = "default";
 	/* I2C2 ADD IP uses DMA0 CH3 (TX) and CH4 (RX) - shared with I2C1 */
-	dmas = <&dma0 4 0>, <&dma0 3 0>;
+	dmas = <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
 	dma-names = "rx", "tx";
 
 	eeprom2: eeprom@50 {

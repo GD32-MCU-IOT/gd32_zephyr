@@ -94,7 +94,7 @@ static uint32_t i2c_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	dma_cfg->head_block = block_cfg;
 	dma_cfg->dma_slot = cfg->dma[dir].slot;
 	dma_cfg->channel_priority = GD32_DMA_CONFIG_PRIORITY(cfg->dma[dir].config);
-	dma_cfg->channel_direction = dir == TX ? MEMORY_TO_PERIPHERAL : PERIPHERAL_TO_MEMORY;
+	dma_cfg->channel_direction = GD32_DMA_CONFIG_DIRECTION(cfg->dma[dir].config);
 
 	/* I2C always uses 8-bit transfers */
 	dma_cfg->source_data_size = 1;
