@@ -121,6 +121,9 @@
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dma0 1 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 2 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;
