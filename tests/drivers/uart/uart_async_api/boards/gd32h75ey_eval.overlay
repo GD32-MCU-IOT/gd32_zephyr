@@ -1,0 +1,11 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * UART async API test overlay for GD32H75EY-EVAL board.
+ * Uses USART1 (PA2-TX, PA3-RX) as DUT - connect PA2 to PA3 for loopback.
+ */
+
+dut: &usart1 {
+	status = "okay";
+};
