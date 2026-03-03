@@ -37,7 +37,7 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
-#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX)
+#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
 #else
@@ -728,6 +728,18 @@ static int usart_gd32_async_rx_buf_rsp(
 		data->async_rx_buf = NULL;
 		return ret;
 	}
+
+	/*
+	 * Clear overrun error before re-enabling DMA.
+	 * During the gap between DMA stop and restart, incoming bytes
+	 * can cause ORERR. If ORERR is set, USART will NOT generate
+	 * DMA requests, permanently blocking all subsequent reception.
+	 */
+	if (usart_flag_get(cfg->reg, USART_FLAG_ORERR)) {
+		usart_flag_clear(cfg->reg, USART_FLAG_ORERR);
+	}
+	/* Drain any stale byte left in RDATA */
+	(void)usart_data_receive(cfg->reg);
 
 	/* Enable USART DMA reception */
 	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);

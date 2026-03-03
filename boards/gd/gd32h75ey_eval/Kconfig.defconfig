@@ -1,0 +1,9 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_GD32H75EY_EVAL
+
+config BOARD
+	default "gd32h75ey_eval"
+
+endif # BOARD_GD32H75EY_EVAL
