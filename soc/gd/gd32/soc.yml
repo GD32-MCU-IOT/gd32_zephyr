@@ -25,6 +25,9 @@ family:
     - name: gd32f407
     - name: gd32f450
     - name: gd32f470
+  - name: gd32f30x
+    socs:
+    - name: gd32f307
   - name: gd32f403
     socs:
     - name: gd32f403
