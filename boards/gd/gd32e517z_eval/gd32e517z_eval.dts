@@ -8,6 +8,7 @@
 #include <arm/gd/gd32e51x/gd32e517ze.dtsi>
 #include "gd32e517z_eval-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
 
 / {
 	model = "GigaDevice GD32E517Z-EVAL";
@@ -77,6 +78,7 @@
 	aliases {
 		led0 = &led1;
 		sw0 = &key_a;
+		eeprom-0 = &eeprom0;
 	};
 };
 
@@ -109,7 +111,8 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart0_default>;
 	pinctrl-names = "default";
-	dmas = <&dma0 4 0>, <&dma0 3 0>;
+	dmas = <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
 	dma-names = "rx", "tx";
 };
 
@@ -118,6 +121,9 @@
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dma0 1 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 2 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;
@@ -139,4 +145,51 @@
 	status = "okay";
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
+	dmas = <&dma0 6 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 5 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
+
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	/*I2C1 DMA disabled: shares CH3/CH4 with I2C2, using PIO for I2C1*/
+
+	eeprom1: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+	pinctrl-0 = <&i2c2_default>;
+	pinctrl-names = "default";
+	/* I2C2 ADD IP uses DMA0 CH3 (TX) and CH4 (RX) - shared with I2C1 */
+	dmas = <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
+
+	eeprom2: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
 };
