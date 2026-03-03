@@ -79,6 +79,17 @@ static int afio_init(void)
 	}
 #endif /* AFIO_CPSCTL */
 
+	/*
+	 * GD32E51x I2C2 ADD IP requires special AFIO configuration.
+	 * These are E51x-specific extension registers (PCFA/PCFC).
+	 * - PA8 -> I2C2_SCL: AFIO_PCFA bits [17:16] = 01
+	 * - PC9 -> I2C2_SDA: AFIO_PCFC bits [19:18] = 10
+	 */
+#if defined(CONFIG_SOC_SERIES_GD32E51X) && defined(CONFIG_I2C)
+	AFIO_PCFA = (AFIO_PCFA & ~(3U << 16)) | (1U << 16);
+	AFIO_PCFC = (AFIO_PCFC & ~(3U << 18)) | (2U << 18);
+#endif
+
 	return 0;
 }
 

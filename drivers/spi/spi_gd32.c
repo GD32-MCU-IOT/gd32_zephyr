@@ -426,7 +426,7 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	dma_cfg->channel_priority =
 		GD32_DMA_CONFIG_PRIORITY(cfg->dma[dir].config);
 	dma_cfg->channel_direction =
-		dir == TX ? MEMORY_TO_PERIPHERAL : PERIPHERAL_TO_MEMORY;
+		GD32_DMA_CONFIG_DIRECTION(cfg->dma[dir].config);
 
 	if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 8) {
 		dma_cfg->source_data_size = 1;
@@ -885,14 +885,12 @@ int spi_gd32_init(const struct device *dev)
 #define DMA_IS_DMAMUX(idx, dir) \
 	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dmamux)
 
-/* Get slot value: try v1 first, then dmamux, then standard dma, default to 0 */
+/* Get slot value: v1 and dmamux have 'slot' cell, basic gd32-dma (2 cells) does not */
 #define DMA_GET_SLOT(idx, dir) \
 	COND_CODE_1(DMA_IS_V1(idx, dir), \
 		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
 		(COND_CODE_1(DMA_IS_DMAMUX(idx, dir), \
-			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
-			(COND_CODE_1(DT_INST_NODE_HAS_PROP(idx, dmas), \
-				(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))))
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))
 
 #define DMA_INITIALIZER(idx, dir)                                              \
 	{                                                                      \
