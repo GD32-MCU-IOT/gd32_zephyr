@@ -1,0 +1,20 @@
+identifier: gd32h75ey_eval
+name: GigaDevice GD32H75EY-EVAL
+type: mcu
+arch: arm
+ram: 512
+flash: 3840
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - pwm
+  - counter
+  - dma
+  - spi
+  - uart
+  - gpio
+  - dmamux
+  - adc
+  - can
