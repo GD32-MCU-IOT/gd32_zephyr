@@ -24,6 +24,7 @@ test_groups:
       - gd32e103v_eval
       - gd32e507v_start
       - gd32e507z_eval
+      - gd32f307c_eval
       - gd32f350r_eval
       - gd32f403z_eval
       - gd32f407v_start
@@ -89,6 +90,7 @@ test_groups:
       - gd32a503v_eval
       - gd32e103v_eval
       - gd32e507z_eval
+      - gd32f307c_eval
       - gd32f350r_eval
       - gd32f450i_eval
       - gd32f450z_eval
