@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/dts-v1/;
+
+#include <gd/gd32f30x/gd32f307.dtsi>
+#include "gd32f307c_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+/ {
+	model = "GigaDevice GD32F307C-EVAL";
+	compatible = "gd,gd32f307c-eval";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,console = &usart0;
+		zephyr,shell-uart = &usart0;
+		zephyr,flash-controller = &fmc;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led1: led1 {
+			gpios = <&gpioc 0 GPIO_ACTIVE_HIGH>;
+			label = "LED1";
+		};
+
+		led2: led2 {
+			gpios = <&gpioc 2 GPIO_ACTIVE_HIGH>;
+			label = "LED2";
+		};
+
+		led3: led3 {
+			gpios = <&gpioe 0 GPIO_ACTIVE_HIGH>;
+			label = "LED3";
+		};
+
+		led4: led4 {
+			gpios = <&gpioe 1 GPIO_ACTIVE_HIGH>;
+			label = "LED4";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		wakeup_key: wakeup_key {
+			label = "WAKEUP_KEY";
+			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_WAKEUP>;
+		};
+
+		tamper_key: tamper_key {
+			label = "TAMPER_KEY";
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+
+		user_key: user_key {
+			label = "USER_KEY";
+			gpios = <&gpiob 14 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+
+		/* NOTE: bridge TIMER0_CH0 (PA8) and LED1 (PC0) */
+		pwm_led: pwm_led {
+			pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		};
+	};
+
+	aliases {
+		led0 = &led1;
+		led1 = &led2;
+		sw0 = &wakeup_key;
+		sw1 = &user_key;
+		pwm-led0 = &pwm_led;
+		watchdog0 = &fwdgt;
+	};
+};
+
+/* GD32F307VCT6: 256KB Flash */
+&flash0 {
+	reg = <0x08000000 DT_SIZE_K(256)>;
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&gpioe {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 4 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+		   <&dma0 3 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&usart1 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart1_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 5 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+		   <&dma0 6 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&i2c0 {
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+};
+
+&i2c1 {
+	status = "okay";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-names = "default";
+};
+
+&timer0 {
+	status = "okay";
+	prescaler = <256>;
+
+	pwm0: pwm {
+		status = "okay";
+		pinctrl-0 = <&pwm0_default>;
+		pinctrl-names = "default";
+	};
+};
+
+&fwdgt {
+	status = "okay";
+};

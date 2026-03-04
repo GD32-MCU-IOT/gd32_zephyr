@@ -1,0 +1,90 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <freq.h>
+#include <gd/gd32f30x/gd32f30x.dtsi>
+
+/ {
+	chosen {
+		zephyr,entropy = &trng;
+	};
+};
+
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(120)>;
+};
+
+/* GD32F307VG: 1024KB Flash, 96KB SRAM */
+/* GD32F307VE: 512KB Flash, 96KB SRAM */
+/* GD32F307VC: 256KB Flash, 96KB SRAM */
+/* The flash0 reg property will be set in the board dts file */
+
+&sram0 {
+	reg = <0x20000000 DT_SIZE_K(96)>;
+};
+
+&soc {
+	i2c0: i2c@40005400 {
+		compatible = "gd,gd32-i2c";
+		reg = <0x40005400 0x400>;
+		interrupts = <31 0>, <32 0>;
+		interrupt-names = "event", "error";
+		clocks = <&cctl GD32_CLOCK_I2C0>;
+		resets = <&rctl GD32_RESET_I2C0>;
+		status = "disabled";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	i2c1: i2c@40005800 {
+		compatible = "gd,gd32-i2c";
+		reg = <0x40005800 0x400>;
+		interrupts = <33 0>, <34 0>;
+		interrupt-names = "event", "error";
+		clocks = <&cctl GD32_CLOCK_I2C1>;
+		resets = <&rctl GD32_RESET_I2C1>;
+		status = "disabled";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	can0: can@40006400 {
+		compatible = "gd,gd32-can";
+		reg = <0x40006400 0x400>;
+		interrupts = <19 0>, <20 0>, <21 0>, <22 0>;
+		interrupt-names = "tx", "rx0", "rx1", "sce";
+		clocks = <&cctl GD32_CLOCK_CAN0>;
+		resets = <&rctl GD32_RESET_CAN0>;
+		status = "disabled";
+	};
+
+	can1: can@40006800 {
+		compatible = "gd,gd32-can";
+		reg = <0x40006800 0x400>;
+		interrupts = <63 0>, <64 0>, <65 0>, <66 0>;
+		interrupt-names = "tx", "rx0", "rx1", "sce";
+		clocks = <&cctl GD32_CLOCK_CAN1>;
+		resets = <&rctl GD32_RESET_CAN1>;
+		status = "disabled";
+	};
+
+	trng: rng@50060800 {
+		compatible = "gd,gd32-rng";
+		reg = <0x50060800 0x400>;
+		interrupts = <67 0>;
+		status = "disabled";
+	};
+
+	dac: dac@40007400 {
+		compatible = "gd,gd32-dac";
+		reg = <0x40007400 0x400>;
+		clocks = <&cctl GD32_CLOCK_DAC>;
+		resets = <&rctl GD32_RESET_DAC>;
+		status = "disabled";
+		#io-channel-cells = <1>;
+	};
+};
