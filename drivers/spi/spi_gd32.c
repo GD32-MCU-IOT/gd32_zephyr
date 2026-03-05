@@ -253,13 +253,24 @@ static int spi_gd32_configure(const struct device *dev,
 #else  /* CONFIG_SOC_SERIES_GD32H7XX */
 	SPI_CTL0(cfg->reg) |= SPI_MASTER;
 	SPI_CTL0(cfg->reg) &= ~SPI_TRANSMODE_BDTRANSMIT;
-
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+	SPI_CTL1(cfg->reg) &= ~SPI_CTL1_DZ;
+	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
+		SPI_CTL1(cfg->reg) |= SPI_FRAMESIZE_8BIT;
+		SPI_CTL1(cfg->reg) |= SPI_CTL1_BYTEN; /* Enable byte access to FIFO */
+	} else if (SPI_WORD_SIZE_GET(config->operation) == 16) {
+		SPI_CTL1(cfg->reg) |= SPI_FRAMESIZE_16BIT;
+		SPI_CTL1(cfg->reg) &= ~SPI_CTL1_BYTEN; /* Half-word access */
+	} else {
+		return -ENOTSUP;
+	}
+#else
 	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
 		SPI_CTL0(cfg->reg) |= SPI_FRAMESIZE_8BIT;
 	} else {
 		SPI_CTL0(cfg->reg) |= SPI_FRAMESIZE_16BIT;
 	}
-
+#endif
 	/* Reset to hardware NSS mode. */
 	SPI_CTL0(cfg->reg) &= ~SPI_CTL0_SWNSSEN;
 	if (spi_cs_is_gpio(config)) {

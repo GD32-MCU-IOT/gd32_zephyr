@@ -1,0 +1,19 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32g553q_eval
+name: GD32G553Q-EVAL
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+ram: 128
+flash: 512
+supported:
+  - gpio
+  - uart
+  - usart
+  - pinctrl
+  - clock_control
