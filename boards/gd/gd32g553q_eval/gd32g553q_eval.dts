@@ -1,0 +1,169 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <gd/gd32g5x3/gd32g553qe.dtsi>
+#include "gd32g553q_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+
+/ {
+	model = "GigaDevice GD32G553Q-EVAL";
+	compatible = "gd,gd32g553q-eval";
+
+	chosen {
+		zephyr,flash = &flash0;
+		zephyr,sram = &sram0;
+		zephyr,console = &usart0;
+		zephyr,shell-uart = &usart0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led1: led1 {
+			gpios = <&gpioe 3 GPIO_ACTIVE_HIGH>;
+			label = "LED1";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		user_key: user_key {
+			label = "USER_KEY";
+			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	aliases {
+		led0 = &led1;
+		sw0 = &user_key;
+		eeprom-0 = &eeprom0;
+		spi-flash0 = &spi_flash0;
+	};
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&gpioe {
+	status = "okay";
+};
+
+&gpiof {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&dmamux {
+	status = "okay";
+};
+
+&usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 0 24 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 1 25 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&i2c0 {
+	status = "disabled";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 2 16 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 3 17 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	clock-frequency = <100000>;
+};
+
+&i2c1 {
+	status = "disabled";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 4 18 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 5 19 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	clock-frequency = <100000>;
+};
+
+&i2c2 {
+	status = "okay";
+	pinctrl-0 = <&i2c2_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 6 20 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 7 21 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	clock-frequency = <100000>;
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		status = "okay";
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
+&i2c3 {
+	status = "disabled";
+	pinctrl-0 = <&i2c3_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 8 22 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 9 23 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	clock-frequency = <100000>;
+};
+
+&spi0 {
+	status = "disabled";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+};
+
+&spi1 {
+	status = "disabled";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 8 GPIO_ACTIVE_LOW>;
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 12 14 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_MEDIUM)>,
+	       <&dmamux 13 15 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_MEDIUM)>;
+	dma-names = "rx", "tx";
+
+	spi_flash0: spiflash@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
+};

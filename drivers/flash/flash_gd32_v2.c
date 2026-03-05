@@ -15,7 +15,49 @@ LOG_MODULE_DECLARE(flash_gd32);
 #define GD32_NV_FLASH_V2_NODE		DT_INST(0, gd_gd32_nv_flash_v2)
 #define GD32_NV_FLASH_V2_TIMEOUT	DT_PROP(GD32_NV_FLASH_V2_NODE, max_erase_time_ms)
 
-#if !defined(CONFIG_SOC_GD32A503)
+/*
+ * GD32G5x3 uses single register set with page number selection (PNSEL) for erase,
+ * while other V2 MCUs use dual register sets with address-based erase.
+ */
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+/* G5x3 register compatibility macros - single register set */
+#define FMC_KEY0		FMC_KEY
+#define FMC_CTL0		FMC_CTL
+#define FMC_STAT0		FMC_STAT
+#define FMC_CTL0_LK		FMC_CTL_LK
+#define FMC_CTL0_PG		FMC_CTL_PG
+#define FMC_CTL0_PER		FMC_CTL_PER
+#define FMC_CTL0_START		FMC_CTL_START
+#define FMC_STAT0_BUSY		FMC_STAT_BUSY
+#define FMC_STAT0_PGERR		FMC_STAT_PGERR
+#define FMC_STAT0_WPERR		FMC_STAT_WPERR
+/* G5x3 uses different unlock keys */
+#define UNLOCK_KEY0		FMC_UNLOCK_KEY0
+#define UNLOCK_KEY1		FMC_UNLOCK_KEY1
+/* G5x3 page erase uses page number + bank select, not address */
+#define FMC_CTL_PNSEL_MASK	BITS(3, 10)
+#define FMC_CTL_PNSEL_VAL(n)	(((n) << 3) & FMC_CTL_PNSEL_MASK)
+#define FMC_CTL_BKSEL		BIT(12)
+
+#endif /* CONFIG_SOC_SERIES_GD32G5X3 */
+
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+/**
+ * @brief GD32G5x3 series flash memory has 2 banks.
+ * Bank0 holds the first 256KB, bank1 holds the rest 256KB.
+ * The page size is 2KB in single-bank mode (DBS=0).
+ */
+#if (PRE_KB(256) >= SOC_NV_FLASH_SIZE)
+#define GD32_NV_FLASH_V2_BANK0_SIZE		SOC_NV_FLASH_SIZE
+#define GD32_NV_FLASH_V2_BANK0_PAGE_SIZE	DT_PROP(GD32_NV_FLASH_V2_NODE, bank0_page_size)
+#else
+#define GD32_NV_FLASH_V2_BANK0_SIZE		KB(256)
+#define GD32_NV_FLASH_V2_BANK0_PAGE_SIZE	DT_PROP(GD32_NV_FLASH_V2_NODE, bank0_page_size)
+#define GD32_NV_FLASH_V2_BANK1_SIZE		(SOC_NV_FLASH_SIZE - KB(256))
+#define GD32_NV_FLASH_V2_BANK1_PAGE_SIZE	DT_PROP(GD32_NV_FLASH_V2_NODE, bank1_page_size)
+#endif
+
+#elif !defined(CONFIG_SOC_GD32A503)
 /**
  * @brief GD32 FMC v2 flash memory has 2 banks.
  * Bank0 holds the first 512KB, bank1 is used give capacity for reset.
@@ -133,6 +175,10 @@ expired_out:
 static int gd32_fmc_v2_bank0_page_erase(uint32_t page_addr)
 {
 	int ret = 0;
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+	/* G5x3: calculate page number from address */
+	uint32_t page_num = (page_addr - SOC_NV_FLASH_ADDR) / GD32_NV_FLASH_V2_BANK0_PAGE_SIZE;
+#endif
 
 	gd32_fmc_v2_bank0_unlock();
 
@@ -140,9 +186,14 @@ static int gd32_fmc_v2_bank0_page_erase(uint32_t page_addr)
 		return -EBUSY;
 	}
 
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+	/* G5x3: set page number (PNSEL) and bank select (BKSEL=0 for bank0) */
+	FMC_CTL0 = (FMC_CTL0 & ~(FMC_CTL_PNSEL_MASK | FMC_CTL_BKSEL)) |
+		   FMC_CTL0_PER | FMC_CTL_PNSEL_VAL(page_num);
+#else
 	FMC_CTL0 |= FMC_CTL0_PER;
-
 	FMC_ADDR0 = page_addr;
+#endif
 
 	FMC_CTL0 |= FMC_CTL0_START;
 
@@ -184,6 +235,111 @@ static int gd32_fmc_v2_bank0_erase_block(off_t offset, size_t size)
 }
 
 #ifdef GD32_NV_FLASH_V2_BANK1_SIZE
+
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+/* G5x3: bank1 uses same registers as bank0, just with BKSEL=1 */
+static inline void gd32_fmc_v2_bank1_unlock(void)
+{
+	/* G5x3 uses single KEY register for both banks */
+	FMC_KEY = FMC_UNLOCK_KEY0;
+	FMC_KEY = FMC_UNLOCK_KEY1;
+}
+
+static inline void gd32_fmc_v2_bank1_lock(void)
+{
+	FMC_CTL |= FMC_CTL_LK;
+}
+
+static int gd32_fmc_v2_bank1_wait_idle(void)
+{
+	const int64_t expired_time = k_uptime_get() + GD32_NV_FLASH_V2_TIMEOUT;
+
+	while (FMC_STAT & FMC_STAT_BUSY) {
+		if (k_uptime_get() > expired_time) {
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
+}
+
+static int gd32_fmc_v2_bank1_write(off_t offset, const void *data, size_t len)
+{
+	flash_prg_t *prg_flash = (flash_prg_t *)((uint8_t *)SOC_NV_FLASH_ADDR + offset);
+	flash_prg_t *prg_data = (flash_prg_t *)data;
+	int ret = 0;
+
+	gd32_fmc_v2_bank1_unlock();
+
+	if (FMC_STAT & FMC_STAT_BUSY) {
+		return -EBUSY;
+	}
+
+	FMC_CTL |= FMC_CTL_PG;
+
+	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
+		*prg_flash++ = *prg_data++;
+	}
+
+	ret = gd32_fmc_v2_bank1_wait_idle();
+	if (ret < 0) {
+		goto expired_out;
+	}
+
+	if (FMC_STAT & (FMC_STAT_PGERR | FMC_STAT_WPERR)) {
+		ret = -EIO;
+		FMC_STAT |= (FMC_STAT_PGERR | FMC_STAT_WPERR);
+		LOG_ERR("FMC bank1 programming failed");
+	}
+
+expired_out:
+	FMC_CTL &= ~FMC_CTL_PG;
+
+	gd32_fmc_v2_bank1_lock();
+
+	return ret;
+}
+
+static int gd32_fmc_v2_bank1_page_erase(uint32_t page_addr)
+{
+	int ret = 0;
+	/* Calculate page number within bank1 */
+	uint32_t page_num = (page_addr - SOC_NV_FLASH_ADDR - GD32_NV_FLASH_V2_BANK0_SIZE)
+			    / GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
+
+	gd32_fmc_v2_bank1_unlock();
+
+	if (FMC_STAT & FMC_STAT_BUSY) {
+		return -EBUSY;
+	}
+
+	/* G5x3: set page number (PNSEL) and bank select (BKSEL=1 for bank1) */
+	FMC_CTL = (FMC_CTL & ~FMC_CTL_PNSEL_MASK) |
+		  FMC_CTL_PER | FMC_CTL_BKSEL | FMC_CTL_PNSEL_VAL(page_num);
+
+	FMC_CTL |= FMC_CTL_START;
+
+	ret = gd32_fmc_v2_bank1_wait_idle();
+	if (ret < 0) {
+		goto expired_out;
+	}
+
+	if (FMC_STAT & FMC_STAT_WPERR) {
+		ret = -EIO;
+		FMC_STAT |= FMC_STAT_WPERR;
+		LOG_ERR("FMC bank1 page %u erase failed", page_num);
+	}
+
+expired_out:
+	FMC_CTL &= ~(FMC_CTL_PER | FMC_CTL_BKSEL);
+
+	gd32_fmc_v2_bank1_lock();
+
+	return ret;
+}
+
+#else /* !CONFIG_SOC_SERIES_GD32G5X3 */
+
 static inline void gd32_fmc_v2_bank1_unlock(void)
 {
 	FMC_KEY1 = UNLOCK_KEY0;
@@ -280,6 +436,8 @@ expired_out:
 	return ret;
 }
 
+#endif /* CONFIG_SOC_SERIES_GD32G5X3 */
+
 static int gd32_fmc_v2_bank1_erase_block(off_t offset, size_t size)
 {
 	uint32_t page_addr = SOC_NV_FLASH_ADDR + offset;
@@ -291,8 +449,8 @@ static int gd32_fmc_v2_bank1_erase_block(off_t offset, size_t size)
 			return ret;
 		}
 
-		size -= GD32_NV_FLASH_V2_BANK0_SIZE;
-		page_addr += GD32_NV_FLASH_V2_BANK0_SIZE;
+		size -= GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
+		page_addr += GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
 	}
 
 	return 0;
