@@ -80,6 +80,7 @@ if(${CONFIG_SOC_SERIES_GD32F30X})
   if (${CONFIG_SOC_GD32F307})
     zephyr_compile_definitions(GD32F30X_CL)
   endif()
+endif()
 
 # GD32H75E series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32H75E})
