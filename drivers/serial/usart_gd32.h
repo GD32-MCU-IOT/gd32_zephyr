@@ -115,6 +115,10 @@ struct gd32_usart_data {
 	int32_t async_rx_timeout;
 	/** Work queue item for RX timeout handling */
 	struct k_work_delayable async_rx_timeout_work;
+	/** Next RX buffer (cached by buf_rsp, consumed by DMA callback) */
+	uint8_t *rx_next_buffer;
+	/** Next RX buffer length */
+	size_t rx_next_buffer_len;
 	/** Device pointer for work queue callbacks (TODO: can be removed with CONTAINER_OF) */
 	const struct device *dev;
 #endif

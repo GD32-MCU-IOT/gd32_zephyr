@@ -1,0 +1,310 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <gd/gd32h75e/gd32h75eym.dtsi>
+#include "gd32h75ey_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+
+/ {
+	model = "GigaDevice GD32H75EY-EVAL";
+	compatible = "gd,gd32h75ey-eval";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,dtcm = &dtcm;
+		zephyr,flash = &flash0;
+		zephyr,console = &usart2;
+		zephyr,shell-uart = &usart2;
+		zephyr,flash-controller = &fmc;
+		zephyr,canbus = &can0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0: led0 {
+			gpios = <&gpioc 3 GPIO_ACTIVE_HIGH>;
+			label = "LED3";
+		};
+		led1: led1 {
+			gpios = <&gpioc 4 GPIO_ACTIVE_HIGH>;
+			label = "LED4";
+		};
+		led2: led2 {
+			gpios = <&gpioc 5 GPIO_ACTIVE_HIGH>;
+			label = "LED5";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+
+		/* pwm_led0 (TIMER1_CH2/PB10) removed: PB10 is used by USART2_TX */
+		pwm_led1: pwm_led1 {
+			pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		};
+		pwm_led2: pwm_led2 {
+			pwms = <&pwm0 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		};
+		pwm_led3: pwm_led3 {
+			pwms = <&pwm0 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		};
+	};
+
+	aliases {
+		led0 = &led0;
+		led1 = &led1;
+		led2 = &led2;
+		watchdog0 = &fwdgt;
+		pwm-led1 = &pwm_led1;
+		pwm-led2 = &pwm_led2;
+		pwm-led3 = &pwm_led3;
+		eeprom-0 = &eeprom0;
+	};
+};
+
+&timer0 {
+	channels = <4>;
+	prescaler = <9999>;
+	alignedmode = <0x00>;
+	counterdirection = <0x10>;
+	deadtime = <200>;                  /* 1.06us */
+	status = "okay";
+	pwm0: pwm {
+		status = "okay";
+		pinctrl-0 = <&pwm0_default>;
+		pinctrl-names = "default";
+	};
+};
+
+/* timer1/pwm1 disabled: CH2 pin (PB10) is used by USART2_TX */
+&timer1 {
+	status = "disabled";
+};
+
+&backup_sram {
+	status = "okay";
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&gpiod {
+	status = "okay";
+};
+
+&gpioe {
+	status = "okay";
+};
+
+&gpiof {
+	status = "okay";
+};
+
+&gpiog {
+	status = "okay";
+};
+
+&gpioh {
+	status = "okay";
+};
+
+&gpioj {
+	status = "okay";
+};
+
+&gpiok {
+	status = "okay";
+};
+
+&usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 4 51 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 5 52 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&usart1 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart1_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 6 53 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 7 54 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&usart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart2_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 2 55 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 3 56 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&fwdgt {
+	status = "okay";
+};
+
+&adc0 {
+	status = "okay";
+	pinctrl-0 = <&adc0_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 1 9 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
+	dma-names = "rx";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&dmamux {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c3 {
+	status = "okay";
+	pinctrl-0 = <&i2c3_default>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	dmas = <&dmamux 0 184 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 1 185 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		status = "okay";
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
+&spi0 {
+	status = "disabled";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 0 47 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 1 48 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 8 75 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 9 76 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&spi3 {
+	status = "okay";
+	pinctrl-0 = <&spi3_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioe 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 10 97 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 11 98 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&spi4 {
+	status = "okay";
+	pinctrl-0 = <&spi4_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioh 5 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 12 99 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 13 100 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	nor_flash: gd25q16@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
+};
+
+&spi5 {
+	status = "okay";
+	pinctrl-0 = <&spi5_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+	dmas = <&dmamux 14 182 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 15 183 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};
+
+&can0 {
+	pinctrl-0 = <&can0_default>;
+	pinctrl-names = "default";
+	bus-speed = <1000000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "okay";
+};
+
+&can1 {
+	pinctrl-0 = <&can1_default>;
+	pinctrl-names = "default";
+	bus-speed = <1000000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "okay";
+};
+
+&can2 {
+	pinctrl-0 = <&can2_default>;
+	pinctrl-names = "default";
+	bus-speed = <1000000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "okay";
+};
