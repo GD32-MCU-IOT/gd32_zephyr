@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 Teslabs Engineering S.L.
- *
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -146,11 +146,12 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 
 	switch (GD32_CLOCK_ID_OFFSET(id)) {
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
-	defined(CONFIG_SOC_SERIES_GD32C2X1) || defined(CONFIG_SOC_SERIES_GD32H7XX)
+	defined(CONFIG_SOC_SERIES_GD32C2X1) || defined(CONFIG_SOC_SERIES_GD32H7XX) || \
+	defined(CONFIG_SOC_SERIES_GD32G5X3)
 	case RCU_AHB1EN_OFFSET:
 	case RCU_AHB2EN_OFFSET:
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
-	defined(CONFIG_SOC_SERIES_GD32H7XX)
+	defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32G5X3)
 	case RCU_AHB3EN_OFFSET:
 #endif
 #if defined(CONFIG_SOC_SERIES_GD32H7XX)

@@ -37,6 +37,9 @@ family:
   - name: gd32f527
     socs:
     - name: gd32f527
+  - name: gd32g5x3
+    socs:
+    - name: gd32g553
   - name: gd32h7xx
     socs:
     - name: gd32h759

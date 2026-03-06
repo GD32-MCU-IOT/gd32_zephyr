@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021 Teslabs Engineering S.L.
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -131,7 +131,7 @@ typedef uint32_t pinctrl_soc_pin_t;
 #define GD32_OSPEED_10MHZ 0U
 /** Maximum 60MHz */
 #define GD32_OSPEED_60MHZ 1U
-#elif defined(CONFIG_SOC_SERIES_GD32H7XX)
+#elif defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32G5X3)
 /** Maximum 10MHz */
 #define GD32_OSPEED_12MHZ      0U
 /** Maximum 60MHz */
