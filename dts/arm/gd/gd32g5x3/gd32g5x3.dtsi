@@ -152,7 +152,7 @@
 			status = "disabled";
 		};
 
-		i2c2: i2c@40005c00 {
+		i2c2: i2c@4000c000 {
 			compatible = "gd,gd32-i2c-v2";
 			reg = <0x4000C000 0x400>;
 			#address-cells = <1>;
@@ -165,7 +165,7 @@
 			status = "disabled";
 		};
 
-		i2c3: i2c@40008000 {
+		i2c3: i2c@40005c00 {
 			compatible = "gd,gd32-i2c-v2";
 			reg = <0x40005C00 0x400>;
 			#address-cells = <1>;
