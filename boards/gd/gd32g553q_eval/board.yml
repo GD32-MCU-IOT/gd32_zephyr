@@ -1,0 +1,6 @@
+board:
+  name: gd32g553q_eval
+  full_name: GD32G553Q-EVAL
+  vendor: gd
+  socs:
+    - name: gd32g553
