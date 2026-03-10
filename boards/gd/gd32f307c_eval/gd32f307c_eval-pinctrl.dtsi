@@ -34,22 +34,22 @@
 
 	spi0_default: spi0_default {
 		group1 {
-			pinmux = <SPI0_SCK_PB3_RMP>, <SPI0_MOSI_PB5_RMP>,
-				 <SPI0_MISO_PB4_RMP>, <SPI0_NSS_PA15_RMP>;
+			pinmux = <SPI0_SCK_PA5_NORMP>, <SPI0_MOSI_PA7_NORMP>,
+				 <SPI0_MISO_PA6_NORMP>;
 		};
 	};
 
 	spi1_default: spi1_default {
 		group1 {
 			pinmux = <SPI1_SCK_PB13>, <SPI1_MOSI_PB15>,
-				 <SPI1_MISO_PB14>, <SPI1_NSS_PB12>;
+				 <SPI1_MISO_PB14>;
 		};
 	};
 
 	spi2_default: spi2_default {
 		group1 {
 			pinmux = <SPI2_SCK_PC10_RMP>, <SPI2_MOSI_PC12_RMP>,
-				 <SPI2_MISO_PC11_RMP>, <SPI2_NSS_PA4_RMP>;
+				 <SPI2_MISO_PC11_RMP>;
 		};
 	};
 
