@@ -23,7 +23,8 @@ BUILD_ASSERT((GD32_OTYPE_PP == GPIO_OTYPE_PP) &&
 BUILD_ASSERT(
 #if !defined(CONFIG_SOC_SERIES_GD32C2X1) && \
 	!defined(CONFIG_SOC_SERIES_GD32F50X) && \
-	!defined(CONFIG_SOC_SERIES_GD32H7XX)
+	!defined(CONFIG_SOC_SERIES_GD32H7XX) && \
+	!defined(CONFIG_SOC_SERIES_GD32H75E)
 	      (GD32_OSPEED_2MHZ == GPIO_OSPEED_2MHZ) &&
 #endif
 #if defined(CONFIG_SOC_SERIES_GD32F3X0) || \
@@ -43,7 +44,7 @@ BUILD_ASSERT(
 #elif defined(CONFIG_SOC_SERIES_GD32C2X1)
 	     (GD32_OSPEED_10MHZ == GPIO_OSPEED_LEVEL_0) &&
 	     (GD32_OSPEED_60MHZ == GPIO_OSPEED_LEVEL_1) &&
-#elif defined(CONFIG_SOC_SERIES_GD32H7XX)
+#elif defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
 		 (GD32_OSPEED_12MHZ == GPIO_OSPEED_12MHZ) &&
 		 (GD32_OSPEED_60MHZ == GPIO_OSPEED_60MHZ) &&
 		 (GD32_OSPEED_85MHZ == GPIO_OSPEED_85MHZ) &&
@@ -77,6 +78,13 @@ static const uint32_t gd32_port_addrs[] = {
 	GD32_PORT_ADDR_OR_NONE(gpiog)
 	GD32_PORT_ADDR_OR_NONE(gpioh)
 	GD32_PORT_ADDR_OR_NONE(gpioi)
+#if DT_NODE_EXISTS(DT_NODELABEL(gpioj)) || DT_NODE_EXISTS(DT_NODELABEL(gpiok))
+#if !DT_NODE_EXISTS(DT_NODELABEL(gpioi))
+	0, /* placeholder for missing GPIOI to keep port index aligned */
+#endif
+	GD32_PORT_ADDR_OR_NONE(gpioj)
+	GD32_PORT_ADDR_OR_NONE(gpiok)
+#endif
 };
 
 /** GD32 port clock identifiers */
@@ -90,6 +98,13 @@ static const uint16_t gd32_port_clkids[] = {
 	GD32_PORT_CLOCK_ID_OR_NONE(gpiog)
 	GD32_PORT_CLOCK_ID_OR_NONE(gpioh)
 	GD32_PORT_CLOCK_ID_OR_NONE(gpioi)
+#if DT_NODE_EXISTS(DT_NODELABEL(gpioj)) || DT_NODE_EXISTS(DT_NODELABEL(gpiok))
+#if !DT_NODE_EXISTS(DT_NODELABEL(gpioi))
+	0, /* placeholder for missing GPIOI to keep port index aligned */
+#endif
+	GD32_PORT_CLOCK_ID_OR_NONE(gpioj)
+	GD32_PORT_CLOCK_ID_OR_NONE(gpiok)
+#endif
 };
 
 /**

@@ -49,7 +49,7 @@
 #define DMA_CHMADDR(dma, ch) REG32((dma + 0x14UL) + 0x14UL * (uint32_t)(ch))
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
 #define GD32_DMA_V1_NO_SUBPERIPHERAL
 #endif
 
@@ -634,9 +634,23 @@ static void dma_gd32_isr(const struct device *dev)
 	const struct dma_gd32_config *cfg = dev->config;
 	struct dma_gd32_data *data = dev->data;
 	uint32_t errflag, ftfflag;
-	int err = 0;
 
 	for (uint32_t i = 0; i < cfg->channels; i++) {
+		int err = 0;
+
+		/*
+		 * Only process channels that have their interrupts enabled.
+		 * INTF flags are set by hardware regardless of interrupt
+		 * enable bits, so we must filter to avoid processing stale
+		 * flags from channels that are not actively expecting
+		 * interrupts (e.g., configured but not started, or stopped).
+		 */
+		uint32_t chctl = GD32_DMA_CHCTL(cfg->reg, i);
+
+		if (!(chctl & (DMA_CHXCTL_FTFIE | GD32_DMA_INTERRUPT_ERRORS))) {
+			continue;
+		}
+
 		errflag = gd32_dma_interrupt_flag_get(cfg->reg, i,
 						      GD32_DMA_FLAG_ERRORS);
 		ftfflag =

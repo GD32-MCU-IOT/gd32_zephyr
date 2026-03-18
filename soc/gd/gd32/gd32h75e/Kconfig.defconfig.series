@@ -1,0 +1,20 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SERIES_GD32H75E
+
+rsource "Kconfig.defconfig.gd32h75e"
+
+# system_gd32h75e.c:SystemInit() unconditionally calls nvic_vector_table_set()
+# which is implemented in gd32h75e_misc.c, so MISC HAL must always be compiled.
+config USE_GD32_MISC
+	default y
+
+config ROM_START_OFFSET
+	default 0x400 if BOOTLOADER_MCUBOOT
+	default 0x0   if !BOOTLOADER_MCUBOOT
+
+config CACHE_MANAGEMENT
+	default y if CPU_CORTEX_M7
+
+endif # SOC_SERIES_GD32H75E

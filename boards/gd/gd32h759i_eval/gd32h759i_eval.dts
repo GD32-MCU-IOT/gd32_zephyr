@@ -151,6 +151,9 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart1_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 6 51 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 7 52 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
 };
 
 &usart2 {
