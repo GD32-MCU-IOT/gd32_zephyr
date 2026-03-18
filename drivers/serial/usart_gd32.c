@@ -37,7 +37,8 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
-#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX)
+#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX) \
+	|| defined(CONFIG_SOC_SERIES_GD32H75E)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
 #else
@@ -496,47 +497,82 @@ static void usart_gd32_async_dma_rx_callback(
 		return;
 	}
 
-	/* Stop current DMA operation properly */
-	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
-	dma_stop(data->dma[USART_DMA_RX].dev, data->dma[USART_DMA_RX].channel);
+	/* DMA transfer complete: current buffer is full */
 	k_work_cancel_delayable(&data->async_rx_timeout_work);
 
-	/* Get actual received data length */
-	struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
-	struct dma_status stat;
-	size_t current_rx_len = 0;
-
-	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
-		current_rx_len = data->async_rx_len - stat.pending_length;
-	}
-
-	/* Report currently received data */
-	if (data->async_cb && current_rx_len > data->async_rx_offset) {
-		size_t new_bytes = current_rx_len - data->async_rx_offset;
+	/* Report all remaining data in current buffer */
+	if (data->async_cb && data->async_rx_len > data->async_rx_offset) {
 		struct uart_event evt = {
 			.type = UART_RX_RDY,
 			.data.rx.buf = data->async_rx_buf,
-			.data.rx.len = new_bytes,
+			.data.rx.len = data->async_rx_len - data->async_rx_offset,
 			.data.rx.offset = data->async_rx_offset,
 		};
 		data->async_cb(dev, &evt, data->async_cb_data);
-		data->async_rx_offset = current_rx_len;
 	}
 
-	/* Send RX_BUF_REQUEST event to request new buffer */
+	/* Release current buffer */
 	if (data->async_cb) {
 		struct uart_event evt = {
-			.type = UART_RX_BUF_REQUEST,
+			.type = UART_RX_BUF_RELEASED,
+			.data.rx_buf.buf = data->async_rx_buf,
 		};
-
 		data->async_cb(dev, &evt, data->async_cb_data);
 	}
 
-	/* Note: RX_DISABLED will be sent here.
-	 * Wait for app to provide new buffer via uart_rx_buf_rsp.
-	 * If app doesn't provide new buffer,
-	 * IDLE interrupt or timeout will handle remaining data and send RX_DISABLED
-	 */
+	/* Switch to next buffer if available */
+	if (data->rx_next_buffer) {
+		struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
+		struct dma_block_config *blk_cfg = &dma->dma_blk_cfg;
+
+		/* Update buffer state */
+		data->async_rx_buf = data->rx_next_buffer;
+		data->async_rx_len = data->rx_next_buffer_len;
+		data->async_rx_offset = 0;
+		data->async_rx_counter = 0;
+		data->rx_next_buffer = NULL;
+		data->rx_next_buffer_len = 0;
+
+		/* Reconfigure DMA block for new buffer */
+		blk_cfg->block_size = data->async_rx_len;
+		blk_cfg->dest_address = (uint32_t)data->async_rx_buf;
+
+		/* Reload and restart DMA with minimum gap */
+		dma_stop(dma->dev, dma->channel);
+
+
+		dma_config(dma->dev, dma->channel, &dma->dma_cfg);
+		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);
+		dma_start(dma->dev, dma->channel);
+
+		/* Restart timeout */
+		if (data->async_rx_timeout > 0) {
+			k_work_reschedule(&data->async_rx_timeout_work,
+					  K_USEC(data->async_rx_timeout));
+		}
+
+		/* Request next buffer from app */
+		if (data->async_cb) {
+			struct uart_event evt = {
+				.type = UART_RX_BUF_REQUEST,
+			};
+			data->async_cb(dev, &evt, data->async_cb_data);
+		}
+	} else {
+		/* No next buffer: disable RX */
+		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
+		dma_stop(data->dma[USART_DMA_RX].dev,
+			 data->dma[USART_DMA_RX].channel);
+		data->async_rx_enabled = false;
+		data->async_rx_buf = NULL;
+
+		if (data->async_cb) {
+			struct uart_event evt = {
+				.type = UART_RX_DISABLED,
+			};
+			data->async_cb(dev, &evt, data->async_cb_data);
+		}
+	}
 }
 
 static int usart_gd32_async_rx_enable(
@@ -563,6 +599,8 @@ static int usart_gd32_async_rx_enable(
 	data->async_rx_counter = 0;
 	data->async_rx_enabled = true;
 	data->async_rx_timeout = timeout;
+	data->rx_next_buffer = NULL;
+	data->rx_next_buffer_len = 0;
 
 	/* Clear receive buffer to indicate fresh state */
 	memset(buf, 0, len);
@@ -621,8 +659,14 @@ static int usart_gd32_async_rx_enable(
 	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
 	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_RBNE);
 	usart_interrupt_enable(cfg->reg, USART_INT_IDLE);
-	usart_interrupt_enable(cfg->reg, USART_INT_RBNE);
-	/* Data buffering, always enable interrupt */
+
+	/* Request next buffer from app early */
+	if (data->async_cb) {
+		struct uart_event evt = {
+			.type = UART_RX_BUF_REQUEST,
+		};
+		data->async_cb(dev, &evt, data->async_cb_data);
+	}
 
 	return 0;
 }
@@ -663,6 +707,18 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	usart_interrupt_disable(cfg->reg, USART_INT_RBNE);
 	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
 	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_RBNE);
+
+	/* Release cached next buffer if any */
+	if (data->rx_next_buffer && data->async_cb) {
+		struct uart_event evt = {
+			.type = UART_RX_BUF_RELEASED,
+			.data.rx_buf.buf = data->rx_next_buffer,
+		};
+		data->async_cb(dev, &evt, data->async_cb_data);
+	}
+	data->rx_next_buffer = NULL;
+	data->rx_next_buffer_len = 0;
+
 	if (data->async_rx_enabled && data->async_cb) {
 		struct uart_event evt = {
 			.type = UART_RX_DISABLED,
@@ -674,10 +730,16 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	data->async_rx_len = 0;
 	data->async_rx_offset = 0;
 	data->async_rx_counter = 0;
-	/* Reset same buffer scenario */
 	return 0;
 }
 
+/**
+ * @brief Provide next RX buffer
+ *
+ * The actual buffer switch happens in the DMA RX callback when the
+ * current buffer is full. This eliminates the DMA stop/restart GAP
+ * that causes ORERR and data loss on H7xx.
+ */
 static int usart_gd32_async_rx_buf_rsp(
 	const struct device *dev,
 	uint8_t *buf,
@@ -685,65 +747,27 @@ static int usart_gd32_async_rx_buf_rsp(
 )
 {
 	struct gd32_usart_data *data = dev->data;
-	const struct gd32_usart_config *cfg = dev->config;
+	unsigned int key;
+	int err = 0;
 
 	if (!buf || len == 0) {
 		return -EINVAL;
 	}
 
-	/* Configure new buffer and restart DMA operation */
-	struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
-	struct dma_config *dma_cfg = &dma->dma_cfg;
-	struct dma_block_config *blk_cfg = &dma->dma_blk_cfg;
+	key = irq_lock();
 
-	/* Ensure DMA is stopped before reconfiguration */
-	dma_stop(dma->dev, dma->channel);
-	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
-
-	/* Setup new DMA configuration */
-	memset(blk_cfg, 0, sizeof(struct dma_block_config));
-	blk_cfg->block_size = len;
-	blk_cfg->source_address = (uint32_t)USART_DATA_RX(cfg->reg);
-	blk_cfg->dest_address = (uint32_t)buf;
-	blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-	blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-	dma_cfg->head_block = blk_cfg;
-	dma_cfg->block_count = 1U;
-
-	/* Update state */
-	data->async_rx_buf = buf;
-	data->async_rx_len = len;
-	data->async_rx_offset = 0;
-	data->async_rx_counter = 0;
-	data->async_rx_enabled = true;
-
-	/* Clear new buffer to indicate fresh state */
-	memset(buf, 0, len);
-
-	/* Configure DMA */
-	int ret = dma_config(dma->dev, dma->channel, dma_cfg);
-
-	if (ret != 0) {
-		data->async_rx_enabled = false;
-		data->async_rx_buf = NULL;
-		return ret;
+	if (data->rx_next_buffer != NULL) {
+		err = -EBUSY;
+	} else if (!data->async_rx_enabled) {
+		err = -EACCES;
+	} else {
+		data->rx_next_buffer = buf;
+		data->rx_next_buffer_len = len;
 	}
 
-	/* Enable USART DMA reception */
-	usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);
+	irq_unlock(key);
 
-	/* Start DMA */
-	ret = dma_start(dma->dev, dma->channel);
-	if (ret != 0) {
-		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
-		data->async_rx_enabled = false;
-		data->async_rx_buf = NULL;
-		return ret;
-	}
-
-	LOG_DBG("RX buf response: new buffer configured, len=%zu", len);
-
-	return 0;
+	return err;
 }
 #endif
 
@@ -943,6 +967,231 @@ static void usart_gd32_poll_out(const struct device *dev, unsigned char c)
 	}
 }
 
+/* ========== Runtime Configure Support ========== */
+#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
+/**
+ * @brief Convert Zephyr parity enum to GD32 HAL parity define
+ */
+static inline uint32_t usart_gd32_cfg2hal_parity(enum uart_config_parity parity)
+{
+	switch (parity) {
+	case UART_CFG_PARITY_ODD:
+		return USART_PM_ODD;
+	case UART_CFG_PARITY_EVEN:
+		return USART_PM_EVEN;
+	case UART_CFG_PARITY_NONE:
+	default:
+		return USART_PM_NONE;
+	}
+}
+
+/**
+ * @brief Convert GD32 HAL parity define to Zephyr parity enum
+ */
+static inline enum uart_config_parity usart_gd32_hal2cfg_parity(uint32_t parity)
+{
+	switch (parity) {
+	case USART_PM_ODD:
+		return UART_CFG_PARITY_ODD;
+	case USART_PM_EVEN:
+		return UART_CFG_PARITY_EVEN;
+	case USART_PM_NONE:
+	default:
+		return UART_CFG_PARITY_NONE;
+	}
+}
+
+/**
+ * @brief Convert Zephyr stop bits enum to GD32 HAL stop bits define
+ */
+static inline uint32_t usart_gd32_cfg2hal_stopbits(enum uart_config_stop_bits stopbits)
+{
+	switch (stopbits) {
+	case UART_CFG_STOP_BITS_0_5:
+		return USART_STB_0_5BIT;
+	case UART_CFG_STOP_BITS_1_5:
+		return USART_STB_1_5BIT;
+	case UART_CFG_STOP_BITS_2:
+		return USART_STB_2BIT;
+	case UART_CFG_STOP_BITS_1:
+	default:
+		return USART_STB_1BIT;
+	}
+}
+
+/**
+ * @brief Convert GD32 HAL stop bits define to Zephyr stop bits enum
+ */
+static inline enum uart_config_stop_bits usart_gd32_hal2cfg_stopbits(uint32_t stopbits)
+{
+	switch (stopbits) {
+	case USART_STB_0_5BIT:
+		return UART_CFG_STOP_BITS_0_5;
+	case USART_STB_1_5BIT:
+		return UART_CFG_STOP_BITS_1_5;
+	case USART_STB_2BIT:
+		return UART_CFG_STOP_BITS_2;
+	case USART_STB_1BIT:
+	default:
+		return UART_CFG_STOP_BITS_1;
+	}
+}
+
+/**
+ * @brief Convert Zephyr data bits enum to GD32 HAL word length define
+ * @note GD32 USART uses word length (7/8/9 bits) which includes parity bit
+ */
+static inline uint32_t usart_gd32_cfg2hal_databits(enum uart_config_data_bits databits,
+						   enum uart_config_parity parity)
+{
+	/*
+	 * GD32 word length includes parity bit.
+	 * 8-bit data + parity = 9-bit word length
+	 * 8-bit data no parity = 8-bit word length
+	 */
+	switch (databits) {
+#ifdef USART_WL_7BIT
+	case UART_CFG_DATA_BITS_7:
+		if (parity == UART_CFG_PARITY_NONE) {
+			return USART_WL_7BIT;
+		} else {
+			return USART_WL_8BIT;
+		}
+#endif
+#ifdef USART_WL_9BIT
+	case UART_CFG_DATA_BITS_9:
+		return USART_WL_9BIT;
+#endif
+	case UART_CFG_DATA_BITS_8:
+	default:
+		if (parity != UART_CFG_PARITY_NONE) {
+			return USART_WL_9BIT;
+		}
+		return USART_WL_8BIT;
+	}
+}
+
+/**
+ * @brief Convert GD32 HAL word length to Zephyr data bits enum
+ */
+static inline enum uart_config_data_bits usart_gd32_hal2cfg_databits(uint32_t wordlen,
+								     uint32_t parity)
+{
+	switch (wordlen) {
+#ifdef USART_WL_7BIT
+	case USART_WL_7BIT:
+		if (parity == USART_PM_NONE) {
+			return UART_CFG_DATA_BITS_7;
+		} else {
+			return UART_CFG_DATA_BITS_6;
+		}
+#endif
+	case USART_WL_9BIT:
+		if (parity == USART_PM_NONE) {
+			return UART_CFG_DATA_BITS_9;
+		} else {
+			return UART_CFG_DATA_BITS_8;
+		}
+	case USART_WL_8BIT:
+	default:
+		if (parity == USART_PM_NONE) {
+			return UART_CFG_DATA_BITS_8;
+		} else {
+			return UART_CFG_DATA_BITS_7;
+		}
+	}
+}
+
+/**
+ * @brief Apply UART configuration to hardware
+ */
+static int usart_gd32_apply_runtime_config(const struct device *dev,
+					   const struct uart_config *uart_cfg)
+{
+	const struct gd32_usart_config *const cfg = dev->config;
+	uint32_t parity, word_length, stop_bits;
+
+	parity = usart_gd32_cfg2hal_parity(uart_cfg->parity);
+	word_length = usart_gd32_cfg2hal_databits(uart_cfg->data_bits, uart_cfg->parity);
+	stop_bits = usart_gd32_cfg2hal_stopbits(uart_cfg->stop_bits);
+
+	usart_baudrate_set(cfg->reg, uart_cfg->baudrate);
+	usart_parity_config(cfg->reg, parity);
+	usart_word_length_set(cfg->reg, word_length);
+	usart_stop_bit_set(cfg->reg, stop_bits);
+
+	/* Flow control */
+	switch (uart_cfg->flow_ctrl) {
+	case UART_CFG_FLOW_CTRL_NONE:
+		usart_hardware_flow_rts_config(cfg->reg, USART_RTS_DISABLE);
+		usart_hardware_flow_cts_config(cfg->reg, USART_CTS_DISABLE);
+		break;
+	case UART_CFG_FLOW_CTRL_RTS_CTS:
+		usart_hardware_flow_rts_config(cfg->reg, USART_RTS_ENABLE);
+		usart_hardware_flow_cts_config(cfg->reg, USART_CTS_ENABLE);
+		break;
+#ifdef USART_RS485
+	case UART_CFG_FLOW_CTRL_RS485:
+		usart_rs485_driver_enable(cfg->reg);
+		break;
+#endif
+	default:
+		return -ENOTSUP;
+	}
+
+	return 0;
+}
+
+static int usart_gd32_configure(const struct device *dev,
+				const struct uart_config *uart_cfg)
+{
+	const struct gd32_usart_config *const cfg = dev->config;
+	struct gd32_usart_data *const data = dev->data;
+	int ret;
+
+	/* Validate parameters */
+	if ((uart_cfg->parity == UART_CFG_PARITY_MARK) ||
+	    (uart_cfg->parity == UART_CFG_PARITY_SPACE)) {
+		return -ENOTSUP;
+	}
+
+	/* Disable USART before reconfiguration */
+	usart_disable(cfg->reg);
+
+	/* Apply new parameters */
+	ret = usart_gd32_apply_runtime_config(dev, uart_cfg);
+	if (ret != 0) {
+		/* Restore old config on failure */
+		(void)usart_gd32_apply_runtime_config(dev, &data->uart_cfg);
+		usart_receive_config(cfg->reg, USART_RECEIVE_ENABLE);
+		usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
+		usart_enable(cfg->reg);
+		return ret;
+	}
+
+	/* Re-enable USART with TX/RX */
+	usart_receive_config(cfg->reg, USART_RECEIVE_ENABLE);
+	usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
+	usart_enable(cfg->reg);
+
+	/* Cache the new configuration */
+	data->uart_cfg = *uart_cfg;
+	data->baud_rate = uart_cfg->baudrate;
+
+	return 0;
+}
+
+static int usart_gd32_config_get(const struct device *dev,
+				 struct uart_config *uart_cfg)
+{
+	struct gd32_usart_data *const data = dev->data;
+
+	*uart_cfg = data->uart_cfg;
+
+	return 0;
+}
+#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
+
 static int usart_gd32_err_check(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
@@ -1098,6 +1347,10 @@ static DEVICE_API(uart, usart_gd32_driver_api) = {
 	.poll_in = usart_gd32_poll_in,
 	.poll_out = usart_gd32_poll_out,
 	.err_check = usart_gd32_err_check,
+#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
+	.configure = usart_gd32_configure,
+	.config_get = usart_gd32_config_get,
+#endif
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.fifo_fill = usart_gd32_fifo_fill,
 	.fifo_read = usart_gd32_fifo_read,
@@ -1148,6 +1401,23 @@ static DEVICE_API(uart, usart_gd32_driver_api) = {
 	GD32_USART_IRQ_HANDLER(n) \
 	static struct gd32_usart_data usart_gd32_data_##n = { \
 		.baud_rate = DT_INST_PROP(n, current_speed), \
+		IF_ENABLED(CONFIG_UART_USE_RUNTIME_CONFIGURE, ( \
+			.uart_cfg = { \
+				.baudrate = DT_INST_PROP(n, current_speed), \
+				.parity = DT_INST_ENUM_IDX(n, parity), \
+				.stop_bits = COND_CODE_1( \
+					DT_INST_NODE_HAS_PROP(n, stop_bits), \
+					(DT_INST_ENUM_IDX(n, stop_bits)), \
+					(UART_CFG_STOP_BITS_1)), \
+				.data_bits = COND_CODE_1( \
+					DT_INST_NODE_HAS_PROP(n, data_bits), \
+					(DT_INST_ENUM_IDX(n, data_bits)), \
+					(UART_CFG_DATA_BITS_8)), \
+				.flow_ctrl = DT_INST_PROP(n, hw_flow_control) \
+					? UART_CFG_FLOW_CTRL_RTS_CTS \
+					: UART_CFG_FLOW_CTRL_NONE, \
+			}, \
+		)) \
 		IF_ENABLED(CONFIG_UART_ASYNC_API, (.dma = USART_DMAS_DECL(n),)) \
 	}; \
 	static const struct gd32_usart_config usart_gd32_config_##n = { \
