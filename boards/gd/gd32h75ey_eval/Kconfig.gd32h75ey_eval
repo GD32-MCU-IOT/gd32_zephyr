@@ -1,0 +1,9 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_GD32H75EY_EVAL
+	bool "GigaDevice GD32H75EY-EVAL"
+	select SOC_GD32H75E
+
+config CACHE_OPERATION
+	bool "cache maintenance operations using CMSIS"
