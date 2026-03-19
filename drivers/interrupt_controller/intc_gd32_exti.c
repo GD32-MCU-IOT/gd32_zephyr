@@ -118,8 +118,8 @@ __unused static void gd32_exti_isr(const void *isr_data)
 	const struct gd32_exti_range *range = isr_data;
 
 	for (uint8_t i = range->min; i <= range->max; i++) {
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) \
- || defined(CONFIG_SOC_SERIES_GD32G5X3)
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) || \
+	defined(CONFIG_SOC_SERIES_GD32G5X3)
 		if ((EXTI_PD0 & BIT(i)) != 0U) {
 			EXTI_PD0 = BIT(i);
 #else
@@ -138,8 +138,8 @@ void gd32_exti_enable(uint8_t line)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) \
- || defined(CONFIG_SOC_SERIES_GD32G5X3)
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) || \
+	defined(CONFIG_SOC_SERIES_GD32G5X3)
 	EXTI_INTEN0 |= BIT(line);
 #else
 	EXTI_INTEN |= BIT(line);
@@ -153,8 +153,8 @@ void gd32_exti_disable(uint8_t line)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) \
- || defined(CONFIG_SOC_SERIES_GD32G5X3)
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) || \
+	defined(CONFIG_SOC_SERIES_GD32G5X3)
 	EXTI_INTEN0 &= ~BIT(line);
 #else
 	EXTI_INTEN &= ~BIT(line);
@@ -166,8 +166,8 @@ void gd32_exti_trigger(uint8_t line, uint8_t trigger)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) \
- || defined(CONFIG_SOC_SERIES_GD32G5X3)
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) || \
+	defined(CONFIG_SOC_SERIES_GD32G5X3)
 	if ((trigger & GD32_EXTI_TRIG_RISING) != 0U) {
 		EXTI_RTEN0 |= BIT(line);
 	} else {
