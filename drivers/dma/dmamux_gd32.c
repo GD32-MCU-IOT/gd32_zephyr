@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -293,9 +293,6 @@ static int dmamux_gd32_init(const struct device *dev)
 			return -ENODEV;
 		}
 	}
-
-	LOG_INF("DMAMUX initialized: %d channels, %d requests",
-		cfg->channel_count, cfg->request_count);
 
 	return 0;
 }

@@ -1,0 +1,67 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32g5x3q(e)xx-pinctrl.h>
+
+&pinctrl {
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PA9>, <USART0_RX_PA10>;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SCL_PB6>, <I2C0_SDA_PB7>;
+			drive-open-drain;
+		};
+	};
+
+	i2c1_default: i2c1_default {
+		group1 {
+			pinmux = <I2C1_SCL_PF6>, <I2C1_SDA_PF0>;
+			drive-open-drain;
+		};
+	};
+
+	i2c2_default: i2c2_default {
+		group1 {
+			pinmux = <I2C2_SCL_PG7>, <I2C2_SDA_PG8>;
+			drive-open-drain;
+		};
+	};
+
+	i2c3_default: i2c3_default {
+		group1 {
+			pinmux = <I2C3_SCL_PC6>, <I2C3_SDA_PC7>;
+			drive-open-drain;
+		};
+	};
+
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_SCK_PA5>, <SPI0_MISO_PA6>, <SPI0_MOSI_PA7>;
+		};
+	};
+
+	spi1_default: spi1_default {
+		group1 {
+			pinmux = <SPI1_SCK_PB13>, <SPI1_MISO_PB14>, <SPI1_MOSI_PB15>;
+		};
+	};
+
+	spi2_default: spi2_default {
+		group1 {
+			pinmux = <SPI2_SCK_PB3>, <SPI2_MISO_PB4>, <SPI2_MOSI_PB5>;
+		};
+	};
+
+	pwm1_default: pwm1_default {
+		group1 {
+			pinmux = <TIMER1_CH2_PB10>;
+		};
+	};
+};
