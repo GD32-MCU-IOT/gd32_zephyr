@@ -37,8 +37,8 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
-#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX) \
-	|| defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX) || \
+	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
 #else
@@ -370,11 +370,22 @@ static int usart_gd32_async_tx_abort(const struct device *dev)
 	struct gd32_usart_data *data = dev->data;
 	const struct gd32_usart_config *cfg = dev->config;
 	struct gd32_usart_dma *dma = &data->dma[USART_DMA_TX];
+	struct dma_status stat;
+	size_t sent_len;
 
 	LOG_DBG("TX abort requested");
 
 	/* Cancel TX timeout timer */
 	k_work_cancel_delayable(&data->async_tx_timeout_work);
+
+	/* Get actual sent bytes BEFORE stopping DMA.
+	 * In chain mode, async_tx_len is sizeof(struct dma_block_config),
+	 * not the actual transfer size. Use the active block size instead.
+	 */
+	sent_len = dma->dma_blk_cfg.block_size;
+	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
+		sent_len = dma->dma_blk_cfg.block_size - stat.pending_length;
+	}
 
 	dma_stop(dma->dev, dma->channel);
 	usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
@@ -382,7 +393,7 @@ static int usart_gd32_async_tx_abort(const struct device *dev)
 		struct uart_event evt = {
 			.type = UART_TX_ABORTED,
 			.data.tx.buf = data->async_tx_buf,
-			.data.tx.len = data->async_tx_len,
+			.data.tx.len = sent_len, /* Report actual sent bytes */
 		};
 		data->async_cb(dev, &evt, data->async_cb_data);
 	}
@@ -408,18 +419,28 @@ static void usart_gd32_async_rx_timeout_work(struct k_work *work)
 		return;
 	}
 
-	/* Check if there is new data arriving */
 	struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
 	struct dma_status stat;
-	bool has_new_data = false;
 
 	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
+		/*
+		 * If DMA is not busy (buffer full / TC completed),
+		 * unconditionally disable RX - aligned with STM32 behavior.
+		 * This avoids a race where uart_rx_buf_rsp() sets
+		 * rx_next_buffer during the 1-tick window but nobody
+		 * arms it with dma_reload/dma_start, causing RX to stall.
+		 */
+		if (!stat.busy) {
+			usart_gd32_async_rx_disable(dev);
+			return;
+		}
+
+		/* Normal timeout path: check for new data */
 		size_t current_rx_len = data->async_rx_len - stat.pending_length;
 
 		if (current_rx_len > data->async_rx_counter) {
 			/* New data arrived, reset timeout and continue waiting */
 			data->async_rx_counter = current_rx_len;
-			has_new_data = true;
 			k_work_reschedule(&data->async_rx_timeout_work,
 							  K_USEC(data->async_rx_timeout));
 			return;
@@ -491,16 +512,17 @@ static void usart_gd32_async_dma_rx_callback(
 {
 	struct device *dev = (struct device *)user_data;
 	struct gd32_usart_data *data = dev->data;
-	const struct gd32_usart_config *cfg = dev->config;
 
 	if (!data->async_rx_enabled || !data->async_rx_buf) {
 		return;
 	}
 
-	/* DMA transfer complete: current buffer is full */
 	k_work_cancel_delayable(&data->async_rx_timeout_work);
 
-	/* Report all remaining data in current buffer */
+	/* Buffer is full */
+	data->async_rx_counter = data->async_rx_len;
+
+	/* Report all data in current buffer */
 	if (data->async_cb && data->async_rx_len > data->async_rx_offset) {
 		struct uart_event evt = {
 			.type = UART_RX_RDY,
@@ -509,49 +531,50 @@ static void usart_gd32_async_dma_rx_callback(
 			.data.rx.offset = data->async_rx_offset,
 		};
 		data->async_cb(dev, &evt, data->async_cb_data);
+		data->async_rx_offset = data->async_rx_len;
 	}
 
-	/* Release current buffer */
-	if (data->async_cb) {
-		struct uart_event evt = {
-			.type = UART_RX_BUF_RELEASED,
-			.data.rx_buf.buf = data->async_rx_buf,
-		};
-		data->async_cb(dev, &evt, data->async_cb_data);
-	}
-
-	/* Switch to next buffer if available */
-	if (data->rx_next_buffer) {
+	if (data->rx_next_buffer != NULL) {
 		struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
 		struct dma_block_config *blk_cfg = &dma->dma_blk_cfg;
+		uint8_t *released_buf = data->async_rx_buf;
 
-		/* Update buffer state */
-		data->async_rx_buf = data->rx_next_buffer;
-		data->async_rx_len = data->rx_next_buffer_len;
+		/* Release current buffer */
+		if (data->async_cb) {
+			struct uart_event evt = {
+				.type = UART_RX_BUF_RELEASED,
+				.data.rx_buf.buf = released_buf,
+			};
+			data->async_cb(dev, &evt, data->async_cb_data);
+		}
+
 		data->async_rx_offset = 0;
 		data->async_rx_counter = 0;
+		data->async_rx_buf = data->rx_next_buffer;
+		data->async_rx_len = data->rx_next_buffer_len;
+		blk_cfg->block_size = data->async_rx_len;
+		blk_cfg->dest_address = (uint32_t)data->async_rx_buf;
 		data->rx_next_buffer = NULL;
 		data->rx_next_buffer_len = 0;
 
-		/* Reconfigure DMA block for new buffer */
-		blk_cfg->block_size = data->async_rx_len;
-		blk_cfg->dest_address = (uint32_t)data->async_rx_buf;
+		int ret;
 
-		/* Reload and restart DMA with minimum gap */
-		dma_stop(dma->dev, dma->channel);
-
-
-		dma_config(dma->dev, dma->channel, &dma->dma_cfg);
-		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_ENABLE);
-		dma_start(dma->dev, dma->channel);
-
-		/* Restart timeout */
-		if (data->async_rx_timeout > 0) {
-			k_work_reschedule(&data->async_rx_timeout_work,
-					  K_USEC(data->async_rx_timeout));
+		ret = dma_reload(dma->dev, dma->channel, blk_cfg->source_address,
+				 blk_cfg->dest_address, blk_cfg->block_size);
+		if (ret < 0) {
+			LOG_ERR("Failed to reload RX DMA: %d", ret);
+			usart_gd32_async_rx_disable(dev);
+			return;
 		}
 
-		/* Request next buffer from app */
+		ret = dma_start(dma->dev, dma->channel);
+		if (ret < 0) {
+			LOG_ERR("Failed to start RX DMA: %d", ret);
+			usart_gd32_async_rx_disable(dev);
+			return;
+		}
+
+		/* Request next buffer */
 		if (data->async_cb) {
 			struct uart_event evt = {
 				.type = UART_RX_BUF_REQUEST,
@@ -559,19 +582,7 @@ static void usart_gd32_async_dma_rx_callback(
 			data->async_cb(dev, &evt, data->async_cb_data);
 		}
 	} else {
-		/* No next buffer: disable RX */
-		usart_dma_receive_config(cfg->reg, USART_RECEIVE_DMA_DISABLE);
-		dma_stop(data->dma[USART_DMA_RX].dev,
-			 data->dma[USART_DMA_RX].channel);
-		data->async_rx_enabled = false;
-		data->async_rx_buf = NULL;
-
-		if (data->async_cb) {
-			struct uart_event evt = {
-				.type = UART_RX_DISABLED,
-			};
-			data->async_cb(dev, &evt, data->async_cb_data);
-		}
+		k_work_reschedule(&data->async_rx_timeout_work, K_TICKS(1));
 	}
 }
 
@@ -708,7 +719,19 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
 	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_RBNE);
 
-	/* Release cached next buffer if any */
+	/*
+	 * Per Zephyr UART async API: RX_BUF_RELEASED must be sent before RX_DISABLED.
+	 * Release current buffer first.
+	 */
+	if (data->async_rx_buf && data->async_cb) {
+		struct uart_event evt = {
+			.type = UART_RX_BUF_RELEASED,
+			.data.rx_buf.buf = data->async_rx_buf,
+		};
+		data->async_cb(dev, &evt, data->async_cb_data);
+	}
+
+	/* Also release cached next buffer if any */
 	if (data->rx_next_buffer && data->async_cb) {
 		struct uart_event evt = {
 			.type = UART_RX_BUF_RELEASED,
@@ -719,17 +742,21 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	data->rx_next_buffer = NULL;
 	data->rx_next_buffer_len = 0;
 
-	if (data->async_rx_enabled && data->async_cb) {
-		struct uart_event evt = {
-			.type = UART_RX_DISABLED,
-		};
-		data->async_cb(dev, &evt, data->async_cb_data);
-	}
+	/* Clear state before sending UART_RX_DISABLED callback,
+	 * so the callback can safely call uart_rx_enable() if needed.
+	 */
 	data->async_rx_enabled = false;
 	data->async_rx_buf = NULL;
 	data->async_rx_len = 0;
 	data->async_rx_offset = 0;
 	data->async_rx_counter = 0;
+
+	if (data->async_cb) {
+		struct uart_event evt = {
+			.type = UART_RX_DISABLED,
+		};
+		data->async_cb(dev, &evt, data->async_cb_data);
+	}
 	return 0;
 }
 
@@ -819,11 +846,13 @@ static void usart_gd32_isr(const struct device *dev)
 					if (data->async_rx_timeout == 0) {
 						/* no timeout: flush immediately */
 						usart_gd32_dma_rx_flush(dev);
-					} else {
-						/* start timer for delayed processing */
+					} else if (data->async_rx_timeout != SYS_FOREVER_US) {
+						data->async_rx_counter = current_rx_len;
+						/* finite timeout: start timer */
 						k_work_reschedule(&data->async_rx_timeout_work,
 								K_USEC(data->async_rx_timeout));
 					}
+					/* SYS_FOREVER_US: do nothing, wait for buffer full */
 				}
 			}
 		}
