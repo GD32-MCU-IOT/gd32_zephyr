@@ -7,6 +7,8 @@
 #ifndef ZEPHYR_SOC_GD_GD32_GD32G5X3_GD32_REGS_H_
 #define ZEPHYR_SOC_GD_GD32_GD32G5X3_GD32_REGS_H_
 
+#include <zephyr/sys/util_macro.h>
+
 /* RCU register offsets */
 #define RCU_CFG0_OFFSET      0x08U
 #define RCU_AHB1EN_OFFSET    0x30U

@@ -65,6 +65,10 @@
 	status = "okay";
 };
 
+&gpiog {
+	status = "okay";
+};
+
 &dma0 {
 	status = "okay";
 };

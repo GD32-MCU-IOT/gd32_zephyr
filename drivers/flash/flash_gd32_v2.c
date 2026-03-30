@@ -424,7 +424,7 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 		offset = GD32_NV_FLASH_V2_BANK0_SIZE;
 	}
 
-	ret = gd32_fmc_v2_bank1_write(offset, data, len1);
+	ret = gd32_fmc_v2_bank1_write(offset, (const uint8_t *)data + len0, len1);
 	if (ret < 0) {
 		return ret;
 	}
@@ -439,7 +439,7 @@ int flash_gd32_erase_block(off_t offset, size_t size)
 	int ret = 0;
 
 	if (offset < GD32_NV_FLASH_V2_BANK0_SIZE) {
-		if ((offset + size0) > GD32_NV_FLASH_V2_BANK0_SIZE) {
+		if ((offset + size) > GD32_NV_FLASH_V2_BANK0_SIZE) {
 			size0 = GD32_NV_FLASH_V2_BANK0_SIZE - offset;
 		} else {
 			size0 = size;
