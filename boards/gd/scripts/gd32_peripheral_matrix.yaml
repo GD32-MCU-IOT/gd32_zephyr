@@ -48,6 +48,7 @@ test_groups:
     boards:
       - gd32a503v_eval
       - gd32e507z_eval
+      - gd32f307c_eval
       - gd32f450i_eval
       - gd32f450z_eval
       - gd32f470i_eval
@@ -65,6 +66,7 @@ test_groups:
       - samples/drivers/spi_flash
     boards:
       - gd32a503v_eval
+      - gd32f307c_eval
       - gd32f450i_eval
       - gd32f470i_eval
       - gd32f527i_eval
@@ -81,6 +83,7 @@ test_groups:
       - samples/drivers/eeprom
     boards:
       - gd32e103v_eval
+      - gd32f307c_eval
       - gd32f450i_eval
       - gd32f470i_eval
       - gd32f527i_eval
