@@ -84,6 +84,8 @@
 		sw1 = &user_key;
 		pwm-led0 = &pwm_led;
 		watchdog0 = &fwdgt;
+		eeprom-0 = &eeprom0;
+		spi-flash0 = &spi_flash0;
 	};
 };
 
@@ -141,6 +143,18 @@
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
 	clock-frequency = <I2C_BITRATE_STANDARD>;
+	dmas = <&dma0 6 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 5 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
+
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <10>;
+	};
 };
 
 &i2c1 {
@@ -148,24 +162,48 @@
 	pinctrl-0 = <&i2c1_default>;
 	pinctrl-names = "default";
 	clock-frequency = <I2C_BITRATE_STANDARD>;
+	dmas = <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
 };
 
 &spi0 {
 	status = "okay";
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
+	cs-gpios = <&gpioe 3 GPIO_ACTIVE_LOW>;
+	dmas = <&dma0 1 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 2 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
+
+	spi_flash0: gd25q16@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
 };
 
 &spi1 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&spi1_default>;
 	pinctrl-names = "default";
+	cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+	dmas = <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
 };
 
 &spi2 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&spi2_default>;
 	pinctrl-names = "default";
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+	dmas = <&dma1 0 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma1 1 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
 };
 
 &timer0 {
