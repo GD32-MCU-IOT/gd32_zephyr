@@ -4,6 +4,9 @@ family:
   - name: gd32a50x
     socs:
     - name: gd32a503
+  - name: gd32c11x
+    socs:
+    - name: gd32c113
   - name: gd32c2x1
     socs:
     - name: gd32c231
