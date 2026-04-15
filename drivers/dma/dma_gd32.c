@@ -629,50 +629,43 @@ static int dma_gd32_init(const struct device *dev)
 	return 0;
 }
 
-static void dma_gd32_isr(const struct device *dev)
+/* Per-channel ISR handler — handles exactly one channel, no scanning overhead */
+static void dma_gd32_ch_isr(const struct device *dev, uint32_t ch)
 {
 	const struct dma_gd32_config *cfg = dev->config;
 	struct dma_gd32_data *data = dev->data;
-	uint32_t errflag, ftfflag;
+	int err = 0;
 
-	for (uint32_t i = 0; i < cfg->channels; i++) {
-		int err = 0;
+	uint32_t errflag = gd32_dma_interrupt_flag_get(cfg->reg, ch,
+						       GD32_DMA_FLAG_ERRORS);
+	uint32_t ftfflag = gd32_dma_interrupt_flag_get(cfg->reg, ch,
+						       DMA_FLAG_FTF);
 
-		/*
-		 * Only process channels that have their interrupts enabled.
-		 * INTF flags are set by hardware regardless of interrupt
-		 * enable bits, so we must filter to avoid processing stale
-		 * flags from channels that are not actively expecting
-		 * interrupts (e.g., configured but not started, or stopped).
-		 */
-		uint32_t chctl = GD32_DMA_CHCTL(cfg->reg, i);
-
-		if (!(chctl & (DMA_CHXCTL_FTFIE | GD32_DMA_INTERRUPT_ERRORS))) {
-			continue;
-		}
-
-		errflag = gd32_dma_interrupt_flag_get(cfg->reg, i,
-						      GD32_DMA_FLAG_ERRORS);
-		ftfflag =
-			gd32_dma_interrupt_flag_get(cfg->reg, i, DMA_FLAG_FTF);
-
-		if (errflag == 0 && ftfflag == 0) {
-			continue;
-		}
-
-		if (errflag) {
-			err = -EIO;
-		}
-
-		gd32_dma_interrupt_flag_clear(
-			cfg->reg, i, DMA_FLAG_FTF | GD32_DMA_FLAG_ERRORS);
-		data->channels[i].busy = false;
-
-		if (data->channels[i].callback) {
-			data->channels[i].callback(
-				dev, data->channels[i].user_data, i, err);
-		}
+	if (errflag == 0 && ftfflag == 0) {
+		return;
 	}
+
+	if (errflag) {
+		err = -EIO;
+	}
+
+	gd32_dma_interrupt_flag_clear(cfg->reg, ch,
+				      DMA_FLAG_FTF | GD32_DMA_FLAG_ERRORS);
+	data->channels[ch].busy = false;
+
+	if (data->channels[ch].callback) {
+		data->channels[ch].callback(dev, data->channels[ch].user_data,
+					    ch, err);
+	}
+}
+
+/* Per-channel ISR wrappers — each IRQ connects to its own wrapper so the
+ * channel index is known at IRQ entry with zero scanning cost.
+ */
+#define DMA_GD32_CH_ISR_DECLARE(n, inst)                                       \
+static void dma_gd32_##inst##_ch##n##_isr(const struct device *dev)            \
+{                                                                               \
+	dma_gd32_ch_isr(dev, n);                                               \
 }
 
 static DEVICE_API(dma, dma_gd32_driver_api) = {
@@ -686,13 +679,16 @@ static DEVICE_API(dma, dma_gd32_driver_api) = {
 
 #define IRQ_CONFIGURE(n, inst)                                                 \
 	IRQ_CONNECT(DT_INST_IRQ_BY_IDX(inst, n, irq),                          \
-		    DT_INST_IRQ_BY_IDX(inst, n, priority), dma_gd32_isr,       \
+		    DT_INST_IRQ_BY_IDX(inst, n, priority),                     \
+		    dma_gd32_##inst##_ch##n##_isr,                             \
 		    DEVICE_DT_INST_GET(inst), 0);                              \
 	irq_enable(DT_INST_IRQ_BY_IDX(inst, n, irq));
 
 #define CONFIGURE_ALL_IRQS(inst, n) LISTIFY(n, IRQ_CONFIGURE, (), inst)
 
 #define GD32_DMA_INIT(inst)                                                    \
+	LISTIFY(DT_NUM_IRQS(DT_DRV_INST(inst)),                                \
+		DMA_GD32_CH_ISR_DECLARE, (), inst)                             \
 	static void dma_gd32##inst##_irq_configure(void)                       \
 	{                                                                      \
 		CONFIGURE_ALL_IRQS(inst, DT_NUM_IRQS(DT_DRV_INST(inst)));      \
