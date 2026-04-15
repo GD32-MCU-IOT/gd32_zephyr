@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+
+/* Connect PD8 (TX) to PD9 (RX) for loopback test */
+dut: &usart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart2_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 1 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dma0 2 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "tx", "rx";
+};
+
+&dma0 {
+	status = "okay";
+};
