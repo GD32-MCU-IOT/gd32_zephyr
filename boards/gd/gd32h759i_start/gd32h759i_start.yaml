@@ -1,0 +1,15 @@
+identifier: gd32h759i_start
+name: GD32H759I-START
+type: mcu
+arch: arm
+ram: 1024
+flash: 3072
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - gpio
+  - uart
+  - watchdog
+vendor: gd

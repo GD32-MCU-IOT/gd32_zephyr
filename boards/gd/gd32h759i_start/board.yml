@@ -1,0 +1,6 @@
+board:
+  name: gd32h759i_start
+  full_name: GD32H759I-START
+  vendor: gd
+  socs:
+    - name: gd32h759
