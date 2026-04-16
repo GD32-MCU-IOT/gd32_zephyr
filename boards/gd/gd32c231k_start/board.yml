@@ -1,0 +1,6 @@
+board:
+  name: gd32c231k_start
+  full_name: GD32C231K-START
+  vendor: gd
+  socs:
+    - name: gd32c231
