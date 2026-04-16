@@ -1,5 +1,5 @@
-identifier: gd32c231c_eval
-name: GD32C231C-EVAL
+identifier: gd32c231k_start
+name: GD32C231K-START
 type: mcu
 arch: arm
 toolchain:
