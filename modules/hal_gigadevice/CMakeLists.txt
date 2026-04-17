@@ -79,6 +79,8 @@ endif()
 if(${CONFIG_SOC_SERIES_GD32F30X})
   if (${CONFIG_SOC_GD32F307})
     zephyr_compile_definitions(GD32F30X_CL)
+  elseif(${CONFIG_SOC_GD32F303})
+    zephyr_compile_definitions(GD32F30X_HD)
   endif()
 endif()
 
