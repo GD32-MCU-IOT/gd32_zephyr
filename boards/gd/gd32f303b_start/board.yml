@@ -1,0 +1,6 @@
+board:
+  name: gd32f303b_start
+  full_name: GD32F303B-START
+  vendor: gd
+  socs:
+    - name: gd32f303

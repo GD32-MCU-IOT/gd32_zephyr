@@ -1,0 +1,19 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32f303b_start
+name: GigaDevice GD32F303B-START
+type: mcu
+arch: arm
+ram: 32
+flash: 128
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - gpio
+  - uart
+  - watchdog
+  - pwm
+  - counter
+vendor: gd

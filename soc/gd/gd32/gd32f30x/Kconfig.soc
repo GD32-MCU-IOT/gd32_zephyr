@@ -10,9 +10,14 @@ config SOC_SERIES_GD32F30X
 config SOC_SERIES
 	default "gd32f30x" if SOC_SERIES_GD32F30X
 
+config SOC_GD32F303
+	bool
+	select SOC_SERIES_GD32F30X
+
 config SOC_GD32F307
 	bool
 	select SOC_SERIES_GD32F30X
 
 config SOC
+	default "gd32f303" if SOC_GD32F303
 	default "gd32f307" if SOC_GD32F307

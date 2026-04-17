@@ -1,0 +1,66 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <freq.h>
+#include <gd/gd32f30x/gd32f30x.dtsi>
+
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(120)>;
+};
+
+/* GD32F303CB: 128KB Flash, 32KB SRAM */
+/* The flash0 reg property will be set in the board dts file */
+
+&sram0 {
+	reg = <0x20000000 DT_SIZE_K(32)>;
+};
+
+&soc {
+	i2c0: i2c@40005400 {
+		compatible = "gd,gd32-i2c";
+		reg = <0x40005400 0x400>;
+		interrupts = <31 0>, <32 0>;
+		interrupt-names = "event", "error";
+		clocks = <&cctl GD32_CLOCK_I2C0>;
+		resets = <&rctl GD32_RESET_I2C0>;
+		status = "disabled";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	i2c1: i2c@40005800 {
+		compatible = "gd,gd32-i2c";
+		reg = <0x40005800 0x400>;
+		interrupts = <33 0>, <34 0>;
+		interrupt-names = "event", "error";
+		clocks = <&cctl GD32_CLOCK_I2C1>;
+		resets = <&rctl GD32_RESET_I2C1>;
+		status = "disabled";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	can0: can@40006400 {
+		compatible = "gd,gd32-can";
+		reg = <0x40006400 0x400>;
+		interrupts = <19 0>, <20 0>, <21 0>, <22 0>;
+		interrupt-names = "tx", "rx0", "rx1", "sce";
+		clocks = <&cctl GD32_CLOCK_CAN0>;
+		resets = <&rctl GD32_RESET_CAN0>;
+		status = "disabled";
+	};
+
+	dac: dac@40007400 {
+		compatible = "gd,gd32-dac";
+		reg = <0x40007400 0x400>;
+		clocks = <&cctl GD32_CLOCK_DAC>;
+		resets = <&rctl GD32_RESET_DAC>;
+		status = "disabled";
+		num-channels = <2>;
+		#io-channel-cells = <1>;
+	};
+};
