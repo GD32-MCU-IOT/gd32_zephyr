@@ -1,0 +1,86 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <gd/gd32h7xx/gd32h759im.dtsi>
+#include "gd32h759i_start-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "GigaDevice GD32H759I-START";
+	compatible = "gd,gd32h759i-start";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,dtcm = &dtcm;
+		zephyr,flash = &flash0;
+		zephyr,console = &usart0;
+		zephyr,shell-uart = &usart0;
+		zephyr,flash-controller = &fmc;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led1: led1 {
+			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
+			label = "LED1";
+		};
+		led2: led2 {
+			gpios = <&gpioc 10 GPIO_ACTIVE_LOW>;
+			label = "LED2";
+		};
+		led3: led3 {
+			gpios = <&gpioc 11 GPIO_ACTIVE_LOW>;
+			label = "LED3";
+		};
+		led4: led4 {
+			gpios = <&gpioc 12 GPIO_ACTIVE_LOW>;
+			label = "LED4";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		user_key: user_key {
+			gpios = <&gpiod 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "USER_KEY";
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	aliases {
+		led0 = &led1;
+		led1 = &led2;
+		led2 = &led3;
+		led3 = &led4;
+		sw0 = &user_key;
+		watchdog0 = &fwdgt;
+	};
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&gpiod {
+	status = "okay";
+};
+
+&gpiof {
+	status = "okay";
+};
+
+&usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+};
+
+&backup_sram {
+	status = "okay";
+};
