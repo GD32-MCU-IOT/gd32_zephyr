@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32h759i(g-i-m)xx-pinctrl.h>
+
+&pinctrl {
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PF4>, <USART0_RX_PF5>;
+		};
+	};
+};
