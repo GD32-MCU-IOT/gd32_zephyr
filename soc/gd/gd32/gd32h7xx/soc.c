@@ -33,8 +33,7 @@ void soc_early_init_hook(void)
 	SystemInit();
 
 	sys_cache_instr_enable();
-#ifdef CONFIG_DCACHE
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
 	sys_cache_data_enable();
-	sys_cache_data_disable();
 #endif
 }
