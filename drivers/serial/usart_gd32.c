@@ -34,6 +34,13 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#define GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED 1
+#include <gd32_cache.h>
+#else
+#define GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED 0
+#endif
+
 /*
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
@@ -225,6 +232,10 @@ static void usart_gd32_async_dma_tx_callback(const struct device *dma_dev,
 			if (blk_cfg->block_size &&
 				blk_cfg->source_address &&
 				blk_cfg->dest_address) {
+#if GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED
+				gd32_cache_flush_buf((void *)(uintptr_t)blk_cfg->source_address,
+						     blk_cfg->block_size);
+#endif
 				dma_cfg->head_block = blk_cfg;
 				dma_cfg->channel_direction = MEMORY_TO_PERIPHERAL;
 				dma_cfg->dma_callback = usart_gd32_async_dma_tx_callback;
@@ -302,6 +313,12 @@ static int usart_gd32_async_tx(const struct device *dev,
 			return -EINVAL;
 		}
 		memcpy(blk_cfg, cur, sizeof(struct dma_block_config));
+
+#if GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED
+		gd32_cache_flush_buf((void *)(uintptr_t)blk_cfg->source_address,
+				     blk_cfg->block_size);
+#endif
+
 		dma_cfg->head_block = blk_cfg;
 		dma_cfg->block_count = 1U;
 		dma_cfg->dma_slot = dma->slot;
@@ -333,6 +350,9 @@ static int usart_gd32_async_tx(const struct device *dev,
 	/* Normal block */
 	memset(dma_cfg, 0, sizeof(struct dma_config));
 	memset(blk_cfg, 0, sizeof(struct dma_block_config));
+#if GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED
+	gd32_cache_flush_buf((void *)(uintptr_t)buf, len);
+#endif
 	blk_cfg->block_size = len;
 	blk_cfg->source_address = (uint32_t)buf;
 	blk_cfg->dest_address = (uint32_t)USART_DATA_TX(cfg->reg);
@@ -605,6 +625,12 @@ static int usart_gd32_async_rx_enable(
 	if (data->async_rx_enabled) {
 		return -EBUSY;
 	}
+#if GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED
+	if (!gd32_buf_in_nocache(buf, len)) {
+		LOG_ERR("USART RX buffer must be placed in a nocache memory region");
+		return -EFAULT;
+	}
+#endif
 	data->async_rx_buf = buf;
 	data->async_rx_len = len;
 	data->async_rx_offset = 0;
@@ -616,6 +642,7 @@ static int usart_gd32_async_rx_enable(
 
 	/* Clear receive buffer to indicate fresh state */
 	memset(buf, 0, len);
+
 	/* DMA setup */
 	struct gd32_usart_dma *dma = &data->dma[USART_DMA_RX];
 	struct dma_config *dma_cfg = &dma->dma_cfg;
@@ -781,6 +808,13 @@ static int usart_gd32_async_rx_buf_rsp(
 	if (!buf || len == 0) {
 		return -EINVAL;
 	}
+
+#if GD32_USART_MANUAL_CACHE_COHERENCY_REQUIRED
+	if (!gd32_buf_in_nocache(buf, len)) {
+		LOG_ERR("USART RX buffer must be placed in a nocache memory region");
+		return -EFAULT;
+	}
+#endif
 
 	key = irq_lock();
 
