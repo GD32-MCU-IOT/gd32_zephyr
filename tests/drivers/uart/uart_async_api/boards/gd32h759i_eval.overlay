@@ -1,0 +1,47 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/*
+ * GD32H759I-EVAL board overlay for UART async API tests.
+ *
+ * Use USART2 (PB10/TX, PB11/RX) as the test DUT so that USART0
+ * can remain the Zephyr console without conflicting with the test.
+ *
+ * DMAMUX slot assignments for GD32H7xx (from gd32h7xx_dma.h):
+ *   USART2_RX = 55, USART2_TX = 56
+ *
+ * Hardware requirement: short PB10 (USART2_TX) to PB11 (USART2_RX)
+ * for loopback testing.
+ *
+ * D-Cache: sram1 (0x30000000, 16 KB, AHB-accessible, not DTCM) is
+ *   configured as RAM_NOCACHE to keep UART DMA buffers cache-coherent.
+ */
+
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+
+dut: &usart2 {
+	dmas = <&dmamux 7 55 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 8 56 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&dmamux {
+	status = "okay";
+};
+
+/* sram1: RAM_NOCACHE region for cache-coherent UART DMA buffers. */
+&sram1 {
+	zephyr,memory-attr = <( DT_MEM_ARM(ATTR_MPU_RAM_NOCACHE) )>;
+	zephyr,memory-region = "RAM_NOCACHE";
+};
