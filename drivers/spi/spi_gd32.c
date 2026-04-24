@@ -17,6 +17,9 @@
 #ifdef CONFIG_SPI_GD32_DMA
 #include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/dma/dma_gd32.h>
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#include <gd32_cache.h>
+#endif
 #endif
 
 #include <gd32_spi.h>
@@ -32,12 +35,15 @@ LOG_MODULE_REGISTER(spi_gd32);
 
 #define GD32_SPI_PSC_MAX	0x7U
 
-#if defined(CONFIG_DCACHE) && !defined(CONFIG_NOCACHE_MEMORY)
-/* currently, manual cache coherency management is only done on dummy_rx_tx */
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+/* current DMA cache strategy is TX flush plus RX nocache restriction */
 #define GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED 1
 #else
 #define GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED 0
-#endif /* defined(CONFIG_DCACHE) && !defined(CONFIG_NOCACHE_MEMORY) */
+#ifndef GD32_DMA_BUFFER
+#define GD32_DMA_BUFFER
+#endif
+#endif /* defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) */
 
 /*
  * Some GD32 series uses different register layout like as GD32H7 series.
@@ -134,8 +140,28 @@ struct spi_gd32_data {
 
 #ifdef CONFIG_SPI_GD32_DMA
 
-static uint32_t dummy_tx;
-static uint32_t dummy_rx;
+static uint32_t GD32_DMA_BUFFER dummy_tx;
+static uint32_t GD32_DMA_BUFFER dummy_rx;
+
+#if GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED
+static bool spi_gd32_bufs_in_nocache(const struct spi_buf_set *bufs)
+{
+	if (bufs == NULL) {
+		return true;
+	}
+
+	for (size_t i = 0; i < bufs->count; i++) {
+		const struct spi_buf *buf = &bufs->buffers[i];
+
+		if (buf->buf != NULL && buf->len > 0 &&
+			!gd32_buf_in_nocache(buf->buf, buf->len)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+#endif /* GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED */
 
 static bool spi_gd32_dma_enabled(const struct device *dev)
 {
@@ -465,6 +491,9 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 		block_cfg->dest_address = (uint32_t)&SPI_DATA_TX(cfg->reg);
 		block_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		if (spi_context_tx_buf_on(&data->ctx)) {
+#if GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED
+			gd32_cache_flush_buf((void *)data->ctx.tx_buf, block_cfg->block_size);
+#endif
 			block_cfg->source_address = (uint32_t)data->ctx.tx_buf;
 			block_cfg->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 		} else {
@@ -478,6 +507,13 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 		block_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 
 		if (spi_context_rx_buf_on(&data->ctx)) {
+#if GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED
+			if (!gd32_buf_in_nocache(data->ctx.rx_buf, block_cfg->block_size)) {
+				LOG_ERR("SPI DMA RX buffer must be placed in a nocache"
+						" memory region");
+				return -EFAULT;
+			}
+#endif
 			block_cfg->dest_address = (uint32_t)data->ctx.rx_buf;
 			block_cfg->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 		} else {
@@ -569,6 +605,14 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 	if (ret < 0) {
 		goto error;
 	}
+
+#if defined(CONFIG_SPI_GD32_DMA) && GD32_SPI_MANUAL_CACHE_COHERENCY_REQUIRED
+	if (spi_gd32_dma_enabled(dev) && !spi_gd32_bufs_in_nocache(rx_bufs)) {
+		LOG_ERR("SPI DMA RX buffer must be placed in a nocache memory region");
+		ret = -EFAULT;
+		goto error;
+	}
+#endif
 
 	SPI_CTL0(cfg->reg) |= SPI_CTL0_SPIEN;
 
