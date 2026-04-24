@@ -718,6 +718,16 @@
 			#dma-cells = <4>;
 			status = "disabled";
 		};
+
+		tli: tli@40016800 {
+			compatible = "gd,gd32-tli";
+			reg = <0x40016800 0x400>;
+			clocks = <&cctl GD32_CLOCK_TLI>;
+			pllsai-n = <192>;
+			pllsai-r = <2>;
+			pllsair-div = <GD32_RCU_PLLSAIR_DIV8>;
+			status = "disabled";
+		};
 	};
 };
 

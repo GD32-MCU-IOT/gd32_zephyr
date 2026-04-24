@@ -81,4 +81,20 @@
 				 <SPI5_IO2_PG10>, <SPI5_IO3_PG11>;
 		};
 	};
+
+	tli_default: tli_default {
+		group1 {
+			pinmux = <TLI_B0_PE4>, <TLI_G0_PE5>, <TLI_G1_PE6>,
+				<TLI_DE_PF10>, <TLI_R7_PG6>, <TLI_PIXCLK_PG7>,
+				<TLI_B2_PG10>, <TLI_B3_PG11>, <TLI_B4_PG12>,
+				<TLI_R0_PH2>, <TLI_R1_PH3>, <TLI_R2_PH8>,
+				<TLI_R3_PH9>, <TLI_R4_PH10>, <TLI_R5_PH11>,
+				<TLI_R6_PH12>, <TLI_G2_PH13>, <TLI_G3_PH14>,
+				<TLI_G4_PH15>, <TLI_G5_PI0>, <TLI_G6_PI1>,
+				<TLI_G7_PI2>, <TLI_B4_PI4>, <TLI_B5_PI5>,
+				<TLI_B6_PI6>, <TLI_B7_PI7>, <TLI_VSYNC_PI9>,
+				<TLI_HSYNC_PI10>;
+			slew-rate = "max-speed-50mhz";
+		};
+	};
 };
