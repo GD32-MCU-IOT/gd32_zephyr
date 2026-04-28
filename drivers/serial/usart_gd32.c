@@ -1170,22 +1170,22 @@ static inline enum uart_config_data_bits usart_gd32_hal2cfg_databits(uint32_t wo
  * @brief Apply UART configuration to hardware
  */
 static int usart_gd32_apply_runtime_config(const struct device *dev,
-					   const struct uart_config *uart_cfg)
+					   const struct uart_config *cfg_new)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 	uint32_t parity, word_length, stop_bits;
 
-	parity = usart_gd32_cfg2hal_parity(uart_cfg->parity);
-	word_length = usart_gd32_cfg2hal_databits(uart_cfg->data_bits, uart_cfg->parity);
-	stop_bits = usart_gd32_cfg2hal_stopbits(uart_cfg->stop_bits);
+	parity = usart_gd32_cfg2hal_parity(cfg_new->parity);
+	word_length = usart_gd32_cfg2hal_databits(cfg_new->data_bits, cfg_new->parity);
+	stop_bits = usart_gd32_cfg2hal_stopbits(cfg_new->stop_bits);
 
-	usart_baudrate_set(cfg->reg, uart_cfg->baudrate);
+	usart_baudrate_set(cfg->reg, cfg_new->baudrate);
 	usart_parity_config(cfg->reg, parity);
 	usart_word_length_set(cfg->reg, word_length);
 	usart_stop_bit_set(cfg->reg, stop_bits);
 
 	/* Flow control */
-	switch (uart_cfg->flow_ctrl) {
+	switch (cfg_new->flow_ctrl) {
 	case UART_CFG_FLOW_CTRL_NONE:
 		usart_hardware_flow_rts_config(cfg->reg, USART_RTS_DISABLE);
 		usart_hardware_flow_cts_config(cfg->reg, USART_CTS_DISABLE);
@@ -1207,29 +1207,43 @@ static int usart_gd32_apply_runtime_config(const struct device *dev,
 }
 
 static int usart_gd32_configure(const struct device *dev,
-				const struct uart_config *uart_cfg)
+				const struct uart_config *cfg_new)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 	struct gd32_usart_data *const data = dev->data;
 	int ret;
 
+	if (cfg_new == NULL) {
+		return -EINVAL;
+	}
+
+	if (cfg_new->baudrate == 0U) {
+		return -EINVAL;
+	}
+
 	/* Validate parameters */
-	if ((uart_cfg->parity == UART_CFG_PARITY_MARK) ||
-	    (uart_cfg->parity == UART_CFG_PARITY_SPACE)) {
+	if ((cfg_new->parity == UART_CFG_PARITY_MARK) ||
+	    (cfg_new->parity == UART_CFG_PARITY_SPACE)) {
 		return -ENOTSUP;
 	}
+
+
+	unsigned int key = irq_lock();
 
 	/* Disable USART before reconfiguration */
 	usart_disable(cfg->reg);
 
 	/* Apply new parameters */
-	ret = usart_gd32_apply_runtime_config(dev, uart_cfg);
+	ret = usart_gd32_apply_runtime_config(dev, cfg_new);
 	if (ret != 0) {
 		/* Restore old config on failure */
 		(void)usart_gd32_apply_runtime_config(dev, &data->uart_cfg);
 		usart_receive_config(cfg->reg, USART_RECEIVE_ENABLE);
 		usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
 		usart_enable(cfg->reg);
+
+		irq_unlock(key);
+
 		return ret;
 	}
 
@@ -1238,19 +1252,29 @@ static int usart_gd32_configure(const struct device *dev,
 	usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
 	usart_enable(cfg->reg);
 
+	irq_unlock(key);
+
 	/* Cache the new configuration */
-	data->uart_cfg = *uart_cfg;
-	data->baud_rate = uart_cfg->baudrate;
+	data->uart_cfg = *cfg_new;
+	data->baud_rate = cfg_new->baudrate;
 
 	return 0;
 }
 
 static int usart_gd32_config_get(const struct device *dev,
-				 struct uart_config *uart_cfg)
+				 struct uart_config *cfg_out)
 {
 	struct gd32_usart_data *const data = dev->data;
 
-	*uart_cfg = data->uart_cfg;
+	if (cfg_out == NULL) {
+		return -EINVAL;
+	}
+
+	cfg_out->baudrate = data->uart_cfg.baudrate;
+	cfg_out->parity = data->uart_cfg.parity;
+	cfg_out->stop_bits = data->uart_cfg.stop_bits;
+	cfg_out->data_bits = data->uart_cfg.data_bits;
+	cfg_out->flow_ctrl = data->uart_cfg.flow_ctrl;
 
 	return 0;
 }
@@ -1284,126 +1308,6 @@ static int usart_gd32_err_check(const struct device *dev)
 
 	return errors;
 }
-
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
-static int usart_gd32_configure(const struct device *dev, const struct uart_config *cfg_new)
-{
-	const struct gd32_usart_config *const cfg = dev->config;
-	struct gd32_usart_data *const data = dev->data;
-	uint32_t parity_bits;
-	uint32_t word_length;
-	uint32_t stop_bits_hw;
-
-	if (cfg_new == NULL) {
-		return -EINVAL;
-	}
-
-	if (cfg_new->baudrate == 0U) {
-		return -EINVAL;
-	}
-
-	if (cfg_new->flow_ctrl != UART_CFG_FLOW_CTRL_NONE) {
-		return -ENOTSUP;
-	}
-
-	switch (cfg_new->parity) {
-	case UART_CFG_PARITY_NONE:
-		parity_bits = USART_PM_NONE;
-		break;
-	case UART_CFG_PARITY_ODD:
-		parity_bits = USART_PM_ODD;
-		break;
-	case UART_CFG_PARITY_EVEN:
-		parity_bits = USART_PM_EVEN;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	switch (cfg_new->data_bits) {
-	case UART_CFG_DATA_BITS_8:
-	case UART_CFG_DATA_BITS_7:
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	if (cfg_new->data_bits == UART_CFG_DATA_BITS_7 && cfg_new->parity == UART_CFG_PARITY_NONE) {
-		return -EINVAL;
-	}
-
-	/* Map word length depending on requested data bits and parity */
-	if (cfg_new->parity == UART_CFG_PARITY_NONE) {
-		/* 8N* uses 8-bit word length */
-		word_length = USART_WL_8BIT;
-	} else {
-		/* With parity: 8 data bits -> 9-bit word length, 7 data bits -> 8-bit */
-		word_length = (cfg_new->data_bits == UART_CFG_DATA_BITS_8) ? USART_WL_9BIT
-									   : USART_WL_8BIT;
-	}
-
-	switch (cfg_new->stop_bits) {
-	case UART_CFG_STOP_BITS_1:
-		stop_bits_hw = USART_STB_1BIT;
-		break;
-	case UART_CFG_STOP_BITS_2:
-		stop_bits_hw = USART_STB_2BIT;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	if (data->baud_rate == cfg_new->baudrate && data->parity == cfg_new->parity &&
-	    data->data_bits == cfg_new->data_bits && data->stop_bits == cfg_new->stop_bits &&
-	    data->flow_ctrl == cfg_new->flow_ctrl) {
-		return 0;
-	}
-
-	unsigned int key = irq_lock();
-
-	usart_disable(cfg->reg);
-
-	usart_parity_config(cfg->reg, parity_bits);
-	usart_word_length_set(cfg->reg, word_length);
-	usart_stop_bit_set(cfg->reg, stop_bits_hw);
-	usart_baudrate_set(cfg->reg, cfg_new->baudrate);
-
-	usart_receive_config(cfg->reg, USART_RECEIVE_ENABLE);
-	usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
-	usart_enable(cfg->reg);
-
-	irq_unlock(key);
-
-	data->baud_rate = cfg_new->baudrate;
-	data->parity = cfg_new->parity;
-	data->data_bits = cfg_new->data_bits;
-	data->stop_bits = cfg_new->stop_bits;
-	data->flow_ctrl = cfg_new->flow_ctrl;
-
-	return 0;
-}
-
-static int usart_gd32_config_get(const struct device *dev, struct uart_config *cfg_out)
-{
-	struct gd32_usart_data *const data = dev->data;
-
-	if (cfg_out == NULL) {
-		return -EINVAL;
-	}
-
-	if (!data->initialized) {
-		return -ENODEV;
-	}
-
-	cfg_out->baudrate = data->baud_rate;
-	cfg_out->parity = data->parity;
-	cfg_out->stop_bits = data->stop_bits;
-	cfg_out->data_bits = data->data_bits;
-	cfg_out->flow_ctrl = data->flow_ctrl;
-
-	return 0;
-}
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 int usart_gd32_fifo_fill(const struct device *dev, const uint8_t *tx_data,
