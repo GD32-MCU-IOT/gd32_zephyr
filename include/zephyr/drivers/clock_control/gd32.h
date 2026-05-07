@@ -17,5 +17,10 @@
  * code subject to failures.
  */
 #define GD32_CLOCK_CONTROLLER DEVICE_DT_GET(DT_NODELABEL(cctl))
+#define GD32_CLOCK_CONTROLLER_NODE DT_NODELABEL(cctl)
+struct gd32_pclken {
+	uint32_t bus;
+	uint32_t enr;
+};
 
 #endif /* ZEPHYR_INCLUDE_DRIVERS_CLOCK_CONTROL_GD32_H_ */
