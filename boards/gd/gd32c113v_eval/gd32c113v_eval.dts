@@ -20,6 +20,7 @@
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
 		zephyr,flash-controller = &fmc;
+			zephyr,canbus = &can0;
 	};
 
 	leds {
@@ -226,4 +227,32 @@
 	status = "okay";
 	pinctrl-0 = <&spi2_default>;
 	pinctrl-names = "default";
+};
+
+&can0 {
+	pinctrl-0 = <&can0_default>;
+	pinctrl-names = "default";
+	bus-speed = <500000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "okay";
+		can-transceiver {
+		min-bitrate = <1000>;
+		max-bitrate = <5000000>;
+	};
+};
+
+&can1 {
+	pinctrl-0 = <&can1_default>;
+	pinctrl-names = "default";
+	bus-speed = <500000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "disabled";
+	can-transceiver {
+		min-bitrate = <1000>;
+		max-bitrate = <5000000>;
+	};
 };
