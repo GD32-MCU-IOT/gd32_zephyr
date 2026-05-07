@@ -17,4 +17,5 @@ supported:
   - counter
   - uart
   - spi
+  - can
 vendor: gd

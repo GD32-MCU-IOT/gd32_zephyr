@@ -1,0 +1,36 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: GD32 CAN controller
+
+compatible: "gd,gd32-can"
+
+include: [can-fd-controller.yaml, reset-device.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  master-can-reg:
+    type: int
+    description: master can reg when different from current instance
+
+  sjw:
+    type: int
+    description: Synchronization jump width in time quanta (1-4)
+
+  sjw-data:
+    type: int
+    description: Synchronization jump width for data phase in time quanta (CAN-FD)
