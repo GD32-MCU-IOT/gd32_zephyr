@@ -1,0 +1,56 @@
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig GD32_TLI
+	bool "GD32 TLI (TFT-LCD Interface) display driver"
+	default y
+	depends on DT_HAS_GD_GD32_TLI_ENABLED
+	select USE_GD32_RCU
+	select USE_GD32_TLI
+	help
+	  Enable driver for GD32 TLI (TFT-LCD Interface) display controller.
+	  This driver supports multiple pixel formats and provides framebuffer
+	  access for display operations.
+
+if GD32_TLI
+
+choice GD32_TLI_PIXEL_FORMAT
+	prompt "Color pixel format"
+	default GD32_TLI_RGB565
+	help
+	  Specify the color pixel format for the GD32 TLI display controller.
+	  This determines the framebuffer size at compile time.
+
+config GD32_TLI_ARGB8888
+	bool "ARGB8888"
+	help
+	  One pixel consists of 8-bit alpha, 8-bit red, 8-bit green and 8-bit blue.
+	  (4 bytes per pixel, TLI PPF = 000)
+	  Note: Requires ~512KB RAM for 480x272 display.
+
+config GD32_TLI_RGB888
+	bool "RGB888"
+	help
+	  One pixel consists of 8-bit red, 8-bit green and 8-bit blue.
+	  (3 bytes per pixel, TLI PPF = 001)
+	  Note: Requires ~384KB RAM for 480x272 display.
+
+config GD32_TLI_RGB565
+	bool "RGB565"
+	help
+	  One pixel consists of 5-bit red, 6-bit green and 5-bit blue.
+	  (2 bytes per pixel, TLI PPF = 010)
+	  Note: Requires ~256KB RAM for 480x272 display.
+
+endchoice
+
+config GD32_TLI_FB_NUM
+	int "Frame buffer number"
+	default 1
+	range 1 2
+	help
+	  GD32 TLI frame buffer number configuration:
+	    - 1: Single frame buffer (default)
+	    - 2: Double frame buffer for tear-free rendering
+
+endif # GD32_TLI
