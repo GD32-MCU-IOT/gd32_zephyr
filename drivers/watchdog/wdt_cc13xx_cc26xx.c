@@ -151,7 +151,7 @@ static int wdt_cc13xx_cc26xx_disable(const struct device *dev)
 	 * Node: once started, the watchdog timer cannot be stopped!
 	 * All we can do is disable the timeout reset, but the interrupt
 	 * will be triggered if it was enabled (though it won't trigger the
-	 * user callback due to `enabled` being unsed)!
+	 * user callback due to `enabled` being unset)!
 	 */
 	data->enabled = 0;
 	WatchdogUnlock();
@@ -196,21 +196,11 @@ static void wdt_cc13xx_cc26xx_isr(const struct device *dev)
 static int wdt_cc13xx_cc26xx_init(const struct device *dev)
 {
 	const struct wdt_cc13xx_cc26xx_cfg *config = dev->config;
-	uint8_t options = 0;
 
 	LOG_DBG("init");
 	config->irq_cfg_func();
 
-	if (IS_ENABLED(CONFIG_WDT_DISABLE_AT_BOOT)) {
-		return 0;
-	}
-
-#ifdef CONFIG_DEBUG
-	/* when CONFIG_DEBUG is enabled, pause the WDT during debugging */
-	options = WDT_OPT_PAUSE_HALTED_BY_DBG;
-#endif /* CONFIG_DEBUG */
-
-	return wdt_cc13xx_cc26xx_setup(dev, options);
+	return 0;
 }
 
 static DEVICE_API(wdt, wdt_cc13xx_cc26xx_api) = {
@@ -232,8 +222,7 @@ static DEVICE_API(wdt, wdt_cc13xx_cc26xx_api) = {
 		irq_enable(DT_INST_IRQN(index));				 \
 	}									 \
 	static struct wdt_cc13xx_cc26xx_data wdt_cc13xx_cc26xx_data_##index = {	 \
-		.reload = WATCHDOG_MS_TO_TICKS(					 \
-			CONFIG_WDT_CC13XX_CC26XX_INITIAL_TIMEOUT),		 \
+		.reload = 0,							 \
 		.cb = NULL,							 \
 		.flags = 0,							 \
 	};									 \

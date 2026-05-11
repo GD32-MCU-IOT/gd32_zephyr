@@ -3,13 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 #include "mck_ra8t2-pinctrl.dtsi"
 
 / {
-
 	leds {
 		compatible = "gpio-leds";
 
@@ -43,16 +42,16 @@
 			label = "LED6";
 		};
 	};
+
+	aliases {
+		sdhc0 = &sdhc0;
+	};
 };
 
 &xtal {
 	clock-frequency = <DT_FREQ_M(24)>;
 	mosel = <0>;
 	#clock-cells = <0>;
-	status = "okay";
-};
-
-&subclk {
 	status = "okay";
 };
 
@@ -96,11 +95,33 @@
 	status = "okay";
 };
 
+&eswclk {
+	clocks = <&pllp>;
+	div = <4>;
+	status = "okay";
+};
+
+&eswphyclk {
+	clocks = <&pllp>;
+	div = <2>;
+	status = "okay";
+};
+
+&ethphyclk {
+	clocks = <&pllr>;
+	div = <16>;
+	status = "okay";
+};
+
 &ioport5 {
 	status = "okay";
 };
 
 &ioport6 {
+	status = "okay";
+};
+
+&ioport7 {
 	status = "okay";
 };
 
@@ -121,3 +142,50 @@
 	pinctrl-names = "default";
 	maximum-speed = "full-speed";
 };
+
+&sci9 {
+	pinctrl-0 = <&sci9_default>;
+	pinctrl-names = "default";
+
+	uart9: uart {};
+};
+
+&sci4 {
+	pinctrl-0 = <&sci4_default>;
+	pinctrl-names = "default";
+
+	uart4: uart {};
+};
+
+&sci1 {
+	pinctrl-0 = <&sci1_default>;
+	pinctrl-names = "default";
+
+	uart1: uart {};
+};
+
+&spi0 {
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+};
+
+&sdhc0 {
+	pinctrl-0 = <&sdhc0_default>;
+	pinctrl-names = "default";
+	enable-gpios = <&ioportb 6 GPIO_ACTIVE_HIGH>;
+
+	sdmmc {
+		compatible = "zephyr,sdmmc-disk";
+		disk-name = "SD";
+		status = "disabled";
+	};
+};
+
+&usbfs {
+	pinctrl-0 = <&usbfs_default>;
+	pinctrl-names = "default";
+};
+
+pmod_spi: &spi0 {};
+
+pmod_serial: &uart4 {};

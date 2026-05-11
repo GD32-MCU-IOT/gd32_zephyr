@@ -207,7 +207,7 @@ static void sai_config_set_err_051421(I2S_Type *base,
 
 static int sai_config_set(const struct device *dev,
 			  const struct dai_config *cfg,
-			  const void *bespoke_data)
+			  const void *bespoke_data, size_t size)
 {
 	const struct sai_bespoke_config *bespoke;
 	sai_transceiver_t *rx_config, *tx_config;
@@ -445,7 +445,7 @@ static int sai_config_set(const struct device *dev,
 }
 
 /* SOF note: please be very careful with this function as it does
- * busy waiting and may mess up your timing in time critial applications
+ * busy waiting and may mess up your timing in time critical applications
  * (especially with timer domain). If this becomes unusable, the busy
  * waiting should be removed altogether and the HW state check should
  * be performed in sai_trigger_start() or in sai_config_set().

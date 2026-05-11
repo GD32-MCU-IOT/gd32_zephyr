@@ -20,20 +20,21 @@ elseif(CONFIG_ARM_PACBTI_NONE)
 endif()
 
 zephyr_library_sources(
-  exc_exit.c
   fault.c
   fault_s.S
   fpu.c
   reset.S
   scb.c
-  thread_abort.c
   vector_table.S
-  swap_helper.S
+  svc.S
   irq_manage.c
   prep_c.c
   thread.c
   cpu_idle.c
   )
+
+zephyr_library_sources_ifdef(CONFIG_USE_SWITCH arm-m-switch.c)
+zephyr_library_sources_ifndef(CONFIG_USE_SWITCH exc_exit.c thread_abort.c swap_helper.S)
 
 zephyr_library_sources_ifndef(CONFIG_ARM_CUSTOM_INTERRUPT_CONTROLLER irq_init.c)
 zephyr_library_sources_ifdef(CONFIG_GEN_SW_ISR_TABLE isr_wrapper.c)
@@ -49,13 +50,13 @@ if(CONFIG_NULL_POINTER_EXCEPTION_DETECTION_DWT)
 endif()
 
 if(CONFIG_CORTEX_M_DWT)
-	if (CONFIG_TIMING_FUNCTIONS)
-		zephyr_library_sources(timing.c)
-	endif()
+  if(CONFIG_TIMING_FUNCTIONS)
+    zephyr_library_sources(timing.c)
+  endif()
 endif()
 
-if (CONFIG_SW_VECTOR_RELAY)
-if (CONFIG_CPU_CORTEX_M_HAS_VTOR)
+if(CONFIG_SW_VECTOR_RELAY)
+if(CONFIG_CPU_CORTEX_M_HAS_VTOR)
   set(relay_vector_table_sort_key relay_vectors)
 else()
 # Using 0x0 prefix will result in placing the relay vector table section
@@ -72,14 +73,14 @@ zephyr_linker_sources(
   )
 endif()
 
-if (CONFIG_SW_VECTOR_RELAY OR CONFIG_SW_VECTOR_RELAY_CLIENT)
+if(CONFIG_SW_VECTOR_RELAY OR CONFIG_SW_VECTOR_RELAY_CLIENT)
 zephyr_linker_sources(
   RAM_SECTIONS
   vt_pointer_section.ld
   )
 endif()
 
-if (CONFIG_CPU_CORTEX_M_HAS_VTOR)
+if(CONFIG_CPU_CORTEX_M_HAS_VTOR)
 zephyr_linker_sources_ifdef(CONFIG_SRAM_VECTOR_TABLE
   RAM_SECTIONS
   # Maybe need to be changed in order to be placed at the beginning of RAM

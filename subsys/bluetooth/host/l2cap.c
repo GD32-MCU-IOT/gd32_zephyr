@@ -3,6 +3,7 @@
 /*
  * Copyright (c) 2015-2016 Intel Corporation
  * Copyright (c) 2023 Nordic Semiconductor
+ * Copyright (c) 2025 Xiaomi Corporation
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,7 +23,6 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/atomic.h>
-#include <zephyr/sys/check.h>
 #include <zephyr/sys/iterable_sections.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/math_extras.h>
@@ -67,7 +67,7 @@ LOG_MODULE_REGISTER(bt_l2cap, CONFIG_BT_L2CAP_LOG_LEVEL);
 #define L2CAP_LE_PSM_IS_DYN(_psm) \
 	(_psm >= L2CAP_LE_PSM_DYN_START && _psm <= L2CAP_LE_PSM_DYN_END)
 
-#define L2CAP_CONN_TIMEOUT	K_SECONDS(40)
+#define L2CAP_CONN_TIMEOUT	K_SECONDS(CONFIG_BT_L2CAP_CONN_RTX_TIMEOUT)
 #define L2CAP_DISC_TIMEOUT	K_SECONDS(2)
 /** @brief Local L2CAP RTX (Response Timeout eXpired)
  *
@@ -414,8 +414,7 @@ void bt_l2cap_connected(struct bt_conn *conn)
 {
 	struct bt_l2cap_chan *chan;
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		bt_l2cap_br_connected(conn);
 		return;
 	}
@@ -464,8 +463,7 @@ void bt_l2cap_disconnected(struct bt_conn *conn)
 {
 	struct bt_l2cap_chan *chan, *next;
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		bt_l2cap_br_disconnected(conn);
 		return;
 	}
@@ -687,8 +685,7 @@ void bt_l2cap_security_changed(struct bt_conn *conn, uint8_t hci_status)
 {
 	struct bt_l2cap_chan *chan, *next;
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		l2cap_br_encrypt_change(conn, hci_status);
 		return;
 	}
@@ -1274,6 +1271,8 @@ static void l2cap_chan_rx_init(struct bt_l2cap_le_chan *chan)
 {
 	LOG_DBG("chan %p", chan);
 
+	chan->rx.cid = 0U;
+
 	/* Redirect to experimental API. */
 	IF_ENABLED(CONFIG_BT_L2CAP_SEG_RECV, ({
 		if (chan->chan.ops->seg_recv) {
@@ -1449,19 +1448,20 @@ static uint16_t l2cap_chan_accept(struct bt_conn *conn,
 
 	le_chan->required_sec_level = server->sec_level;
 
-	if (!l2cap_chan_add(conn, *chan, l2cap_chan_destroy)) {
-		return BT_L2CAP_LE_ERR_NO_RESOURCES;
-	}
-
 	/* Init TX parameters */
 	l2cap_chan_tx_init(le_chan);
 	le_chan->tx.cid = scid;
 	le_chan->tx.mps = mps;
 	le_chan->tx.mtu = mtu;
-	l2cap_chan_tx_give_credits(le_chan, credits);
 
 	/* Init RX parameters */
 	l2cap_chan_rx_init(le_chan);
+
+	if (!l2cap_chan_add(conn, *chan, l2cap_chan_destroy)) {
+		return BT_L2CAP_LE_ERR_NO_RESOURCES;
+	}
+
+	l2cap_chan_tx_give_credits(le_chan, credits);
 
 	/* Set channel PSM */
 	le_chan->psm = server->psm;
@@ -2540,11 +2540,11 @@ int bt_l2cap_chan_recv_complete(struct bt_l2cap_chan *chan, struct net_buf *buf)
 		return -ENOTCONN;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) && conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		return bt_l2cap_br_chan_recv_complete(chan);
 	}
 
-	if (conn->type != BT_CONN_TYPE_LE) {
+	if (!bt_conn_is_le(conn)) {
 		return -ENOTSUP;
 	}
 
@@ -2756,6 +2756,15 @@ static void l2cap_chan_le_recv(struct bt_l2cap_le_chan *chan,
 			bt_l2cap_chan_disconnect(&chan->chan);
 			return;
 		}
+
+		if (chan->_sdu->user_data_size < sizeof(uint16_t)) {
+			LOG_ERR("SDU buffer user_data_size %u is too small",
+				chan->_sdu->user_data_size);
+			net_buf_unref(chan->_sdu);
+			chan->_sdu = NULL;
+			bt_l2cap_chan_disconnect(&chan->chan);
+			return;
+		}
 		chan->_sdu_len = sdu_len;
 
 		/* Send sdu_len/mps worth of credits */
@@ -2858,8 +2867,7 @@ void bt_l2cap_recv(struct bt_conn *conn, struct net_buf *buf, bool complete)
 	struct bt_l2cap_chan *chan;
 	uint16_t cid;
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		bt_l2cap_br_recv(conn, buf);
 		return;
 	}
@@ -3128,7 +3136,7 @@ int bt_l2cap_ecred_chan_reconfigure(struct bt_l2cap_chan **chans, uint16_t mtu)
 		return -ENOTCONN;
 	}
 
-	if (conn->type != BT_CONN_TYPE_LE) {
+	if (!bt_conn_is_le(conn)) {
 		return -EINVAL;
 	}
 
@@ -3220,7 +3228,7 @@ int bt_l2cap_ecred_chan_reconfigure_explicit(struct bt_l2cap_chan **chans, size_
 		return -ENOTCONN;
 	}
 
-	if (conn->type != BT_CONN_TYPE_LE) {
+	if (!bt_conn_is_le(conn)) {
 		return -EINVAL;
 	}
 
@@ -3280,8 +3288,7 @@ int bt_l2cap_chan_connect(struct bt_conn *conn, struct bt_l2cap_chan *chan,
 		return -EINVAL;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		return bt_l2cap_br_chan_connect(conn, chan, psm);
 	}
 
@@ -3306,8 +3313,7 @@ int bt_l2cap_chan_disconnect(struct bt_l2cap_chan *chan)
 		return -ENOTCONN;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		return bt_l2cap_br_chan_disconnect(chan);
 	}
 
@@ -3448,8 +3454,7 @@ int bt_l2cap_chan_send(struct bt_l2cap_chan *chan, struct net_buf *buf)
 		return -ESHUTDOWN;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_CLASSIC) &&
-	    chan->conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(chan->conn)) {
 		return bt_l2cap_br_chan_send_cb(chan, buf, NULL, NULL);
 	}
 

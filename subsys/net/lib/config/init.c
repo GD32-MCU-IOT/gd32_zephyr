@@ -21,6 +21,7 @@ LOG_MODULE_REGISTER(net_config, CONFIG_NET_CONFIG_LOG_LEVEL);
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/net/dhcpv6.h>
 #include <zephyr/net/net_mgmt.h>
@@ -78,16 +79,16 @@ static void print_dhcpv4_info(struct net_if *iface)
 
 #if CONFIG_NET_CONFIG_LOG_LEVEL >= LOG_LEVEL_INF
 		NET_INFO("IPv4 address: %s",
-			 net_addr_ntop(AF_INET, &if_addr->address.in_addr,
+			 net_addr_ntop(NET_AF_INET, &if_addr->address.in_addr,
 				       hr_addr, sizeof(hr_addr)));
 		NET_INFO("Lease time: %u seconds",
 			 iface->config.dhcpv4.lease_time);
 		NET_INFO("Subnet: %s",
-			 net_addr_ntop(AF_INET,
+			 net_addr_ntop(NET_AF_INET,
 				       &iface->config.ip.ipv4->unicast[i].netmask,
 				       hr_addr, sizeof(hr_addr)));
 		NET_INFO("Router: %s",
-			 net_addr_ntop(AF_INET, &iface->config.ip.ipv4->gw,
+			 net_addr_ntop(NET_AF_INET, &iface->config.ip.ipv4->gw,
 				       hr_addr, sizeof(hr_addr)));
 #endif
 		break;
@@ -144,7 +145,7 @@ static void setup_ipv4(struct net_if *iface)
 #if CONFIG_NET_CONFIG_LOG_LEVEL >= LOG_LEVEL_INF
 	char hr_addr[NET_IPV4_ADDR_LEN];
 #endif
-	struct in_addr addr, netmask;
+	struct net_in_addr addr, netmask;
 
 	if (IS_ENABLED(CONFIG_NET_IPV4_ACD) || IS_ENABLED(CONFIG_NET_DHCPV4)) {
 		net_mgmt_init_event_callback(&mgmt4_cb, ipv4_addr_add_handler,
@@ -158,7 +159,7 @@ static void setup_ipv4(struct net_if *iface)
 		return;
 	}
 
-	if (net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &addr)) {
+	if (net_addr_pton(NET_AF_INET, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &addr)) {
 		NET_ERR("Invalid address: %s", CONFIG_NET_CONFIG_MY_IPV4_ADDR);
 		return;
 	}
@@ -181,12 +182,12 @@ static void setup_ipv4(struct net_if *iface)
 
 #if CONFIG_NET_CONFIG_LOG_LEVEL >= LOG_LEVEL_INF
 	NET_INFO("IPv4 address: %s",
-		 net_addr_ntop(AF_INET, &addr, hr_addr, sizeof(hr_addr)));
+		 net_addr_ntop(NET_AF_INET, &addr, hr_addr, sizeof(hr_addr)));
 #endif
 
 	if (sizeof(CONFIG_NET_CONFIG_MY_IPV4_NETMASK) > 1) {
 		/* If not empty */
-		if (net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_NETMASK,
+		if (net_addr_pton(NET_AF_INET, CONFIG_NET_CONFIG_MY_IPV4_NETMASK,
 				  &netmask)) {
 			NET_ERR("Invalid netmask: %s",
 				CONFIG_NET_CONFIG_MY_IPV4_NETMASK);
@@ -197,7 +198,7 @@ static void setup_ipv4(struct net_if *iface)
 
 	if (sizeof(CONFIG_NET_CONFIG_MY_IPV4_GW) > 1) {
 		/* If not empty */
-		if (net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_GW,
+		if (net_addr_pton(NET_AF_INET, CONFIG_NET_CONFIG_MY_IPV4_GW,
 				  &addr)) {
 			NET_ERR("Invalid gateway: %s",
 				CONFIG_NET_CONFIG_MY_IPV4_GW);
@@ -241,7 +242,7 @@ static void setup_dhcpv6(struct net_if *iface)
 #endif
 
 static struct net_mgmt_event_callback mgmt6_cb;
-static struct in6_addr laddr;
+static struct net_in6_addr laddr;
 
 static void ipv6_event_handler(struct net_mgmt_event_callback *cb,
 			       uint64_t mgmt_event, struct net_if *iface)
@@ -281,7 +282,7 @@ static void ipv6_event_handler(struct net_mgmt_event_callback *cb,
 
 #if CONFIG_NET_CONFIG_LOG_LEVEL >= LOG_LEVEL_INF
 		NET_INFO("IPv6 address: %s",
-			 net_addr_ntop(AF_INET6, &laddr, hr_addr, NET_IPV6_ADDR_LEN));
+			 net_addr_ntop(NET_AF_INET6, &laddr, hr_addr, NET_IPV6_ADDR_LEN));
 
 		if (ifaddr->addr_type == NET_ADDR_DHCP) {
 			char remaining_str[] = "infinite";
@@ -310,25 +311,21 @@ static void ipv6_event_handler(struct net_mgmt_event_callback *cb,
 static void setup_ipv6(struct net_if *iface, uint32_t flags)
 {
 	struct net_if_addr *ifaddr;
-	uint64_t mask = NET_EVENT_IPV6_DAD_SUCCEED;
+	uint64_t mask = NET_EVENT_IPV6_DAD_SUCCEED |
+			NET_EVENT_IPV6_ADDR_ADD |
+			((flags & NET_CONFIG_NEED_ROUTER) ? NET_EVENT_IPV6_ROUTER_ADD : 0);
+
+	net_mgmt_init_event_callback(&mgmt6_cb, ipv6_event_handler, mask);
+	net_mgmt_add_event_callback(&mgmt6_cb);
 
 	if (sizeof(CONFIG_NET_CONFIG_MY_IPV6_ADDR) == 1) {
 		/* Empty address, skip setting ANY address in this case */
 		goto exit;
 	}
 
-	if (net_addr_pton(AF_INET6, CONFIG_NET_CONFIG_MY_IPV6_ADDR, &laddr)) {
+	if (net_addr_pton(NET_AF_INET6, CONFIG_NET_CONFIG_MY_IPV6_ADDR, &laddr)) {
 		NET_ERR("Invalid address: %s", CONFIG_NET_CONFIG_MY_IPV6_ADDR);
-		/* some interfaces may add IP address later */
-		mask |= NET_EVENT_IPV6_ADDR_ADD;
 	}
-
-	if (flags & NET_CONFIG_NEED_ROUTER) {
-		mask |= NET_EVENT_IPV6_ROUTER_ADD;
-	}
-
-	net_mgmt_init_event_callback(&mgmt6_cb, ipv6_event_handler, mask);
-	net_mgmt_add_event_callback(&mgmt6_cb);
 
 	ifaddr = net_if_ipv6_addr_add(iface, &laddr, NET_ADDR_MANUAL, 0);
 	if (!ifaddr) {
@@ -366,7 +363,15 @@ static void iface_up_handler(struct net_mgmt_event_callback *cb,
 
 static bool check_interface(struct net_if *iface)
 {
+	net_mgmt_init_event_callback(&mgmt_iface_cb, iface_up_handler,
+				     NET_EVENT_IF_UP);
+	net_mgmt_add_event_callback(&mgmt_iface_cb);
+
+	/* Check after registering the callback to avoid missing NET_EVENT_IF_UP
+	 * that could fire between the check and the callback registration.
+	 */
 	if (net_if_is_up(iface)) {
+		net_mgmt_del_event_callback(&mgmt_iface_cb);
 		k_sem_reset(&counter);
 		k_sem_give(&waiter);
 		return true;
@@ -374,10 +379,6 @@ static bool check_interface(struct net_if *iface)
 
 	NET_INFO("Waiting interface %d (%p) to be up...",
 		 net_if_get_by_iface(iface), iface);
-
-	net_mgmt_init_event_callback(&mgmt_iface_cb, iface_up_handler,
-				     NET_EVENT_IF_UP);
-	net_mgmt_add_event_callback(&mgmt_iface_cb);
 
 	return false;
 }
@@ -410,7 +411,8 @@ int net_config_init_by_iface(struct net_if *iface, const char *app_info,
 		return -ENOENT;
 	}
 
-	if (net_if_flag_is_set(iface, NET_IF_NO_AUTO_START)) {
+	/* Prevent NET_IF_NO_AUTO_START interfaces with link down status */
+	if (!net_if_is_up(iface) && net_if_flag_is_set(iface, NET_IF_NO_AUTO_START)) {
 		return -ENETDOWN;
 	}
 

@@ -4,6 +4,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+
+from twisterlib import ZEPHYR_BASE
+
+# Use this for internal comparisons; that's what canonicalization is
+# for. Don't use it when invoking other components of the build system
+# to avoid confusing and hard to trace inconsistencies in error messages
+# and logs, generated Makefiles, etc. compared to when users invoke these
+# components directly.
+# Note "normalization" is different from canonicalization, see os.path.
+canonical_zephyr_base = os.path.realpath(ZEPHYR_BASE)
+
 SUPPORTED_SIMS = [
     "mdb-nsim",
     "nsim",
@@ -15,6 +27,20 @@ SUPPORTED_SIMS = [
     "native",
     "custom",
     "simics",
+    "whisper",
 ]
 SUPPORTED_SIMS_IN_PYTEST = ['native', 'qemu']
 SUPPORTED_SIMS_WITH_EXEC = ['nsim', 'mdb-nsim', 'renode', 'tsim', 'native', 'simics', 'custom']
+
+SUPPORTED_HARNESSES = [
+    'console',
+    'display_capture',
+    'ztest',
+    'pytest',
+    'power',
+    'test',
+    'gtest',
+    'robot',
+    'ctest',
+    'shell',
+]

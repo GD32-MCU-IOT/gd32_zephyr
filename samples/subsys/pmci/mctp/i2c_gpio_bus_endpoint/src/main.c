@@ -4,10 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-#include <unistd.h>
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
 #include <libmctp.h>
@@ -18,20 +16,37 @@ LOG_MODULE_REGISTER(mctp_i2c_gpio_bus_endpoint);
 
 MCTP_I2C_GPIO_TARGET_DT_DEFINE(mctp_i2c_ctrl, DT_NODELABEL(mctp_i2c));
 
-static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data, void *msg,
-		       size_t len)
-{
-	LOG_INF("received message \"%s\" from endpoint %d, msg_tag %d, len %zu", (char *)msg, eid,
-		msg_tag, len);
-}
+K_SEM_DEFINE(mctp_rx, 0, 1);
+
+struct mctp *mctp_ctx;
 
 #define BUS_OWNER_ID 20
 
+static void rx_message_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	mctp_message_tx(mctp_ctx, BUS_OWNER_ID, false, 0, "pong", sizeof("pong"));
+
+	k_sem_give(&mctp_rx);
+}
+K_WORK_DEFINE(rx_message_work, rx_message_handler);
+
+static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data, void *msg,
+		       size_t len)
+{
+	LOG_INF("received message \"%s\" from endpoint %d, replying with \"pong\"", (char *)msg,
+		eid);
+
+	/* While small messages, such as this "pong" can be sent from the ISR context, bigger ones,
+	 * which will be split into several packets by libmctp won't work. Using a work queue
+	 * to send replies is thus safer for more cases.
+	 */
+	k_work_submit(&rx_message_work);
+}
+
 int main(void)
 {
-	int rc;
-	struct mctp *mctp_ctx;
-
 	LOG_INF("MCTP Host EID:%d on %s\n", mctp_i2c_ctrl.endpoint_id, CONFIG_BOARD_TARGET);
 
 	mctp_ctx = mctp_init();
@@ -40,16 +55,10 @@ int main(void)
 	mctp_set_rx_all(mctp_ctx, rx_message, NULL);
 
 	/*
-	 * 1. MCTP poll loop, send "ping" to each endpoint and get "pong" back
-	 * 2. Then send a broadcast "hello" to each endpoint and get a "from endoint %d" back
+	 * MCTP poll loop, listening for messages.
 	 */
 	while (true) {
-		rc = mctp_message_tx(mctp_ctx, BUS_OWNER_ID, false,
-				0, "ping", sizeof("ping"));
-		if (rc != 0) {
-			LOG_WRN("Failed to send message \"ping\", errno %d\n", rc);
-		}
-		k_msleep(500);
+		k_sem_take(&mctp_rx, K_FOREVER);
 	}
 
 	return 0;

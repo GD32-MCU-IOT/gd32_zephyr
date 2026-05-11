@@ -6,6 +6,8 @@
 
 #include <st/h7/stm32h747.dtsi>
 
+/delete-node/ &itcm;
+/delete-node/ &dtcm;
 /delete-node/ &flash0;
 
 / {
@@ -17,6 +19,7 @@
 		flash-controller@52002000 {
 			flash1: flash@8100000 {
 				reg = <0x08100000 DT_SIZE_K(1024)>;
+				ranges = <0 0x8100000 DT_SIZE_K(1024)>;
 				bank2-flash-size = <1024>;
 			};
 		};

@@ -4,14 +4,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+source ${ZEPHYR_BASE}/tests/bsim/sh_common.source
+
 VERBOSITY_LEVEL=2
 EXECUTE_TIMEOUT=120
 
-source ${ZEPHYR_BASE}/tests/bsim/sh_common.source
-
 cd ${BSIM_OUT_PATH}/bin
 
-SIMULATION_ID="bap_broadcast_audio_multiple_group_multiple_bis"
+SIMULATION_ID="${BOARD_TS}_bap_broadcast_audio_multiple_group_multiple_bis"
+
+# The test has been ignored for nrf54l15bsim until
+# https://github.com/zephyrproject-rtos/zephyr/issues/98941 has been fixed, as it currently won't
+# pass for nrf54l15bsim.
+if [ "${BOARD_TS}" == "nrf54l15bsim_nrf54l15_cpuapp" ]; then
+    echo "Skipping test for ${BOARD_TS}"
+    exit 0
+fi
 
 Execute ./bs_${BOARD_TS}_tests_bsim_bluetooth_audio_prj_conf \
   -v=${VERBOSITY_LEVEL} -s=${SIMULATION_ID} -d=0 -testid=broadcast_source \

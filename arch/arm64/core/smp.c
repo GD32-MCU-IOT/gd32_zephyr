@@ -63,8 +63,6 @@ static uint64_t cpu_map[CONFIG_MP_MAX_NUM_CPUS] = {
 	[0 ... (CONFIG_MP_MAX_NUM_CPUS - 1)] = INV_MPID
 };
 
-extern void z_arm64_mm_init(bool is_primary_core);
-
 /* Called from Zephyr initialization */
 void arch_cpu_start(int cpu_num, k_thread_stack_t *stack, int sz,
 		    arch_cpustart_t fn, void *arg)
@@ -137,9 +135,9 @@ void arch_cpu_start(int cpu_num, k_thread_stack_t *stack, int sz,
 }
 
 /* the C entry of secondary cores */
-void arch_secondary_cpu_init(int cpu_num)
+FUNC_NORETURN void arch_secondary_cpu_init(void)
 {
-	cpu_num = arm64_cpu_boot_params.cpu_num;
+	int cpu_num = arm64_cpu_boot_params.cpu_num;
 	arch_cpustart_t fn;
 	void *arg;
 
@@ -166,9 +164,7 @@ void arch_secondary_cpu_init(int cpu_num)
 #endif
 #endif
 
-#ifdef CONFIG_SOC_PER_CORE_INIT_HOOK
 	soc_per_core_init_hook();
-#endif /* CONFIG_SOC_PER_CORE_INIT_HOOK */
 
 	fn = arm64_cpu_boot_params.fn;
 	arg = arm64_cpu_boot_params.arg;
@@ -184,6 +180,8 @@ void arch_secondary_cpu_init(int cpu_num)
 	sev();
 
 	fn(arg);
+
+	CODE_UNREACHABLE;
 }
 
 #ifdef CONFIG_SMP

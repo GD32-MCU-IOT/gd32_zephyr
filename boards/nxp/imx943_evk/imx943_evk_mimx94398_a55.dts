@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,11 +13,16 @@
 	model = "NXP i.MX943 A55";
 	compatible = "fsl,mimx943";
 
+	aliases {
+		watchdog0 = &wdog4;
+	};
+
 	chosen {
 		zephyr,console = &lpuart1;
 		zephyr,shell-uart = &lpuart1;
 		/* sram node actually locates at DDR DRAM */
 		zephyr,sram = &dram;
+		zephyr,canbus = &flexcan2;
 	};
 
 	cpus {
@@ -37,6 +42,15 @@
 	dram: memory@d0000000 {
 		reg = <0xd0000000 DT_SIZE_M(10)>;
 	};
+
+	can_phy2: can-phy2 {
+		compatible = "nxp,tja1463", "can-transceiver-gpio";
+		enable-gpios = <&gpio_exp0 3 GPIO_ACTIVE_HIGH>;
+		standby-gpios = <&gpio_exp0 4 GPIO_ACTIVE_LOW>;
+		max-bitrate = <8000000>;
+		#phy-cells = <0>;
+		status = "okay";
+	};
 };
 
 &lpuart1 {
@@ -53,13 +67,13 @@
 
 	phy0: phy@2 {
 		compatible = "ethernet-phy";
-		reg = <0xf>;
+		reg = <0x2>;
 		status = "disabled";
 	};
 
 	phy1: phy@3 {
 		compatible = "ethernet-phy";
-		reg = <0x10>;
+		reg = <0x3>;
 		status = "disabled";
 	};
 
@@ -132,4 +146,60 @@
 &switch_port3 {
 	zephyr,random-mac-address;
 	status = "disabled";
+};
+
+&wdog4 {
+	status = "okay";
+};
+
+&lpi2c6 {
+	clock-frequency = <I2C_BITRATE_FAST>;
+	pinctrl-0 = <&lpi2c6_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	pca9544a_i2c6: i2c-mux@77 {
+		compatible = "nxp,pca9544a", "ti,tca9544a";
+		reg = <0x77>;
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		mux_i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gpio_exp0: pcal6416@21 {
+				compatible = "nxp,pcal6416";
+				reg = <0x21>;
+				#gpio-cells = <2>;
+				gpio-controller;
+				ngpios = <16>;
+				status = "okay";
+			};
+		};
+
+		mux_i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gpio_exp1: pcal6416@20 {
+				compatible = "nxp,pcal6416";
+				reg = <0x20>;
+				#gpio-cells = <2>;
+				gpio-controller;
+				ngpios = <16>;
+				status = "okay";
+			};
+		};
+	};
+};
+
+&flexcan2 {
+	pinctrl-0 = <&flexcan2_default>;
+	pinctrl-names = "default";
+	phys = <&can_phy2>;
+	status = "okay";
 };

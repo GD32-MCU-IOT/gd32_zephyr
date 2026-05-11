@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/att.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap_lc3_preset.h>
@@ -37,7 +38,7 @@
 
 LOG_MODULE_REGISTER(cap_initiator_unicast, LOG_LEVEL_INF);
 
-#define SEM_TIMEOUT K_SECONDS(5)
+#define SEM_TIMEOUT K_SECONDS(5U)
 
 /* We use the same config for both sink and source streams
  * For simplicity we use the mandatory configuration 16_2_1
@@ -45,7 +46,7 @@ LOG_MODULE_REGISTER(cap_initiator_unicast, LOG_LEVEL_INF);
 static struct bt_bap_lc3_preset unicast_preset_16_2_1 = BT_BAP_LC3_UNICAST_PRESET_16_2_1(
 	BT_AUDIO_LOCATION_MONO_AUDIO, BT_AUDIO_CONTEXT_TYPE_UNSPECIFIED);
 static struct bt_cap_unicast_group *unicast_group;
-uint64_t total_rx_iso_packet_count; /* This value is exposed to test code */
+uint64_t total_unicast_rx_iso_packet_count; /* This value is exposed to test code */
 uint64_t total_unicast_tx_iso_packet_count; /* This value is exposed to test code */
 
 /** Struct to contain information for a specific peer (CAP) device */
@@ -71,10 +72,10 @@ struct peer_config {
 /* TODO: Expand to multiple ACL connections */
 static struct peer_config peer;
 
-static K_SEM_DEFINE(sem_proc, 0, 1);
-static K_SEM_DEFINE(sem_state_change, 0, 1);
-static K_SEM_DEFINE(sem_mtu_exchanged, 0, 1);
-static K_SEM_DEFINE(sem_security_changed, 0, 1);
+static K_SEM_DEFINE(sem_proc, 0U, 1U);
+static K_SEM_DEFINE(sem_state_change, 0U, 1U);
+static K_SEM_DEFINE(sem_mtu_exchanged, 0U, 1U);
+static K_SEM_DEFINE(sem_security_changed, 0U, 1U);
 
 static bool is_tx_stream(struct bt_bap_stream *stream)
 {
@@ -119,8 +120,6 @@ static void unicast_stream_enabled_cb(struct bt_bap_stream *stream)
 static void unicast_stream_started_cb(struct bt_bap_stream *stream)
 {
 	LOG_INF("Started stream %p", stream);
-	total_rx_iso_packet_count = 0U;
-	total_unicast_tx_iso_packet_count = 0U;
 
 	if (is_tx_stream(stream)) {
 		struct bt_cap_stream *cap_stream =
@@ -179,11 +178,11 @@ static void unicast_stream_recv_cb(struct bt_bap_stream *stream,
 	 * (see the `info->flags` for which flags to check),
 	 */
 
-	if ((total_rx_iso_packet_count % 100U) == 0U) {
-		LOG_INF("Received %llu HCI ISO data packets", total_rx_iso_packet_count);
+	if ((total_unicast_rx_iso_packet_count % 100U) == 0U) {
+		LOG_INF("Received %llu HCI ISO data packets", total_unicast_rx_iso_packet_count);
 	}
 
-	total_rx_iso_packet_count++;
+	total_unicast_rx_iso_packet_count++;
 }
 
 static void unicast_stream_sent_cb(struct bt_bap_stream *stream)
@@ -496,12 +495,8 @@ static void start_scan(void)
 
 static void connected_cb(struct bt_conn *conn, uint8_t err)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
-	(void)bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
 	if (err != 0) {
-		LOG_ERR("Failed to connect to %s: %u", addr, err);
+		LOG_ERR("Failed to connect to %s: %u", bt_conn_dst_str(conn), err);
 
 		bt_conn_unref(peer.conn);
 		peer.conn = NULL;
@@ -514,21 +509,18 @@ static void connected_cb(struct bt_conn *conn, uint8_t err)
 		return;
 	}
 
-	LOG_INF("Connected: %s", addr);
+	LOG_INF("Connected: %s", bt_conn_dst_str(conn));
 	k_sem_give(&sem_state_change);
 }
 
 static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
 	if (conn != peer.conn) {
 		return;
 	}
 
-	(void)bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-	LOG_INF("Disconnected: %s, reason 0x%02x %s", addr, reason, bt_hci_err_to_str(reason));
+	LOG_INF("Disconnected: %s, reason 0x%02x %s", bt_conn_dst_str(conn),
+		reason, bt_hci_err_to_str(reason));
 
 	bt_conn_unref(peer.conn);
 	peer.conn = NULL;
@@ -566,7 +558,6 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 
 static bool check_audio_support_and_connect_cb(struct bt_data *data, void *user_data)
 {
-	char addr_str[BT_ADDR_LE_STR_LEN];
 	bt_addr_le_t *addr = user_data;
 	const struct bt_uuid *uuid;
 	uint16_t uuid_val;
@@ -590,8 +581,7 @@ static bool check_audio_support_and_connect_cb(struct bt_data *data, void *user_
 		return true; /* Continue parsing to next AD data type */
 	}
 
-	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
-	LOG_INF("Attempt to connect to %s", addr_str);
+	LOG_INF("Attempt to connect to %s", bt_addr_le_str(addr));
 
 	err = bt_le_scan_stop();
 	if (err != 0) {
@@ -800,6 +790,9 @@ static int reset_cap_initiator(void)
 	k_sem_reset(&sem_proc);
 	k_sem_reset(&sem_state_change);
 	k_sem_reset(&sem_mtu_exchanged);
+
+	total_unicast_rx_iso_packet_count = 0U;
+	total_unicast_tx_iso_packet_count = 0U;
 
 	return 0;
 }

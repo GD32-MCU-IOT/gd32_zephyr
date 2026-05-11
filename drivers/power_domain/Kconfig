@@ -35,7 +35,7 @@ config POWER_DOMAIN_GPIO_INIT_PRIORITY
 	help
 	  GPIO power domain initialization priority.
 
-endif #POWER_DOMAIN_GPIO_MONITOR
+endif #POWER_DOMAIN_GPIO
 
 config POWER_DOMAIN_INTEL_ADSP
 	bool "Use Intel ADSP power gating mechanisms"
@@ -70,6 +70,12 @@ config POWER_DOMAIN_GPIO_MONITOR_INIT_PRIORITY
 	default POWER_DOMAIN_INIT_PRIORITY
 	help
 	  GPIO monitor power domain initialization priority.
+
+config POWER_DOMAIN_GPIO_MONITOR_INITIAL_READ
+	bool "Initial GPIO state read"
+	help
+	Enable a (delayed) initial read of the GPIO pin state used for
+	monitoring the external power domain.
 
 endif #POWER_DOMAIN_GPIO_MONITOR
 
@@ -123,9 +129,29 @@ config SOC_POWER_DOMAIN_INIT
 
 endif #POWER_DOMAIN_TISCI
 
+config POWER_DOMAIN_ARM_SCMI
+	bool "ARM SCMI Power Domain driver"
+	default y
+	depends on ARM_SCMI_POWER_DOMAIN_HELPERS
+	depends on DT_HAS_ARM_SCMI_POWER_DOMAIN_ENABLED
+	select DEVICE_DEPS
+	help
+	  Enable SCMI-based power domain driver.
+
+if POWER_DOMAIN_ARM_SCMI
+
+config POWER_DOMAIN_ARM_SCMI_INIT_PRIORITY
+	int "ARM SCMI PD driver init priority"
+	default 30
+	help
+	  ARM SCMI PD driver initialization priority.
+
+endif #POWER_DOMAIN_ARM_SCMI
+
+# zephyr-keep-sorted-start
 rsource "Kconfig.nrfs_gdpwr"
 rsource "Kconfig.nrfs_swext"
-rsource "Kconfig.nrf_gpio_pad_group"
 rsource "Kconfig.silabs_siwx91x"
+# zephyr-keep-sorted-stop
 
-endif
+endif #POWER_DOMAIN

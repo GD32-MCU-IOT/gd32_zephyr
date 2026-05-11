@@ -28,7 +28,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <zephyr/sys/byteorder.h>
 #include <string.h>
 #include <zephyr/random/random.h>
-#include <zephyr/debug/stack.h>
 
 #include <zephyr/drivers/gpio.h>
 
@@ -567,7 +566,7 @@ static inline void mcr20a_rx(const struct device *dev, uint8_t len)
 	pkt_len = len - MCR20A_FCS_LENGTH;
 
 	pkt = net_pkt_rx_alloc_with_buffer(mcr20a->iface, pkt_len,
-					   AF_UNSPEC, 0, K_NO_WAIT);
+					   NET_AF_UNSPEC, 0, K_NO_WAIT);
 	if (!pkt) {
 		LOG_ERR("No buf available");
 		goto out;
@@ -1115,7 +1114,7 @@ static int mcr20a_tx(const struct device *dev,
 	int retval;
 
 	if (mode != IEEE802154_TX_MODE_DIRECT) {
-		NET_ERR("TX mode %d not supported", mode);
+		LOG_ERR("TX mode %d not supported", mode);
 		return -ENOTSUP;
 	}
 

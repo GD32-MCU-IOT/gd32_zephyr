@@ -21,17 +21,15 @@
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/lldp.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/ethernet_vlan.h>
 #include <zephyr/net/ptp_time.h>
+#include <zephyr/random/random.h>
 
-#if defined(CONFIG_NET_DSA_DEPRECATED)
-#include <zephyr/net/dsa.h>
-#endif
-
-#if defined(CONFIG_NET_ETHERNET_BRIDGE)
-#include <zephyr/net/ethernet_bridge.h>
+#if defined(CONFIG_NVMEM)
+#include <zephyr/nvmem.h>
 #endif
 
 #ifdef __cplusplus
@@ -210,7 +208,6 @@ enum ethernet_hw_caps {
 
 /** @cond INTERNAL_HIDDEN */
 
-#if !defined(CONFIG_NET_DSA_DEPRECATED)
 enum dsa_port_type {
 	NON_DSA_PORT,
 	DSA_CONDUIT_PORT,
@@ -218,7 +215,6 @@ enum dsa_port_type {
 	DSA_CPU_PORT,
 	DSA_PORT,
 };
-#endif
 
 enum ethernet_config_type {
 	ETHERNET_CONFIG_TYPE_MAC_ADDRESS,
@@ -230,7 +226,6 @@ enum ethernet_config_type {
 	ETHERNET_CONFIG_TYPE_PRIORITY_QUEUES_NUM,
 	ETHERNET_CONFIG_TYPE_FILTER,
 	ETHERNET_CONFIG_TYPE_PORTS_NUM,
-	ETHERNET_CONFIG_TYPE_T1S_PARAM,
 	ETHERNET_CONFIG_TYPE_TXINJECTION_MODE,
 	ETHERNET_CONFIG_TYPE_RX_CHECKSUM_SUPPORT,
 	ETHERNET_CONFIG_TYPE_TX_CHECKSUM_SUPPORT,
@@ -245,56 +240,7 @@ enum ethernet_qav_param_type {
 	ETHERNET_QAV_PARAM_TYPE_STATUS,
 };
 
-enum ethernet_t1s_param_type {
-	ETHERNET_T1S_PARAM_TYPE_PLCA_CONFIG,
-};
-
 /** @endcond */
-
-/** Ethernet T1S specific parameters */
-struct ethernet_t1s_param {
-	/** Type of T1S parameter */
-	enum ethernet_t1s_param_type type;
-	union {
-		/**
-		 * PLCA is the Physical Layer (PHY) Collision
-		 * Avoidance technique employed with multidrop
-		 * 10Base-T1S standard.
-		 *
-		 * The PLCA parameters are described in standard [1]
-		 * as registers in memory map 4 (MMS = 4) (point 9.6).
-		 *
-		 * IDVER	(PLCA ID Version)
-		 * CTRL0	(PLCA Control 0)
-		 * CTRL1	(PLCA Control 1)
-		 * STATUS	(PLCA Status)
-		 * TOTMR	(PLCA TO Control)
-		 * BURST	(PLCA Burst Control)
-		 *
-		 * Those registers are implemented by each OA TC6
-		 * compliant vendor (like for e.g. LAN865x - e.g. [2]).
-		 *
-		 * Documents:
-		 * [1] - "OPEN Alliance 10BASE-T1x MAC-PHY Serial
-		 *       Interface" (ver. 1.1)
-		 * [2] - "DS60001734C" - LAN865x data sheet
-		 */
-		struct {
-			/** T1S PLCA enabled */
-			bool enable;
-			/** T1S PLCA node id range: 0 to 254 */
-			uint8_t node_id;
-			/** T1S PLCA node count range: 1 to 255 */
-			uint8_t node_count;
-			/** T1S PLCA burst count range: 0x0 to 0xFF */
-			uint8_t burst_count;
-			/** T1S PLCA burst timer */
-			uint8_t burst_timer;
-			/** T1S PLCA TO value */
-			uint8_t to_timer;
-		} plca;
-	};
-};
 
 /** Ethernet Qav specific parameters */
 struct ethernet_qav_param {
@@ -313,7 +259,7 @@ struct ethernet_qav_param {
 		unsigned int oper_idle_slope;
 		/** Traffic class the queue is bound to */
 		unsigned int traffic_class;
-	};
+	} /**< Value for the selected Qav parameter type */;
 };
 
 /** @cond INTERNAL_HIDDEN */
@@ -382,7 +328,7 @@ struct ethernet_qbv_param {
 			/** Extension time (nanoseconds) */
 			uint32_t extension_time;
 		};
-	};
+	} /**< Value for the selected Qbv parameter type */;
 };
 
 /** @cond INTERNAL_HIDDEN */
@@ -433,7 +379,7 @@ struct ethernet_qbu_param {
 		 * fragment size is (additional_fragment_size + 1) * 64 octets
 		 */
 		uint8_t additional_fragment_size : 2;
-	};
+	} /**< Value for the selected Qbu parameter type */;
 };
 
 /** @cond INTERNAL_HIDDEN */
@@ -509,7 +455,6 @@ struct ethernet_config {
 
 		struct net_eth_addr mac_address;
 
-		struct ethernet_t1s_param t1s_param;
 		struct ethernet_qav_param qav_param;
 		struct ethernet_qbv_param qbv_param;
 		struct ethernet_qbu_param qbu_param;
@@ -523,10 +468,20 @@ struct ethernet_config {
 		struct ethernet_filter filter;
 
 		uint16_t extra_tx_pkt_headroom;
-	};
+	} /**< Value for the selected Ethernet configuration type */;
 };
 
 /** @endcond */
+
+/** Ethernet statistics type (bitmap) */
+enum ethernet_stats_type {
+	/** Common statistics only (excludes vendor statistics) */
+	ETHERNET_STATS_TYPE_COMMON = BIT(0),
+	/** Vendor statistics only */
+	ETHERNET_STATS_TYPE_VENDOR = BIT(1),
+	/** All statistics */
+	ETHERNET_STATS_TYPE_ALL = 0xFFFFFFFFU,
+};
 
 /** Ethernet L2 API operations. */
 struct ethernet_api {
@@ -541,25 +496,36 @@ struct ethernet_api {
 	 * for that driver.
 	 */
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-	struct net_stats_eth *(*get_stats)(const struct device *dev);
+	struct net_stats_eth *(*get_stats)(const struct device *dev, struct net_if *iface);
+
+	/** Optional function to collect ethernet specific statistics with
+	 * type filter. If NULL, get_stats() will be called instead, which
+	 * is equivalent to calling this with ETHERNET_STATS_TYPE_ALL.
+	 * @param type Bitmask of ethernet_stats_type values.
+	 */
+	struct net_stats_eth *(*get_stats_type)(const struct device *dev,
+						 struct net_if *iface,
+						 uint32_t type);
 #endif
 
 	/** Start the device */
-	int (*start)(const struct device *dev);
+	int (*start)(const struct device *dev, struct net_if *iface);
 
 	/** Stop the device */
-	int (*stop)(const struct device *dev);
+	int (*stop)(const struct device *dev, struct net_if *iface);
 
 	/** Get the device capabilities */
-	enum ethernet_hw_caps (*get_capabilities)(const struct device *dev);
+	enum ethernet_hw_caps (*get_capabilities)(const struct device *dev, struct net_if *iface);
 
 	/** Set specific hardware configuration */
 	int (*set_config)(const struct device *dev,
+			  struct net_if *iface,
 			  enum ethernet_config_type type,
 			  const struct ethernet_config *config);
 
 	/** Get hardware specific configuration */
 	int (*get_config)(const struct device *dev,
+			  struct net_if *iface,
 			  enum ethernet_config_type type,
 			  struct ethernet_config *config);
 
@@ -575,11 +541,11 @@ struct ethernet_api {
 
 	/** Return ptp_clock device that is tied to this ethernet device */
 #if defined(CONFIG_PTP_CLOCK)
-	const struct device *(*get_ptp_clock)(const struct device *dev);
+	const struct device *(*get_ptp_clock)(const struct device *dev, struct net_if *iface);
 #endif /* CONFIG_PTP_CLOCK */
 
 	/** Return PHY device that is tied to this ethernet device */
-	const struct device *(*get_phy)(const struct device *dev);
+	const struct device *(*get_phy)(const struct device *dev, struct net_if *iface);
 
 	/** Send a network packet */
 	int (*send)(const struct device *dev, struct net_pkt *pkt);
@@ -628,14 +594,8 @@ struct ethernet_lldp {
 	/** Length of the optional Data Unit TLVs */
 	size_t optional_len;
 
-	/** Network interface that has LLDP supported. */
-	struct net_if *iface;
-
-	/** LLDP TX timer start time */
-	int64_t tx_timer_start;
-
-	/** LLDP TX timeout */
-	uint32_t tx_timer_timeout;
+	/** LLDP TX timer timeout */
+	k_timepoint_t tx_timer_timeout;
 
 	/** LLDP RX callback function */
 	net_lldp_recv_cb_t cb;
@@ -670,14 +630,8 @@ struct ethernet_context {
 	struct net_if *iface;
 
 #if defined(CONFIG_NET_LLDP)
-#if NET_VLAN_MAX_COUNT > 0
-#define NET_LLDP_MAX_COUNT NET_VLAN_MAX_COUNT
-#else
-#define NET_LLDP_MAX_COUNT 1
-#endif /* NET_VLAN_MAX_COUNT > 0 */
-
 	/** LLDP specific parameters */
-	struct ethernet_lldp lldp[NET_LLDP_MAX_COUNT];
+	struct ethernet_lldp lldp;
 #endif
 
 	/**
@@ -693,22 +647,7 @@ struct ethernet_context {
 	int port;
 #endif
 
-#if defined(CONFIG_NET_DSA_DEPRECATED)
-	/** DSA RX callback function - for custom processing - like e.g.
-	 * redirecting packets when MAC address is caught
-	 */
-	dsa_net_recv_cb_t dsa_recv_cb;
-
-	/** Switch physical port number */
-	uint8_t dsa_port_idx;
-
-	/** DSA context pointer */
-	struct dsa_context *dsa_ctx;
-
-	/** Send a network packet via DSA master port */
-	dsa_send_t dsa_send;
-
-#elif defined(CONFIG_NET_DSA)
+#if defined(CONFIG_NET_DSA)
 	/** DSA port tpye */
 	enum dsa_port_type dsa_port;
 
@@ -822,34 +761,19 @@ static inline bool net_eth_is_addr_unspecified(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_multicast(struct net_eth_addr *addr)
 {
-#if defined(CONFIG_NET_IPV6)
-	if (addr->addr[0] == 0x33 &&
-	    addr->addr[1] == 0x33) {
-		return true;
-	}
-#endif
-
-#if defined(CONFIG_NET_IPV4)
-	if (addr->addr[0] == 0x01 &&
-	    addr->addr[1] == 0x00 &&
-	    addr->addr[2] == 0x5e) {
-		return true;
-	}
-#endif
-
-	return false;
+	return addr->addr[0] & 0x01;
 }
 
 /**
- * @brief Check if the Ethernet MAC address is a group address.
+ * @brief Check if the Ethernet MAC address is an unicast address.
  *
  * @param addr A valid pointer to a Ethernet MAC address.
  *
- * @return true if address is a group address, false if not
+ * @return true if address is an unicast address, false if not
  */
-static inline bool net_eth_is_addr_group(struct net_eth_addr *addr)
+static inline bool net_eth_is_addr_unicast(struct net_eth_addr *addr)
 {
-	return addr->addr[0] & 0x01;
+	return !net_eth_is_addr_unspecified(addr) && !net_eth_is_addr_multicast(addr);
 }
 
 /**
@@ -861,7 +785,7 @@ static inline bool net_eth_is_addr_group(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_valid(struct net_eth_addr *addr)
 {
-	return !net_eth_is_addr_unspecified(addr) && !net_eth_is_addr_group(addr);
+	return !net_eth_is_addr_unspecified(addr) && !net_eth_is_addr_multicast(addr);
 }
 
 /**
@@ -873,7 +797,6 @@ static inline bool net_eth_is_addr_valid(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_lldp_multicast(struct net_eth_addr *addr)
 {
-#if defined(CONFIG_NET_GPTP) || defined(CONFIG_NET_LLDP)
 	if (addr->addr[0] == 0x01 &&
 	    addr->addr[1] == 0x80 &&
 	    addr->addr[2] == 0xc2 &&
@@ -882,9 +805,6 @@ static inline bool net_eth_is_addr_lldp_multicast(struct net_eth_addr *addr)
 	    addr->addr[5] == 0x0e) {
 		return true;
 	}
-#else
-	ARG_UNUSED(addr);
-#endif
 
 	return false;
 }
@@ -898,7 +818,6 @@ static inline bool net_eth_is_addr_lldp_multicast(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_ptp_multicast(struct net_eth_addr *addr)
 {
-#if defined(CONFIG_NET_GPTP)
 	if (addr->addr[0] == 0x01 &&
 	    addr->addr[1] == 0x1b &&
 	    addr->addr[2] == 0x19 &&
@@ -907,9 +826,6 @@ static inline bool net_eth_is_addr_ptp_multicast(struct net_eth_addr *addr)
 	    addr->addr[5] == 0x00) {
 		return true;
 	}
-#else
-	ARG_UNUSED(addr);
-#endif
 
 	return false;
 }
@@ -927,7 +843,7 @@ const struct net_eth_addr *net_eth_broadcast_addr(void);
  * @param ipv4_addr IPv4 multicast address
  * @param mac_addr Output buffer for Ethernet address
  */
-void net_eth_ipv4_mcast_to_mac_addr(const struct in_addr *ipv4_addr,
+void net_eth_ipv4_mcast_to_mac_addr(const struct net_in_addr *ipv4_addr,
 				    struct net_eth_addr *mac_addr);
 
 /**
@@ -936,7 +852,7 @@ void net_eth_ipv4_mcast_to_mac_addr(const struct in_addr *ipv4_addr,
  * @param ipv6_addr IPv6 multicast address
  * @param mac_addr Output buffer for Ethernet address
  */
-void net_eth_ipv6_mcast_to_mac_addr(const struct in6_addr *ipv6_addr,
+void net_eth_ipv6_mcast_to_mac_addr(const struct net_in6_addr *ipv6_addr,
 				    struct net_eth_addr *mac_addr);
 
 /**
@@ -952,7 +868,7 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if *iface)
 	const struct device *dev = net_if_get_device(iface);
 	const struct ethernet_api *api = (struct ethernet_api *)dev->api;
 	enum ethernet_hw_caps caps = (enum ethernet_hw_caps)0;
-#if defined(CONFIG_NET_DSA) && !defined(CONFIG_NET_DSA_DEPRECATED)
+#if defined(CONFIG_NET_DSA)
 	struct ethernet_context *eth_ctx = net_if_l2_data(iface);
 
 	if (eth_ctx->dsa_port == DSA_CONDUIT_PORT) {
@@ -965,7 +881,7 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if *iface)
 		return caps;
 	}
 
-	return (enum ethernet_hw_caps)(caps | api->get_capabilities(dev));
+	return (enum ethernet_hw_caps)(caps | api->get_capabilities(dev, iface));
 }
 
 /**
@@ -981,14 +897,14 @@ static inline
 int net_eth_get_hw_config(struct net_if *iface, enum ethernet_config_type type,
 			 struct ethernet_config *config)
 {
-	const struct ethernet_api *eth =
-		(struct ethernet_api *)net_if_get_device(iface)->api;
+	const struct device *dev = net_if_get_device(iface);
+	const struct ethernet_api *eth = (struct ethernet_api *)dev->api;
 
 	if (!eth->get_config) {
 		return -ENOTSUP;
 	}
 
-	return eth->get_config(net_if_get_device(iface), type, config);
+	return eth->get_config(dev, iface, type, config);
 }
 
 
@@ -1287,6 +1203,159 @@ static inline bool net_eth_is_vlan_interface(struct net_if *iface)
 #define ETH_NET_L3_REGISTER(name, ptype, handler) \
 	NET_L3_REGISTER(&NET_L2_GET_NAME(ETHERNET), name, ptype, handler)
 
+/** @brief MAC address configuration types */
+enum net_eth_mac_type {
+	/** MAC address is handled by the driver (backwards compatible case) */
+	NET_ETH_MAC_DEFAULT = 0,
+	/** A random MAC address is generated during initialization */
+	NET_ETH_MAC_RANDOM,
+	/**
+	 * The MAC address is read from an NVMEM cell
+	 * @kconfig_dep{CONFIG_NVMEM}
+	 */
+	NET_ETH_MAC_NVMEM,
+	/** A static MAC address is provided in the device tree. */
+	NET_ETH_MAC_STATIC,
+};
+
+/** @brief MAC address configuration */
+struct net_eth_mac_config {
+	/** The configuration type */
+	enum net_eth_mac_type type;
+	/**
+	 * The static MAC address part.
+	 * If less than 6 bytes are provided, this can be used as a prefix for
+	 * a random generated MAC address or data read from an NVMEM cell.
+	 * For example to set the OUI.
+	 */
+	uint8_t addr[NET_ETH_ADDR_LEN];
+	/** The length of the statically provided part */
+	uint8_t addr_len;
+#if defined(CONFIG_NVMEM) || defined(__DOXYGEN__)
+	/**
+	 * The NVMEM cell to read the MAC address from
+	 * @kconfig_dep{CONFIG_NVMEM}
+	 */
+	struct nvmem_cell cell;
+#endif
+};
+
+/**
+ * @brief Load a MAC address from a MAC address configuration structure with the specified type.
+ *
+ * In the case of a randomized MAC address, the universal vs local (U/L) bit is set to a
+ * locally administered address (LAA) and the unicast vs multicast (I/G) bit is cleared to make it
+ * a unicast address.
+ *
+ * @param cfg The MAC address configuration.
+ * @param mac_addr The resulting MAC address buffer, needs a size of @ref NET_ETH_ADDR_LEN bytes.
+ *
+ * @retval -ENODATA No MAC address configuration data is loaded.
+ * @retval <0 Negative errno code if failure.
+ * @retval 0 If successful.
+ */
+static inline int net_eth_mac_load(const struct net_eth_mac_config *cfg, uint8_t *mac_addr)
+{
+	if (cfg == NULL || cfg->type == NET_ETH_MAC_DEFAULT) {
+		return -ENODATA;
+	}
+
+	/* Copy the static part */
+	memcpy(mac_addr, cfg->addr, cfg->addr_len);
+
+	if (cfg->type == NET_ETH_MAC_RANDOM) {
+		sys_rand_get(&mac_addr[cfg->addr_len], NET_ETH_ADDR_LEN - cfg->addr_len);
+
+		/* Clear group bit, multicast (I/G) */
+		mac_addr[0] &= ~0x01;
+		/* Set MAC address locally administered, unicast (LAA) */
+		mac_addr[0] |= 0x02;
+
+		return 0;
+	}
+
+#if defined(CONFIG_NVMEM)
+	if (cfg->type == NET_ETH_MAC_NVMEM) {
+		return nvmem_cell_read(&cfg->cell, &mac_addr[cfg->addr_len], 0,
+				       NET_ETH_ADDR_LEN - cfg->addr_len);
+	}
+#endif
+
+	if (cfg->type == NET_ETH_MAC_STATIC) {
+		return 0;
+	}
+
+	return -ENODATA;
+}
+
+/** @cond INTERNAL_HIDDEN */
+
+#if defined(CONFIG_NVMEM) || defined(__DOXYGEN__)
+/**
+ * @brief Initialize the NVMEM cell for the ethernet MAC config for
+ * the given DT node identifier.
+ *
+ * @param node_id Node identifier.
+ */
+#define Z_NET_ETH_MAC_DEV_CONFIG_INIT_CELL(node_id)                                                \
+	.cell = NVMEM_CELL_GET_BY_NAME_OR(node_id, mac_address, {0}),
+#else
+#define Z_NET_ETH_MAC_DEV_CONFIG_INIT_CELL(node_id)
+#endif
+
+#define Z_NET_ETH_MAC_DT_CONFIG_INIT_RANDOM(node_id)                                               \
+	{                                                                                          \
+		.type = NET_ETH_MAC_RANDOM,                                                        \
+		.addr = DT_PROP_OR(node_id, zephyr_mac_address_prefix, {0}),                       \
+		.addr_len = DT_PROP_LEN_OR(node_id, zephyr_mac_address_prefix, 0),                 \
+	}
+
+#define Z_NET_ETH_MAC_DT_CONFIG_INIT_NVMEM(node_id)                                                \
+	{                                                                                          \
+		.type = NET_ETH_MAC_NVMEM,                                                         \
+		.addr = DT_PROP_OR(node_id, zephyr_mac_address_prefix, {0}),                       \
+		.addr_len = DT_PROP_LEN_OR(node_id, zephyr_mac_address_prefix, 0),                 \
+		Z_NET_ETH_MAC_DEV_CONFIG_INIT_CELL(node_id)                                        \
+	}
+
+#define Z_NET_ETH_MAC_DT_CONFIG_INIT_STATIC(node_id)                                               \
+	{                                                                                          \
+		.type = NET_ETH_MAC_STATIC,                                                        \
+		.addr = DT_PROP(node_id, local_mac_address),                                       \
+		.addr_len = DT_PROP_LEN(node_id, local_mac_address),                               \
+	}
+
+#define Z_NET_ETH_MAC_DT_CONFIG_INIT_DEFAULT(node_id)                                              \
+	{                                                                                          \
+		.type = NET_ETH_MAC_DEFAULT,                                                       \
+	}
+
+/** @endcond */
+
+/**
+ * @brief Initialize the ethernet MAC config for the given DT node identifier.
+ *
+ * @param node_id Node identifier.
+ */
+#define NET_ETH_MAC_DT_CONFIG_INIT(node_id)                                                        \
+	COND_CASE_1(DT_PROP(node_id, zephyr_random_mac_address),                                   \
+		    (Z_NET_ETH_MAC_DT_CONFIG_INIT_RANDOM(node_id)),                                \
+		    DT_NVMEM_CELLS_HAS_NAME(node_id, mac_address),                                 \
+		    (Z_NET_ETH_MAC_DT_CONFIG_INIT_NVMEM(node_id)),                                 \
+		    DT_NODE_HAS_PROP(node_id, local_mac_address),                                  \
+		    (Z_NET_ETH_MAC_DT_CONFIG_INIT_STATIC(node_id)),                                \
+		    (Z_NET_ETH_MAC_DT_CONFIG_INIT_DEFAULT(node_id)))
+
+/**
+ * @brief Like NET_ETH_MAC_DT_CONFIG_INIT for an instance of a DT_DRV_COMPAT compatible
+ *
+ * @param inst Instance number.
+ *
+ * @see #NET_ETH_MAC_DT_CONFIG_INIT
+ */
+#define NET_ETH_MAC_DT_INST_CONFIG_INIT(inst)                                                      \
+	NET_ETH_MAC_DT_CONFIG_INIT(DT_DRV_INST(inst))
+
 /**
  * @brief Inform ethernet L2 driver that ethernet carrier is detected.
  * This happens when cable is connected.
@@ -1424,6 +1493,20 @@ static inline bool net_eth_type_is_wifi(struct net_if *iface)
 		net_if_l2_data(iface);
 
 	return ctx->eth_if_type == L2_ETH_IF_TYPE_WIFI;
+}
+
+/**
+ * @brief Check if the Ethernet L2 network interface is cabled ethernet.
+ *
+ * @param iface Pointer to network interface
+ *
+ * @return True if interface is cabled ethernet, False otherwise.
+ */
+static inline bool net_eth_type_is_ethernet(struct net_if *iface)
+{
+	const struct ethernet_context *ctx = (struct ethernet_context *)net_if_l2_data(iface);
+
+	return ctx->eth_if_type == L2_ETH_IF_TYPE_ETHERNET;
 }
 
 /**

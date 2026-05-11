@@ -66,7 +66,7 @@ LOG_MODULE_REGISTER(spi_cadence, CONFIG_SPI_LOG_LEVEL);
 #define SPI_INT_MF  BIT(1)
 #define SPI_INT_ROF BIT(0)
 
-#define SPI_INT_DEFAULT (SPI_INT_RNE | SPI_INT_TNF | SPI_INT_ROF | SPI_INT_TUF)
+#define SPI_INT_DEFAULT (SPI_INT_TNF | SPI_INT_ROF | SPI_INT_TUF)
 
 /* SPI enable register bit offset */
 #define SPI_SPI_ENABLE_SPIE BIT(0)
@@ -261,16 +261,46 @@ static void spi_cdns_send(const struct device *dev)
 				break;
 			}
 		}
-		if ((spi_context_tx_buf_on(ctx) || spi_context_rx_buf_on(ctx))) {
-			if (data->tx_remain_entry > 0) {
-				data->tx_remain_entry--;
-				data->fifo_diff++;
-			}
+		if (data->tx_remain_entry > 0) {
+			data->tx_remain_entry--;
+			data->fifo_diff++;
 		}
 		spi_context_update_tx(&data->ctx, dfs, 1);
 	}
 
 	sys_write32(val, SPI_REG(dev, SPI_TX_DATA));
+}
+
+static inline void spi_cdns_rx_store(const struct spi_cdns_cfg *config,
+		struct spi_context *ctx,
+		uint32_t val, uint8_t dfs, int idx)
+{
+	switch (dfs) {
+	case 1:
+		if (config->fifo_width == 8) {
+			UNALIGNED_PUT(val & 0xFF, (uint8_t *)ctx->rx_buf);
+		} else if (config->fifo_width == 16) {
+			UNALIGNED_PUT((val >> 8 * (1 - idx)) & 0xFF,
+					(uint8_t *)ctx->rx_buf);
+		} else if (config->fifo_width == 32) {
+			UNALIGNED_PUT((val >> 8 * (3 - idx)) & 0xFF,
+					(uint8_t *)ctx->rx_buf);
+		}
+		break;
+	case 2:
+		if (config->fifo_width == 16) {
+			UNALIGNED_PUT(val & 0xFFFF, (uint16_t *)ctx->rx_buf);
+		} else if (config->fifo_width == 32) {
+			UNALIGNED_PUT((val >> 16 * (1 - idx)) & 0xFFFF,
+					(uint16_t *)ctx->rx_buf);
+		}
+		break;
+	case 4:
+		if (config->fifo_width == 32) {
+			UNALIGNED_PUT(val, (uint32_t *)ctx->rx_buf);
+		}
+		break;
+	}
 }
 
 /**
@@ -293,37 +323,20 @@ static void spi_cdns_recv(const struct device *dev)
 	loop = (config->fifo_width / 8) / dfs;
 	for (i = 0; i < loop; i++) {
 		if (spi_context_rx_buf_on(ctx)) {
-			switch (dfs) {
-			case 1:
-				if (config->fifo_width == 8) {
-					UNALIGNED_PUT(val & 0xFF, (uint8_t *)ctx->rx_buf);
-				} else if (config->fifo_width == 16) {
-					UNALIGNED_PUT((val >> 8 * (1 - i)) & 0xFF,
-						      (uint8_t *)ctx->rx_buf);
-				} else if (config->fifo_width == 32) {
-					UNALIGNED_PUT((val >> 8 * (3 - i)) & 0xFF,
-						      (uint8_t *)ctx->rx_buf);
-				}
-				break;
-			case 2:
-				if (config->fifo_width == 16) {
-					UNALIGNED_PUT(val & 0xFFFF, (uint16_t *)ctx->rx_buf);
-				} else if (config->fifo_width == 32) {
-					UNALIGNED_PUT((val >> 16 * (1 - i)) & 0xFFFF,
-						      (uint16_t *)ctx->rx_buf);
-				}
-				break;
-			case 4:
-				if (config->fifo_width == 32) {
-					UNALIGNED_PUT(val, (uint32_t *)ctx->rx_buf);
-				}
-				break;
+			spi_cdns_rx_store(config, ctx, val, dfs, i);
+
+			/* Slave: advance RX only when a buffer is present */
+			if (spi_context_is_slave(ctx)) {
+				spi_context_update_rx(ctx, dfs, 1);
 			}
+		}
+		/* Master: always advance RX per received frame */
+		if (!spi_context_is_slave(ctx)) {
+			spi_context_update_rx(ctx, dfs, 1);
 		}
 		if (data->fifo_diff > 0) {
 			data->fifo_diff--;
 		}
-		spi_context_update_rx(ctx, dfs, 1);
 	}
 }
 
@@ -370,32 +383,10 @@ static void spi_cdns_push_data(const struct device *dev)
  */
 static void spi_cdns_pull_data(const struct device *dev)
 {
-	const struct spi_cdns_cfg *config = dev->config;
 	struct spi_cdns_data *data = dev->data;
-	uint32_t rx_threshold_tmp;
-	uint32_t rx_remain_entry;
 
-	/*
-	 * As there is no rx fifo empty status bit, Write the rx threshold
-	 * to so the rne status bit will report when there is less than 1
-	 * item in the fifo
-	 */
-	rx_threshold_tmp = sys_read32(SPI_REG(dev, SPI_RX_THRESHOLD));
-	sys_write32(1, SPI_REG(dev, SPI_RX_THRESHOLD));
-
-	while (sys_read32(SPI_REG(dev, SPI_INT_STATUS)) & SPI_INT_RNE) {
+	while (data->fifo_diff > 0) {
 		spi_cdns_recv(dev);
-	}
-
-	/*
-	 * The threshold is designed to trigger by FIFO I/O.
-	 * Therefore, it is necessary to set rx threshold before pulling.
-	 */
-	rx_remain_entry = DIV_ROUND_UP(data->fifo_diff, (config->fifo_width / 8));
-	if ((rx_remain_entry != 0) && (rx_remain_entry < rx_threshold_tmp)) {
-		sys_write32(rx_remain_entry, SPI_REG(dev, SPI_RX_THRESHOLD));
-	} else {
-		sys_write32(rx_threshold_tmp, SPI_REG(dev, SPI_RX_THRESHOLD));
 	}
 }
 
@@ -525,6 +516,7 @@ static int spi_cdns_configure(const struct device *dev, const struct spi_config 
  */
 static void spi_cdns_isr(const struct device *dev)
 {
+	const struct spi_cdns_cfg *dev_config = dev->config;
 	struct spi_cdns_data *data = dev->data;
 	int32_t int_status;
 	int error = 0;
@@ -544,21 +536,31 @@ static void spi_cdns_isr(const struct device *dev)
 		goto complete;
 	}
 
-	if (int_status & SPI_INT_RNE) {
-		spi_cdns_pull_data(dev);
-	}
-
 	if (int_status & SPI_INT_TNF) {
+		if (spi_context_is_slave(&data->ctx)) {
+			/* Fixed delay due to controller limitation with
+			 * RX_NEMPTY incorrect status
+			 * Xilinx AR:65885 contains more details
+			 */
+			k_busy_wait(10);
+		}
+		spi_cdns_pull_data(dev);
+
+		/* Set threshold to one if transfer length
+		 * is less than half FIFO depth
+		 */
+		if (data->tx_remain_entry < dev_config->tx_fifo_depth >> 1) {
+			sys_write32(1, SPI_REG(dev, SPI_TX_THRESHOLD));
+		}
+	}
+
+	if (!spi_context_tx_buf_on(&data->ctx) && !spi_context_rx_buf_on(&data->ctx)) {
+		/* Both TX and RX are done - transfer complete */
+		goto complete;
+	} else {
+		/* Still have data to process - continue transfer */
 		spi_cdns_push_data(dev);
-	}
-
-	if (!spi_context_tx_buf_on(&data->ctx)) {
-		/* Disable Tx-FIFO interrupt for no transfer data */
-		sys_write32(SPI_INT_TNF, SPI_REG(dev, SPI_INT_DISABLE));
-	}
-
-	if (spi_context_tx_buf_on(&data->ctx) || spi_context_rx_buf_on(&data->ctx)) {
-		return;
+		sys_write32(SPI_INT_TNF, SPI_REG(dev, SPI_INT_ENABLE));
 	}
 
 	if (data->fifo_diff != 0) {
@@ -683,24 +685,20 @@ static int spi_cdns_transceive(const struct device *dev, const struct spi_config
 		goto out;
 	}
 
-	/* Set fifo thresholds */
-	if (spi_context_is_slave(&data->ctx)) {
-		sys_write32(1, SPI_REG(dev, SPI_RX_THRESHOLD));
-		sys_write32(dev_config->tx_fifo_depth - 1, SPI_REG(dev, SPI_TX_THRESHOLD));
-	} else {
-		uint32_t fifo_words = MIN(DIV_ROUND_UP(spi_context_total_rx_len(&data->ctx),
-						       (dev_config->fifo_width / 8)),
-					  dev_config->rx_fifo_depth * 5 / 8);
-		sys_write32(fifo_words, SPI_REG(dev, SPI_RX_THRESHOLD));
-		sys_write32(dev_config->tx_fifo_depth / 2, SPI_REG(dev, SPI_TX_THRESHOLD));
+	/* Set slave TX fifo threshold */
+	if (spi_context_is_slave(&data->ctx) && data->tx_remain_entry > dev_config->tx_fifo_depth) {
+		/* Set TX threshold to half FIFO depth
+		 * when transfer size exceeds FIFO depth
+		 */
+		sys_write32(dev_config->tx_fifo_depth >> 1, SPI_REG(dev, SPI_TX_THRESHOLD));
 	}
-
 	if (spi_cs_is_gpio(data->ctx.config)) {
 		spi_context_cs_control(&data->ctx, true);
 	} else {
 		spi_cdns_cs_control(dev, true);
 	}
 
+	spi_cdns_push_data(dev);
 	sys_write32(SPI_INT_DEFAULT, SPI_REG(dev, SPI_INT_ENABLE));
 
 	ret = spi_context_wait_for_completion(&data->ctx);

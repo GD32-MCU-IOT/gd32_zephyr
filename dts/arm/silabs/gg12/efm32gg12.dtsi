@@ -32,6 +32,7 @@
 		msc: flash-controller@40000000 {
 			compatible = "silabs,gecko-flash-controller";
 			reg = <0x40000000 0x110>;
+			ranges;
 			interrupts = <33 0>;
 
 			#address-cells = <1>;
@@ -39,6 +40,8 @@
 
 			flash0: flash@0 {
 				compatible = "soc-nv-flash";
+				#address-cells = <1>;
+				#size-cells = <1>;
 				write-block-size = <4>;
 				erase-block-size = <4096>;
 			};
@@ -226,7 +229,7 @@
 
 		wdog0: wdog@40052000 {
 			compatible = "silabs,gecko-wdog";
-			reg = <0x40052000 0x2C>;
+			reg = <0x40052000 0x2c>;
 			peripheral-id = <0>;
 			interrupts = <1 0>;
 			status = "disabled";
@@ -234,7 +237,7 @@
 
 		wdog1: wdog@40052400 {
 			compatible = "silabs,gecko-wdog";
-			reg = <0x40052400 0x2C>;
+			reg = <0x40052400 0x2c>;
 			peripheral-id = <1>;
 			interrupts = <55 0>;
 			status = "disabled";

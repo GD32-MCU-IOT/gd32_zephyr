@@ -18,6 +18,7 @@
 #include "system/fmac_api.h"
 #include "system/fmac_tx.h"
 #include "common/fmac_util.h"
+#include "common/fmac_structs_common.h"
 #include "fmac_main.h"
 #include "wifi_mgmt.h"
 
@@ -27,6 +28,7 @@ extern struct nrf_wifi_drv_priv_zep rpu_drv_priv_zep;
 
 #ifdef CONFIG_NRF70_STA_MODE
 int nrf_wifi_set_power_save(const struct device *dev,
+			    struct net_if *iface __unused,
 			    struct wifi_ps_params *params)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -141,7 +143,7 @@ int nrf_wifi_set_power_save(const struct device *dev,
 	}
 
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
-		LOG_ERR("%s: Confiuring PS param %d failed",
+		LOG_ERR("%s: Configuring PS param %d failed",
 			__func__, params->type);
 		params->fail_reason =
 			WIFI_PS_PARAM_FAIL_CMD_EXEC_FAIL;
@@ -156,6 +158,7 @@ out:
 }
 
 int nrf_wifi_get_power_save_config(const struct device *dev,
+				   struct net_if *iface __unused,
 				   struct wifi_ps_config *ps_config)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -488,6 +491,7 @@ out:
 }
 
 int nrf_wifi_set_twt(const struct device *dev,
+		     struct net_if *iface __unused,
 		     struct wifi_twt_params *twt_params)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -564,9 +568,7 @@ int nrf_wifi_set_twt(const struct device *dev,
 
 		twt_info.dialog_token = twt_params->dialog_token;
 		twt_info.twt_wake_ahead_duration = twt_params->setup.twt_wake_ahead_duration;
-#ifndef CONFIG_NRF71_ON_IPC
 		twt_info.twt_req_timeout = CONFIG_NRF_WIFI_TWT_SETUP_TIMEOUT_MS;
-#endif /* CONFIG_NRF71_ON_IPC */
 		status = nrf_wifi_sys_fmac_twt_setup(rpu_ctx_zep->rpu_ctx,
 					   vif_ctx_zep->vif_idx,
 					   &twt_info);
@@ -750,6 +752,7 @@ out:
 
 #ifdef CONFIG_NRF70_SYSTEM_WITH_RAW_MODES
 int nrf_wifi_mode(const struct device *dev,
+		  struct net_if *iface __unused,
 		  struct wifi_mode_info *mode)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -757,6 +760,8 @@ int nrf_wifi_mode(const struct device *dev,
 	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
 	struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx = NULL;
 	struct nrf_wifi_sys_fmac_dev_ctx *sys_dev_ctx = NULL;
+	struct peers_info *peer = NULL;
+	int i = 0;
 	int ret = -1;
 
 	if (!dev || !mode) {
@@ -798,10 +803,16 @@ int nrf_wifi_mode(const struct device *dev,
 			goto out;
 		}
 
-		if (vif_ctx_zep->authorized && (mode->mode == NRF_WIFI_MONITOR_MODE)) {
-			LOG_ERR("%s: Cannot set monitor mode when station is connected",
-				__func__);
-			goto out;
+		for (i = 0; i < MAX_PEERS; i++) {
+			peer = &sys_dev_ctx->tx_config.peers[i];
+			if (peer->peer_id == -1) {
+				continue;
+			}
+			if (peer->authorized && (mode->mode == NRF_WIFI_MONITOR_MODE)) {
+				LOG_ERR("%s: Cannot set monitor mode when station is connected",
+					__func__);
+					goto out;
+			}
 		}
 
 		/**
@@ -844,6 +855,7 @@ out:
 
 #if defined(CONFIG_NRF70_RAW_DATA_TX) || defined(CONFIG_NRF70_RAW_DATA_RX)
 int nrf_wifi_channel(const struct device *dev,
+		     struct net_if *iface __unused,
 		     struct wifi_channel_info *channel)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -851,6 +863,8 @@ int nrf_wifi_channel(const struct device *dev,
 	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
 	struct nrf_wifi_sys_fmac_dev_ctx *sys_dev_ctx = NULL;
 	struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx = NULL;
+	struct peers_info *peer = NULL;
+	int i = 0;
 	int ret = -1;
 
 	if (!dev || !channel) {
@@ -861,11 +875,6 @@ int nrf_wifi_channel(const struct device *dev,
 	vif_ctx_zep = dev->data;
 	if (!vif_ctx_zep) {
 		LOG_ERR("%s: vif_ctx_zep is NULL", __func__);
-		return ret;
-	}
-
-	if (vif_ctx_zep->authorized) {
-		LOG_ERR("%s: Cannot change channel when in station connected mode", __func__);
 		return ret;
 	}
 
@@ -883,6 +892,18 @@ int nrf_wifi_channel(const struct device *dev,
 
 	fmac_dev_ctx = rpu_ctx_zep->rpu_ctx;
 	sys_dev_ctx = wifi_dev_priv(fmac_dev_ctx);
+
+	for (i = 0; i < MAX_PEERS; i++) {
+		peer = &sys_dev_ctx->tx_config.peers[i];
+		if (peer->peer_id == -1) {
+			continue;
+		}
+		if (peer->authorized) {
+			LOG_ERR("%s: Cannot change channel when in station connected mode",
+				__func__);
+			return ret;
+		}
+	}
 
 	if (channel->oper == WIFI_MGMT_SET) {
 		/**
@@ -911,6 +932,7 @@ out:
 
 #if defined(CONFIG_NRF70_RAW_DATA_RX) || defined(CONFIG_NRF70_PROMISC_DATA_RX)
 int nrf_wifi_filter(const struct device *dev,
+		    struct net_if *iface __unused,
 		    struct wifi_filter_info *filter)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -991,6 +1013,7 @@ out:
 #endif /* CONFIG_NRF70_RAW_DATA_RX || CONFIG_NRF70_PROMISC_DATA_RX */
 
 int nrf_wifi_set_rts_threshold(const struct device *dev,
+			       struct net_if *iface __unused,
 			       unsigned int rts_threshold)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -1058,6 +1081,7 @@ out:
 }
 
 int nrf_wifi_get_rts_threshold(const struct device *dev,
+			       struct net_if *iface __unused,
 			       unsigned int *rts_threshold)
 {
 	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
@@ -1081,6 +1105,7 @@ int nrf_wifi_get_rts_threshold(const struct device *dev,
 }
 
 int nrf_wifi_set_bss_max_idle_period(const struct device *dev,
+				     struct net_if *iface __unused,
 				     unsigned short bss_max_idle_period)
 {
 	struct nrf_wifi_ctx_zep *rpu_ctx_zep = NULL;
@@ -1112,13 +1137,11 @@ int nrf_wifi_set_bss_max_idle_period(const struct device *dev,
 		return ret;
 	}
 
-	if (((int)bss_max_idle_period < 0) ||
-	    (bss_max_idle_period > 64000)) {
+	if (bss_max_idle_period > 64000) {
 		/* 0 or value less than 64000 is passed to f/w.
 		 * All other values considered as invalid.
 		 */
-		LOG_ERR("%s: Invalid max_idle_period value : %d",
-			__func__, (int)bss_max_idle_period);
+		LOG_ERR("%s: Invalid max_idle_period value : %d", __func__, bss_max_idle_period);
 		return ret;
 	}
 

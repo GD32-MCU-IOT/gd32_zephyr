@@ -102,9 +102,10 @@ int mmc_card_init(struct sd_card *card)
 {
 	int ret = 0;
 	uint32_t ocr_arg = 0U;
-	/* Keep CSDs on stack for reduced RAM usage */
+	/* Keep CSDs/CID on stack for reduced RAM usage */
 	struct sd_csd card_csd = {0};
 	struct mmc_ext_csd card_ext_csd = {0};
+	uint32_t cid[4] = {0};
 
 	/* SPI is not supported for MMC */
 	if (card->host_props.is_spi) {
@@ -132,7 +133,7 @@ int mmc_card_init(struct sd_card *card)
 	}
 
 	/* CMD2 */
-	ret = card_read_cid(card);
+	ret = card_read_cid(card, cid);
 	if (ret) {
 		return ret;
 	}
@@ -338,6 +339,14 @@ static inline void mmc_decode_csd(struct sd_csd *csd, uint32_t *raw_csd)
 	csd->file_fmt = (uint8_t)((raw_csd[0U] & 0x00000C00U) >> 10U);
 }
 
+static inline void mmc_set_clock(struct sd_card *card,
+				 enum sdhc_clock_speed card_clock_max,
+				 enum sdhc_timing_mode timing)
+{
+	card->bus_io.clock = MIN(card->host_props.f_max, card_clock_max);
+	card->bus_io.timing = timing;
+}
+
 static inline int mmc_set_max_freq(struct sd_card *card, struct sd_csd *card_csd)
 {
 	int ret;
@@ -346,13 +355,11 @@ static inline int mmc_set_max_freq(struct sd_card *card, struct sd_csd *card_csd
 
 	/* 4.3 - 5.1 emmc spec says 26 MHz */
 	if (frequency_code == MMC_MAXFREQ_10MHZ && multiplier_code == MMC_MAXFREQ_MULT_26) {
-		card->bus_io.clock = 26000000U;
-		card->bus_io.timing = SDHC_TIMING_LEGACY;
+		mmc_set_clock(card, 26000000U, SDHC_TIMING_LEGACY);
 	}
 	/* 4.0 - 4.2 emmc spec says 20 MHz */
 	else if (frequency_code == MMC_MAXFREQ_10MHZ && multiplier_code == MMC_MAXFREQ_MULT_20) {
-		card->bus_io.clock = 20000000U;
-		card->bus_io.timing = SDHC_TIMING_LEGACY;
+		mmc_set_clock(card, 20000000U, SDHC_TIMING_LEGACY);
 	} else {
 		LOG_INF("Using Legacy MMC will have slow initialization");
 		return 0;
@@ -375,7 +382,7 @@ static int mmc_set_bus_width(struct sd_card *card)
 	if (card->host_props.host_caps.bus_8_bit_support && card->bus_width == 8) {
 		cmd.arg = MMC_SWITCH_8_BIT_BUS_ARG;
 		card->bus_io.bus_width = SDHC_BUS_WIDTH8BIT;
-	} else if (card->host_props.host_caps.bus_4_bit_support && card->bus_width >= 4) {
+	} else if (card->host_props.bus_4_bit_support && card->bus_width >= 4) {
 		cmd.arg = MMC_SWITCH_4_BIT_BUS_ARG;
 		card->bus_io.bus_width = SDHC_BUS_WIDTH4BIT;
 	} else {
@@ -422,8 +429,7 @@ static int mmc_set_hs_timing(struct sd_card *card)
 	sdmmc_wait_ready(card);
 
 	/* Max frequency in HS mode is 52 MHz */
-	card->bus_io.clock = MMC_CLOCK_52MHZ;
-	card->bus_io.timing = SDHC_TIMING_HS;
+	mmc_set_clock(card, MMC_CLOCK_52MHZ, SDHC_TIMING_HS);
 	/* Change SDHC bus timing */
 	ret = sdhc_set_io(card->sdhc, &card->bus_io);
 	if (ret) {
@@ -454,7 +460,7 @@ static int mmc_set_timing(struct sd_card *card, struct mmc_ext_csd *ext)
 
 	/* Timing depends on EXT_CSD register information */
 	if ((ext->device_type.MMC_HS200_SDR_1200MV || ext->device_type.MMC_HS200_SDR_1800MV) &&
-	    (card->host_props.host_caps.hs200_support) &&
+	    (card->host_props.hs200_support) &&
 	    (card->bus_io.signal_voltage == SD_VOL_1_8_V) &&
 	    (card->bus_io.bus_width >= SDHC_BUS_WIDTH4BIT)) {
 		ret = mmc_set_hs_timing(card);
@@ -462,8 +468,7 @@ static int mmc_set_timing(struct sd_card *card, struct mmc_ext_csd *ext)
 			return ret;
 		}
 		cmd.arg = MMC_SWITCH_HS200_TIMING_ARG;
-		card->bus_io.clock = MMC_CLOCK_HS200;
-		card->bus_io.timing = SDHC_TIMING_HS200;
+		mmc_set_clock(card, MMC_CLOCK_HS200, SDHC_TIMING_HS200);
 	} else if (ext->device_type.MMC_HS_52_DV) {
 		return mmc_set_hs_timing(card);
 	} else if (ext->device_type.MMC_HS_26_DV) {
@@ -513,7 +518,7 @@ static int mmc_set_timing(struct sd_card *card, struct mmc_ext_csd *ext)
 
 	/* Switch to HS400 if applicable */
 	if ((ext->device_type.MMC_HS400_DDR_1200MV || ext->device_type.MMC_HS400_DDR_1800MV) &&
-	    (card->host_props.host_caps.hs400_support) &&
+	    (card->host_props.hs400_support) &&
 	    (card->bus_io.bus_width == SDHC_BUS_WIDTH8BIT)) {
 		/* Switch back to regular HS timing */
 		ret = mmc_set_hs_timing(card);
@@ -547,8 +552,7 @@ static int mmc_set_timing(struct sd_card *card, struct mmc_ext_csd *ext)
 			return ret;
 		}
 		/* Set SDHC bus io parameters */
-		card->bus_io.clock = MMC_CLOCK_HS400;
-		card->bus_io.timing = SDHC_TIMING_HS400;
+		mmc_set_clock(card, MMC_CLOCK_HS400, SDHC_TIMING_HS400);
 		ret = sdhc_set_io(card->sdhc, &card->bus_io);
 		if (ret) {
 			return ret;

@@ -5,6 +5,7 @@
 /*
  * Copyright (c) 2015 Intel Corporation
  * Copyright (c) 2021 Nordic Semiconductor ASA
+ * Copyright (c) 2025 Xiaomi Corporation
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -107,7 +108,7 @@ struct bt_conn_le {
 	bt_addr_le_t init_addr;
 	bt_addr_le_t resp_addr;
 
-	uint16_t interval;
+	uint32_t interval_us;
 	uint16_t interval_min;
 	uint16_t interval_max;
 
@@ -373,6 +374,38 @@ static inline void *closure_data(void *storage)
 	return ((struct closure *)storage)->data;
 }
 
+#if defined(CONFIG_BT_CLASSIC)
+static inline bool bt_conn_is_br(const struct bt_conn *conn)
+{
+	return conn->type == BT_CONN_TYPE_BR;
+}
+#else
+#define bt_conn_is_br(conn) (false)
+#endif
+
+static inline bool bt_conn_is_le(const struct bt_conn *conn)
+{
+	return conn->type == BT_CONN_TYPE_LE;
+}
+
+#if defined(CONFIG_BT_ISO)
+static inline bool bt_conn_is_iso(const struct bt_conn *conn)
+{
+	return conn->type == BT_CONN_TYPE_ISO;
+}
+#else
+#define bt_conn_is_iso(conn) (false)
+#endif
+
+#if defined(CONFIG_BT_CLASSIC)
+static inline bool bt_conn_is_sco(const struct bt_conn *conn)
+{
+	return conn->type == BT_CONN_TYPE_SCO;
+}
+#else
+#define bt_conn_is_sco(conn) (false)
+#endif
+
 void bt_conn_tx_notify(struct bt_conn *conn, bool wait_for_completion);
 
 void bt_conn_reset_rx_state(struct bt_conn *conn);
@@ -452,8 +485,7 @@ static inline bool bt_conn_is_handle_valid(struct bt_conn *conn)
 		return true;
 	case BT_CONN_INITIATING:
 		/* ISO connection handle assigned at connect state */
-		if (IS_ENABLED(CONFIG_BT_ISO) &&
-		    conn->type == BT_CONN_TYPE_ISO) {
+		if (bt_conn_is_iso(conn)) {
 			return true;
 		}
 	__fallthrough;
@@ -484,7 +516,7 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state);
 
 void bt_conn_connected(struct bt_conn *conn);
 
-void bt_conn_role_changed(struct bt_conn *conn, uint8_t status);
+void bt_conn_br_role_changed(struct bt_conn *conn, uint8_t status);
 
 int bt_conn_le_conn_update(struct bt_conn *conn,
 			   const struct bt_le_conn_param *param);
@@ -505,6 +537,9 @@ void bt_conn_notify_path_loss_threshold_report(struct bt_conn *conn,
 					       struct bt_conn_le_path_loss_threshold_report report);
 
 void bt_conn_notify_subrate_change(struct bt_conn *conn, struct bt_conn_le_subrate_changed params);
+
+void bt_conn_notify_conn_rate_change(struct bt_conn *conn, uint8_t status,
+				     const struct bt_conn_le_conn_rate_changed *params);
 
 void bt_conn_notify_read_all_remote_feat_complete(struct bt_conn *conn,
 					struct bt_conn_le_read_all_remote_feat_complete *params);

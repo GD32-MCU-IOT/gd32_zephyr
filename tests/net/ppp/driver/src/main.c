@@ -26,6 +26,7 @@ LOG_MODULE_REGISTER(net_test, NET_LOG_LEVEL);
 #include <zephyr/net_buf.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/net_log.h>
 
 #define NET_LOG_ENABLED 1
 #include "net_private.h"
@@ -320,7 +321,7 @@ static void ppp_verify_fcs(uint8_t *buf, int len)
 	uint8_t *ptr;
 	bool ret;
 
-	pkt = net_pkt_alloc_with_buffer(net_iface, len, AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(net_iface, len, NET_AF_UNSPEC, 0, K_NO_WAIT);
 	zassert_not_null(pkt, "Cannot create pkt");
 
 	ptr = buf;
@@ -391,7 +392,7 @@ static void ppp_calc_fcs(uint8_t *buf, int len)
 	uint8_t *ptr;
 	bool ret;
 
-	pkt = net_pkt_alloc_with_buffer(net_iface, len, AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(net_iface, len, NET_AF_UNSPEC, 0, K_NO_WAIT);
 	zassert_not_null(pkt, "Cannot create pkt");
 
 	ptr = buf;

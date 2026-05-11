@@ -20,8 +20,6 @@
 
 #include "pse84_boot.h"
 
-#define CY_IPC_MAX_ENDPOINTS (8UL)
-
 static void systeminit_enable_clocks(void)
 {
 	/* Void all return types to suppress compiler warnings about unused return values */
@@ -95,6 +93,9 @@ void soc_early_init_hook(void)
 
 void soc_late_init_hook(void)
 {
+	/* SAU Init */
+	cy_sau_init();
+
 #if defined(CONFIG_SOC_PSE84_M55_ENABLE)
 	ifx_pse84_cm55_startup();
 #endif

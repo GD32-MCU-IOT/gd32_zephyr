@@ -550,7 +550,7 @@ STM32CubeCLT Flash & Debug Host Tools
 *************************************
 
 STMicroelectronics provides `STM32CubeCLT`_ as an official all-in-one toolset compatible with
-Linux |reg|, macOS |reg| and Windows |reg|, allowing the use of STMicroelectronics proprietary
+Linux®, macOS® and Windows®, allowing the use of STMicroelectronics proprietary
 tools within third-party development environments.
 
 It notably provides a GDB debugging server (the *ST-LINK GDB Server*) that can be used to debug
@@ -594,7 +594,7 @@ STM32CubeProgrammer Flash Host Tools
 ************************************
 
 STMicroelectronics provides `STM32CubeProgrammer`_ (STM32CubeProg) as an official programming tool
-for STM32 boards on Linux |reg|, macOS |reg|, and Windows |reg| operating systems.
+for STM32 boards on Linux®, macOS®, and Windows® operating systems.
 
 It provides an easy-to-use and efficient environment for reading, writing, and verifying device memory
 through both the debug interface (JTAG and SWD) and the bootloader interface (UART and USB DFU, I2C, SPI, and CAN).
@@ -658,6 +658,28 @@ using the ``--device`` option:
 
 For more about the UF2 format and its tooling, see `USB Flashing Format (UF2)`_.
 
+.. _runner_mpcli:
+
+Realtek Bee Flash Programmer (MPCli) Host Tools
+***********************************************
+
+Realtek provides `Realtek Flash Programmer (MPCli)`_ as an official programming tool for the Bee
+series, supporting Linux, macOS, and Windows operating systems. MPCli enables In‑System Programming
+(ISP) via a UART interface, eliminating the need for external programming hardware. On most
+official Bee‑series evaluation boards, a built‑in UART‑to‑USB converter is included for
+ready‑to‑use programming and logging.
+
+After downloading the archive of MPCli, extract it and choose the version compatible with your
+operating system. Then, add the directory containing the ``mpcli`` executable to your system
+:ref:`PATH environment variable <env_vars>`.
+
+Before starting, ensure your board is in download mode. Please refer to the board documentation
+at: `Realtek Supported Boards`_
+
+.. code-block:: console
+
+   west flash [--runner mpcli] --port /dev/ttyX
+
 .. _J-Link Software and Documentation Pack:
    https://www.segger.com/downloads/jlink/#J-LinkSoftwareAndDocumentationPack
 
@@ -695,7 +717,7 @@ For more about the UF2 format and its tooling, see `USB Flashing Format (UF2)`_.
 	https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/mcuxpresso-for-visual-studio-code:MCUXPRESSO-VSC
 
 .. _MCUXpresso Installer:
-	https://github.com/nxp-mcuxpresso/vscode-for-mcux/wiki/Dependency-Installation
+	https://mcuxpresso.nxp.com/mcux-vscode/latest/html/MCUXpresso-Installer.html
 
 .. _NXP S32 Design Studio for S32 Platform:
    https://www.nxp.com/design/software/development-software/s32-design-studio-ide/s32-design-studio-for-s32-platform:S32DS-S32PLATFORM
@@ -735,3 +757,9 @@ For more about the UF2 format and its tooling, see `USB Flashing Format (UF2)`_.
 
 .. _USB Flashing Format (UF2):
    https://github.com/microsoft/uf2
+
+.. _Realtek Flash Programmer (MPCli):
+   https://docs.realmcu.com/tools/mpcli_tool/en/latest/mpcli/text_en/README.html
+
+.. _Realtek Supported Boards:
+   https://docs.zephyrproject.org/latest/boards/realtek/index.html

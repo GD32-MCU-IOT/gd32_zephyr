@@ -9,8 +9,30 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/cpu_freq/policy.h>
 #include <zephyr/cpu_freq/cpu_freq.h>
+#include <zephyr/sys/util.h>
+
+#if IS_ENABLED(CONFIG_CPU_FREQ_THERMAL_CAP)
+#include "cpu_freq_thermal_cap.h"
+#endif
 
 LOG_MODULE_REGISTER(cpu_freq, CONFIG_CPU_FREQ_LOG_LEVEL);
+
+#ifndef CONFIG_SMP
+/* Track the last pstate that was applied to avoid unnecessary pstate transitions */
+static const struct pstate *pstate_last;
+#endif /* CONFIG_SMP */
+
+/* Build-time validation: require performance_states node with at least one child */
+#define PSTATE_ROOT                         DT_PATH(performance_states)
+#define CPU_FREQ_COUNT_OKAY_CHILD(_node_id) + 1
+enum {
+	CPU_FREQ_PSTATE_COUNT =
+		0 DT_FOREACH_CHILD_STATUS_OKAY(PSTATE_ROOT, CPU_FREQ_COUNT_OKAY_CHILD)
+};
+
+BUILD_ASSERT(DT_NODE_EXISTS(PSTATE_ROOT),
+	     "cpu_freq: performance_states node missing in devicetree");
+BUILD_ASSERT(CPU_FREQ_PSTATE_COUNT > 0, "cpu_freq: No P-states defined in devicetree");
 
 #if defined(CONFIG_SMP) && (CONFIG_MP_MAX_NUM_CPUS > 1)
 
@@ -27,8 +49,7 @@ static void cpu_freq_next_pstate(void)
 
 	/* Get next performance state */
 	const struct pstate *pstate_next;
-
-	cpu_freq_policy_reset();
+	const struct pstate *pstate_applied;
 
 	ret = cpu_freq_policy_select_pstate(&pstate_next);
 	if (ret) {
@@ -36,7 +57,26 @@ static void cpu_freq_next_pstate(void)
 		return;
 	}
 
-	cpu_freq_policy_pstate_set(pstate_next);
+#if IS_ENABLED(CONFIG_CPU_FREQ_THERMAL_CAP)
+	pstate_next = cpu_freq_thermal_cap_apply(pstate_next);
+#endif
+
+#ifndef CONFIG_SMP
+	if (pstate_next == pstate_last) {
+		LOG_DBG("pstate_next: %p == pstate_last: %p - pstate does not need to be updated",
+			pstate_next, pstate_last);
+		return;
+	}
+#endif /* CONFIG_SMP */
+
+	pstate_applied = cpu_freq_policy_pstate_set(pstate_next);
+
+#ifndef CONFIG_SMP
+	if (pstate_applied != NULL) {
+		pstate_last = pstate_applied;
+	}
+#endif /* CONFIG_SMP */
+
 }
 
 #if defined(CONFIG_SMP) && (CONFIG_MP_MAX_NUM_CPUS > 1)
@@ -70,11 +110,9 @@ static void cpu_freq_timer_handler(struct k_timer *timer)
 	 */
 
 	target_cpus = (num_cpus == 32U) ? 0xFFFFFFFF : (1U << num_cpus) - 1U;
-	target_cpus ^= (1U << _current_cpu->id),
+	target_cpus ^= (1U << _current_cpu->id);
 
-	ret = k_ipi_work_add(&cpu_freq_work,
-			     target_cpus ^ (1U << _current_cpu->id),
-			     cpu_freq_ipi_handler);
+	ret = k_ipi_work_add(&cpu_freq_work, target_cpus, cpu_freq_ipi_handler);
 
 	if (ret != 0) {
 		/*

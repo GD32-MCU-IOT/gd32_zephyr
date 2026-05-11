@@ -7,19 +7,13 @@ config SOC_SERIES_RP2350
 	select HAS_RPI_PICO
 	select HAS_SEGGER_RTT if ZEPHYR_SEGGER_MODULE
 	select SOC_RESET_HOOK
+	imply XIP
 
 config SOC_RP2350A_HAZARD3
+	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	select HAS_FLASH_LOAD_OFFSET
 	select INCLUDE_RESET_VECTOR
 	select RISCV
-	select RISCV_ISA_RV32I
-	select RISCV_ISA_EXT_M
-	select RISCV_ISA_EXT_A
-	select RISCV_ISA_EXT_C
-	select RISCV_ISA_EXT_ZBA
-	select RISCV_ISA_EXT_ZBS
-	select RISCV_ISA_EXT_ZICSR
-	select RISCV_ISA_EXT_ZIFENCEI
 
 config SOC_RP2350A_M33
 	select ARM
@@ -33,17 +27,10 @@ config SOC_RP2350A_M33
 	select ARMV8_M_DSP
 
 config SOC_RP2350B_HAZARD3
+	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	select HAS_FLASH_LOAD_OFFSET
 	select INCLUDE_RESET_VECTOR
 	select RISCV
-	select RISCV_ISA_RV32I
-	select RISCV_ISA_EXT_M
-	select RISCV_ISA_EXT_A
-	select RISCV_ISA_EXT_C
-	select RISCV_ISA_EXT_ZBA
-	select RISCV_ISA_EXT_ZBS
-	select RISCV_ISA_EXT_ZICSR
-	select RISCV_ISA_EXT_ZIFENCEI
 
 config SOC_RP2350B_M33
 	select ARM
@@ -63,3 +50,13 @@ config RP2_REQUIRES_IMAGE_DEFINITION_BLOCK
 	help
 	  Include an Image Definition Block (IMAGE_DEF) to enable the bootroom in
 	  RP23XX devices to consider this a valid image in flash.
+
+config RPI_PICO_SIGNING_KEY
+	string "Secure boot signing key"
+	help
+	  Provide a path to the private key to sign the image for secure boot.
+	  The key must be in PEM format and match the expectations of the
+	  picotool utility. Please see picotool documentation for details.
+	  Setting this config option enables west sign command
+	  to produce a signed ELF file. If this is not provided west sign
+	  cannot be used.

@@ -8,6 +8,7 @@
 
 #include <errno.h>
 #include <soc.h>
+#include <stm32_bitops.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
@@ -46,12 +47,29 @@ struct shared_multi_heap_region smh_psram = {
 #define RESET_CMD	0xFFU
 
 /* Memory default dummy clocks cycles */
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
+#define DUMMY_CLK_CYCLES_READ	8U
+#define DUMMY_CLK_CYCLES_WRITE	4U
+#else /* CONFIG_SOC_SERIES_STM32H5X */
 #define DUMMY_CLK_CYCLES_READ	6U
 #define DUMMY_CLK_CYCLES_WRITE	6U
+#endif /* CONFIG_SOC_SERIES_STM32H5X */
 
 #define STM32_XSPI_CLOCK_PRESCALER_MIN  0U
 #define STM32_XSPI_CLOCK_PRESCALER_MAX  255U
 #define STM32_XSPI_CLOCK_COMPUTE(bus_freq, prescaler) ((bus_freq) / ((prescaler) + 1U))
+
+#if defined(XSPI1)
+#define STM32_XSPI1 XSPI1
+#elif defined(OCTOSPI1)
+#define STM32_XSPI1 OCTOSPI1
+#endif /* XSPI1 */
+
+#if defined(XSPI2)
+#define STM32_XSPI2 XSPI2
+#elif defined(OCTOSPI2)
+#define STM32_XSPI2 OCTOSPI2
+#endif /* XSPI2 */
 
 struct memc_stm32_xspi_psram_config {
 	const struct pinctrl_dev_config *pcfg;
@@ -80,7 +98,6 @@ static int ap_memory_write_reg(XSPI_HandleTypeDef *hxspi, uint32_t address, uint
 	 */
 	cmd.Instruction = WRITE_REG_CMD;
 	cmd.InstructionMode = HAL_XSPI_INSTRUCTION_8_LINES;
-	cmd.InstructionDTRMode = HAL_XSPI_INSTRUCTION_DTR_DISABLE;
 	cmd.Address = address;
 	cmd.AddressMode = HAL_XSPI_ADDRESS_8_LINES;
 	cmd.AddressWidth = HAL_XSPI_ADDRESS_32_BITS;
@@ -214,9 +231,8 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 {
 	const struct memc_stm32_xspi_psram_config *dev_cfg = dev->config;
 	struct memc_stm32_xspi_psram_data *dev_data = dev->data;
-	XSPI_HandleTypeDef hxspi = dev_data->hxspi;
+	XSPI_HandleTypeDef *hxspi = &dev_data->hxspi;
 	uint32_t ahb_clock_freq;
-	XSPIM_CfgTypeDef cfg = {0};
 	XSPI_RegularCmdTypeDef cmd = {0};
 	XSPI_MemoryMappedTypeDef mem_mapped_cfg = {0};
 	uint32_t prescaler = STM32_XSPI_CLOCK_PRESCALER_MIN;
@@ -227,11 +243,6 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	if (ret < 0) {
 		LOG_ERR("XSPI pinctrl setup failed (%d)", ret);
 		return ret;
-	}
-
-	if (!device_is_ready(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE))) {
-		LOG_ERR("clock control device not ready");
-		return -ENODEV;
 	}
 
 	/* Clock configuration */
@@ -286,24 +297,59 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 		return -EINVAL;
 	}
 
-	hxspi.Init.ClockPrescaler = prescaler;
-	hxspi.Init.MemorySize = find_msb_set(dev_cfg->memory_size) - 2;
+	hxspi->Init.ClockPrescaler = prescaler;
+	hxspi->Init.MemorySize = find_msb_set(dev_cfg->memory_size) - 2;
 
-	if (HAL_XSPI_Init(&hxspi) != HAL_OK) {
+	if (HAL_XSPI_Init(hxspi) != HAL_OK) {
 		LOG_ERR("XSPI Init failed");
 		return -EIO;
 	}
 
-	cfg.nCSOverride = HAL_XSPI_CSSEL_OVR_NCS1;
-	cfg.IOPort = HAL_XSPIM_IOPORT_1;
+#if !defined(CONFIG_STM32_XSPIM)
+	if (!IS_ENABLED(CONFIG_STM32_APP_IN_EXT_FLASH)) {
+		/*
+		 * Do not configure the XSPIManager if running on the ext flash
+		 * since this includes stopping each XSPI instance during configuration
+		 */
+		XSPIM_CfgTypeDef cfg = {0};
 
-	if (HAL_XSPIM_Config(&hxspi, &cfg, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		LOG_ERR("XSPIMgr Init failed");
+		if (hxspi->Instance == STM32_XSPI1) {
+			cfg.IOPort = HAL_XSPIM_IOPORT_1;
+		} else if (hxspi->Instance == STM32_XSPI2) {
+			cfg.IOPort = HAL_XSPIM_IOPORT_2;
+		} else {
+			LOG_ERR("XSPIMgr Instance failed");
+			return -EIO;
+		}
+		if (HAL_XSPIM_Config(hxspi, &cfg, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+			LOG_ERR("XSPIMgr Init failed");
+			return -EIO;
+		}
+	}
+#endif /* !CONFIG_STM32_XSPIM */
+
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
+	/* DELAYBlock Enable for the stm32H5 boards */
+	LL_DLYB_CfgTypeDef dlyb_cfg;
+
+	if (hxspi->Instance == STM32_XSPI1) {
+		LL_DLYB_Enable(DLYB_OCTOSPI1);
+		LL_DLYB_GetDelay(DLYB_OCTOSPI1, &dlyb_cfg);
+		dlyb_cfg.PhaseSel /= 4; /* empiric value given by the stm32Cube */
+		LL_DLYB_SetDelay(DLYB_OCTOSPI1, &dlyb_cfg);
+	} else if (hxspi->Instance == STM32_XSPI2) {
+		LL_DLYB_Enable(DLYB_OCTOSPI2);
+		LL_DLYB_GetDelay(DLYB_OCTOSPI2, &dlyb_cfg);
+		dlyb_cfg.PhaseSel /= 4; /* empiric value given by the stm32Cube */
+		LL_DLYB_SetDelay(DLYB_OCTOSPI2, &dlyb_cfg);
+	} else {
+		LOG_ERR("XSPI Delay block failed");
 		return -EIO;
 	}
 
+#endif /* CONFIG_SOC_SERIES_STM32H5X */
 	/* Configure AP memory registers */
-	ret = ap_memory_configure(&hxspi);
+	ret = ap_memory_configure(hxspi);
 	if (ret != 0) {
 		LOG_ERR("AP memory configuration failed");
 		return -EIO;
@@ -318,25 +364,35 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	 */
 	cmd.OperationType = HAL_XSPI_OPTYPE_WRITE_CFG;
 	cmd.InstructionMode = HAL_XSPI_INSTRUCTION_8_LINES;
-	cmd.Instruction = BURST_WRITE_CMD;
 	cmd.AddressMode = HAL_XSPI_ADDRESS_8_LINES;
 	cmd.AddressWidth = HAL_XSPI_ADDRESS_32_BITS;
 	cmd.AddressDTRMode = HAL_XSPI_ADDRESS_DTR_ENABLE;
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
+	cmd.Instruction = SYNC_WRITE_CMD;
+	/* The STM32H5X octsopi peripheral has 8 lines */
+	cmd.DataMode = HAL_XSPI_DATA_8_LINES;
+#else /* CONFIG_SOC_SERIES_STM32H5X */
+	cmd.Instruction = BURST_WRITE_CMD;
 	cmd.DataMode = DT_INST_PROP(0, io_x16_mode) ? HAL_XSPI_DATA_16_LINES
 						    : HAL_XSPI_DATA_8_LINES;
+#endif /* CONFIG_SOC_SERIES_STM32H5X */
 	cmd.DataDTRMode = HAL_XSPI_DATA_DTR_ENABLE;
 	cmd.DummyCycles = DUMMY_CLK_CYCLES_WRITE;
 	cmd.DQSMode = HAL_XSPI_DQS_ENABLE;
 
-	if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	if (HAL_XSPI_Command(hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
 		return -EIO;
 	}
 
 	cmd.OperationType = HAL_XSPI_OPTYPE_READ_CFG;
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
+	cmd.Instruction = SYNC_READ_CMD;
+#else /* CONFIG_SOC_SERIES_STM32H5X */
 	cmd.Instruction = BURST_READ_CMD;
+#endif /* CONFIG_SOC_SERIES_STM32H5X */
 	cmd.DummyCycles = DUMMY_CLK_CYCLES_READ;
 
-	if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	if (HAL_XSPI_Command(hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
 		return -EIO;
 	}
 
@@ -349,12 +405,13 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	mem_mapped_cfg.NoPrefetchAXI = HAL_XSPI_AXI_PREFETCH_DISABLE;
 #endif
 
-	if (HAL_XSPI_MemoryMapped(&hxspi, &mem_mapped_cfg) != HAL_OK) {
+	if (HAL_XSPI_MemoryMapped(hxspi, &mem_mapped_cfg) != HAL_OK) {
 		return -EIO;
 	}
 
 #if defined(XSPI_CR_NOPREF)
-	MODIFY_REG(hxspi.Instance->CR, XSPI_CR_NOPREF, HAL_XSPI_AUTOMATIC_PREFETCH_DISABLE);
+	stm32_reg_modify_bits(&hxspi->Instance->CR, XSPI_CR_NOPREF,
+			      HAL_XSPI_AUTOMATIC_PREFETCH_DISABLE);
 #endif
 
 #ifdef CONFIG_SHARED_MULTI_HEAP
@@ -372,15 +429,12 @@ PINCTRL_DT_DEFINE(STM32_XSPI_NODE);
 
 static const struct memc_stm32_xspi_psram_config memc_stm32_xspi_cfg = {
 	.pcfg = PINCTRL_DT_DEV_CONFIG_GET(STM32_XSPI_NODE),
-	.pclken = {.bus = DT_CLOCKS_CELL_BY_NAME(STM32_XSPI_NODE, xspix, bus),
-		   .enr = DT_CLOCKS_CELL_BY_NAME(STM32_XSPI_NODE, xspix, bits)},
+	.pclken = STM32_CLOCK_INFO_BY_NAME(STM32_XSPI_NODE, xspix),
 #if DT_CLOCKS_HAS_NAME(STM32_XSPI_NODE, xspi_ker)
-	.pclken_ker = {.bus = DT_CLOCKS_CELL_BY_NAME(STM32_XSPI_NODE, xspi_ker, bus),
-		       .enr = DT_CLOCKS_CELL_BY_NAME(STM32_XSPI_NODE, xspi_ker, bits)},
+	.pclken_ker = STM32_CLOCK_INFO_BY_NAME(STM32_XSPI_NODE, xspi_ker),
 #endif
 #if DT_CLOCKS_HAS_NAME(STM32_XSPI_NODE, xspi_mgr)
-	.pclken_mgr = {.bus = DT_CLOCKS_CELL_BY_NAME(STM32_XSPI_NODE, xspi_mgr, bus),
-		       .enr = DT_CLOCKS_CELL_BY_NAME(STM32_XSPI_NODE, xspi_mgr, bits)},
+	.pclken_mgr = STM32_CLOCK_INFO_BY_NAME(STM32_XSPI_NODE, xspi_mgr),
 #endif
 	.memory_size = DT_INST_PROP(0, size) / 8, /* In Bytes */
 	.max_frequency = DT_INST_PROP(0, max_frequency),
@@ -402,8 +456,11 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 			.SampleShifting = HAL_XSPI_SAMPLE_SHIFT_NONE,
 			.DelayHoldQuarterCycle = HAL_XSPI_DHQC_ENABLE,
 			.ChipSelectBoundary = DT_INST_PROP(0, st_csbound),
+#ifdef OCTOSPI_DCR1_DLYBYP
+			.DelayBlockBypass = HAL_XSPI_DELAY_BLOCK_ON,
+#endif /* OCTOSPI_DCR1_DLYBYP */
 			.MaxTran = 0U,
-			.Refresh = 0x81U,
+			.Refresh = DT_INST_PROP(0, st_refresh),
 			.MemorySelect = HAL_XSPI_CSSEL_NCS1,
 		},
 	},

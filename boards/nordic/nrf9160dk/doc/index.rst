@@ -1,3 +1,4 @@
+.. zephyr:board:: nrf9160dk
 .. _nrf9160dk_nrf9160:
 
 nRF9160 DK
@@ -9,22 +10,7 @@ Overview
 The nRF9160 DK (PCA10090) is a single-board development kit for evaluation and
 development on the nRF9160 SiP for LTE-M and NB-IoT. The nrf9160dk/nrf9160
 board configuration provides support for the Nordic Semiconductor nRF9160 ARM
-Cortex-M33F CPU with ARMv8-M Security Extension and the following devices:
-
-* :abbr:`ADC (Analog to Digital Converter)`
-* CLOCK
-* FLASH
-* :abbr:`GPIO (General Purpose Input Output)`
-* :abbr:`I2C (Inter-Integrated Circuit)`
-* :abbr:`MPU (Memory Protection Unit)`
-* :abbr:`NVIC (Nested Vectored Interrupt Controller)`
-* :abbr:`PWM (Pulse Width Modulation)`
-* :abbr:`RTC (nRF RTC System Clock)`
-* Segger RTT (RTT Console)
-* :abbr:`SPI (Serial Peripheral Interface)`
-* :abbr:`UARTE (Universal asynchronous receiver-transmitter with EasyDMA)`
-* :abbr:`WDT (Watchdog Timer)`
-* :abbr:`IDAU (Implementation Defined Attribution Unit)`
+Cortex-M33F CPU with ARMv8-M Security Extensions.
 
 .. figure:: img/nrf9160dk_nrf9160.jpg
      :align: center
@@ -47,40 +33,7 @@ is 32 MHz.
 Supported Features
 ==================
 
-The nrf9160dk/nrf9160 board configuration supports the following
-hardware features:
-
-+-----------+------------+----------------------+
-| Interface | Controller | Driver/Component     |
-+===========+============+======================+
-| ADC       | on-chip    | adc                  |
-+-----------+------------+----------------------+
-| CLOCK     | on-chip    | clock_control        |
-+-----------+------------+----------------------+
-| FLASH     | on-chip    | flash                |
-+-----------+------------+----------------------+
-| GPIO      | on-chip    | gpio                 |
-+-----------+------------+----------------------+
-| I2C(M)    | on-chip    | i2c                  |
-+-----------+------------+----------------------+
-| MPU       | on-chip    | arch/arm             |
-+-----------+------------+----------------------+
-| NVIC      | on-chip    | arch/arm             |
-+-----------+------------+----------------------+
-| PWM       | on-chip    | pwm                  |
-+-----------+------------+----------------------+
-| RTC       | on-chip    | system clock         |
-+-----------+------------+----------------------+
-| RTT       | Segger     | console              |
-+-----------+------------+----------------------+
-| SPI(M/S)  | on-chip    | spi                  |
-+-----------+------------+----------------------+
-| SPU       | on-chip    | system protection    |
-+-----------+------------+----------------------+
-| UARTE     | on-chip    | serial               |
-+-----------+------------+----------------------+
-| WDT       | on-chip    | watchdog             |
-+-----------+------------+----------------------+
+.. zephyr:board-supported-hw::
 
 .. _nrf9160dk_additional_hardware:
 
@@ -147,8 +100,8 @@ Programming and Debugging
 nrf9160dk/nrf9160 supports the Armv8m Security Extension, and by default boots
 in the Secure state.
 
-Building Secure/Non-Secure Zephyr applications with Arm |reg| TrustZone |reg|
-=============================================================================
+Building Secure/Non-Secure Zephyr applications with Arm® TrustZone®
+===================================================================
 
 Applications on the nRF9160 may contain a Secure and a Non-Secure firmware
 image. The Secure image can be built using either Zephyr or
@@ -296,35 +249,7 @@ is 32 MHz.
 Supported Features
 ==================
 
-The nrf9160dk/nrf52840 board configuration supports the following
-hardware features:
-
-+-----------+------------+----------------------+
-| Interface | Controller | Driver/Component     |
-+===========+============+======================+
-| CLOCK     | on-chip    | clock_control        |
-+-----------+------------+----------------------+
-| FLASH     | on-chip    | flash                |
-+-----------+------------+----------------------+
-| GPIO      | on-chip    | gpio                 |
-+-----------+------------+----------------------+
-| MPU       | on-chip    | arch/arm             |
-+-----------+------------+----------------------+
-| NVIC      | on-chip    | arch/arm             |
-+-----------+------------+----------------------+
-| PWM       | on-chip    | pwm                  |
-+-----------+------------+----------------------+
-| RADIO     | on-chip    | Bluetooth,           |
-|           |            | ieee802154           |
-+-----------+------------+----------------------+
-| RTC       | on-chip    | system clock         |
-+-----------+------------+----------------------+
-| RTT       | Segger     | console              |
-+-----------+------------+----------------------+
-| UART      | on-chip    | serial               |
-+-----------+------------+----------------------+
-| WDT       | on-chip    | watchdog             |
-+-----------+------------+----------------------+
+.. zephyr:board-supported-hw::
 
 Programming and Debugging
 *************************

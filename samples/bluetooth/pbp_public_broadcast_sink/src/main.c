@@ -5,10 +5,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/lc3.h>
@@ -33,9 +35,9 @@
 				 BT_AUDIO_CONTEXT_TYPE_GAME | \
 				 BT_AUDIO_CONTEXT_TYPE_INSTRUCTIONAL)
 
-#define SEM_TIMEOUT K_SECONDS(10)
-#define PA_SYNC_SKIP         5
-#define PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO 20 /* Set the timeout relative to interval */
+#define SEM_TIMEOUT                       K_SECONDS(10U)
+#define PA_SYNC_SKIP                      5U
+#define PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO 20U /* Set the timeout relative to interval */
 
 static bool pbs_found;
 
@@ -308,7 +310,7 @@ static int reset(void)
 	if (broadcast_sink != NULL) {
 		int err = bt_bap_broadcast_sink_delete(broadcast_sink);
 
-		if (err) {
+		if (err != 0) {
 			printk("Deleting broadcast sink failed (err %d)\n", err);
 
 			return err;
@@ -374,7 +376,7 @@ int bap_broadcast_sink_run(void)
 
 		/* Start scanning */
 		err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, NULL);
-		if (err) {
+		if (err != 0) {
 			printk("Scan start failed (err %d)\n", err);
 
 			return err;

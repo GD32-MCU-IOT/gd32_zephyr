@@ -24,13 +24,13 @@ struct wdt_litex_data {
 };
 
 struct wdt_litex_config {
-	uint32_t control_addr;
-	uint32_t cycles_addr;
-	uint32_t cycles_size;
-	uint32_t remaining_addr;
-	uint32_t ev_status_addr;
-	uint32_t ev_pending_addr;
-	uint32_t ev_enable_addr;
+	mem_addr_t control_addr;
+	mem_addr_t cycles_addr;
+	mem_addr_t cycles_size;
+	mem_addr_t remaining_addr;
+	mem_addr_t ev_status_addr;
+	mem_addr_t ev_pending_addr;
+	mem_addr_t ev_enable_addr;
 	void (*irq_cfg_func)(void);
 };
 
@@ -195,10 +195,6 @@ static int wdt_litex_init(const struct device *dev)
 	const struct wdt_litex_config *const config = dev->config;
 
 	config->irq_cfg_func();
-
-#ifndef CONFIG_WDT_DISABLE_AT_BOOT
-	wdt_litex_enable(dev);
-#endif
 
 	return 0;
 }

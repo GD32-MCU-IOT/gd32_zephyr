@@ -948,8 +948,14 @@ static const struct ec2i_t pmc2_settings[] = {
 #endif
 #endif
 
-static uint8_t h2ram_pool[MAX(H2RAM_ACPI_SHM_MAX, H2RAM_EC_HOST_CMD_MAX)]
-					__attribute__((section(".h2ram_pool")));
+#ifdef CONFIG_ESPI_IT8XXX2_H2RAM_SHARED
+#define H2RAM_STORAGE
+#else
+#define H2RAM_STORAGE static
+#endif
+
+H2RAM_STORAGE uint8_t h2ram_pool[MAX(H2RAM_ACPI_SHM_MAX, H2RAM_EC_HOST_CMD_MAX)]
+	__attribute__((section(".h2ram_pool")));
 
 #define H2RAM_WINDOW_SIZE(ram_size) ((find_msb_set((ram_size) / 16) - 1) & 0x7)
 
@@ -2497,7 +2503,7 @@ static void espi_it8xxx2_oob_ch_en_isr(const struct device *dev, bool enable)
  */
 static void espi_it8xxx2_flash_ch_en_isr(const struct device *dev, bool enable)
 {
-	if (enable) {
+	if (IS_ENABLED(CONFIG_ESPI_AUTOMATIC_BOOT_DONE_ACKNOWLEDGE) && enable) {
 		espi_it8xxx2_send_vwire(dev, ESPI_VWIRE_SIGNAL_TARGET_BOOT_STS, 1);
 		espi_it8xxx2_send_vwire(dev,
 					ESPI_VWIRE_SIGNAL_TARGET_BOOT_DONE, 1);

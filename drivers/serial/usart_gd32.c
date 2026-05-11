@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, ATL Electronics
+ * Copyright (c) 2025 Aleksandr Senin <al@meshium.net>
  * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1169,22 +1170,22 @@ static inline enum uart_config_data_bits usart_gd32_hal2cfg_databits(uint32_t wo
  * @brief Apply UART configuration to hardware
  */
 static int usart_gd32_apply_runtime_config(const struct device *dev,
-					   const struct uart_config *uart_cfg)
+					   const struct uart_config *cfg_new)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 	uint32_t parity, word_length, stop_bits;
 
-	parity = usart_gd32_cfg2hal_parity(uart_cfg->parity);
-	word_length = usart_gd32_cfg2hal_databits(uart_cfg->data_bits, uart_cfg->parity);
-	stop_bits = usart_gd32_cfg2hal_stopbits(uart_cfg->stop_bits);
+	parity = usart_gd32_cfg2hal_parity(cfg_new->parity);
+	word_length = usart_gd32_cfg2hal_databits(cfg_new->data_bits, cfg_new->parity);
+	stop_bits = usart_gd32_cfg2hal_stopbits(cfg_new->stop_bits);
 
-	usart_baudrate_set(cfg->reg, uart_cfg->baudrate);
+	usart_baudrate_set(cfg->reg, cfg_new->baudrate);
 	usart_parity_config(cfg->reg, parity);
 	usart_word_length_set(cfg->reg, word_length);
 	usart_stop_bit_set(cfg->reg, stop_bits);
 
 	/* Flow control */
-	switch (uart_cfg->flow_ctrl) {
+	switch (cfg_new->flow_ctrl) {
 	case UART_CFG_FLOW_CTRL_NONE:
 		usart_hardware_flow_rts_config(cfg->reg, USART_RTS_DISABLE);
 		usart_hardware_flow_cts_config(cfg->reg, USART_CTS_DISABLE);
@@ -1206,29 +1207,43 @@ static int usart_gd32_apply_runtime_config(const struct device *dev,
 }
 
 static int usart_gd32_configure(const struct device *dev,
-				const struct uart_config *uart_cfg)
+				const struct uart_config *cfg_new)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 	struct gd32_usart_data *const data = dev->data;
 	int ret;
 
+	if (cfg_new == NULL) {
+		return -EINVAL;
+	}
+
+	if (cfg_new->baudrate == 0U) {
+		return -EINVAL;
+	}
+
 	/* Validate parameters */
-	if ((uart_cfg->parity == UART_CFG_PARITY_MARK) ||
-	    (uart_cfg->parity == UART_CFG_PARITY_SPACE)) {
+	if ((cfg_new->parity == UART_CFG_PARITY_MARK) ||
+	    (cfg_new->parity == UART_CFG_PARITY_SPACE)) {
 		return -ENOTSUP;
 	}
+
+
+	unsigned int key = irq_lock();
 
 	/* Disable USART before reconfiguration */
 	usart_disable(cfg->reg);
 
 	/* Apply new parameters */
-	ret = usart_gd32_apply_runtime_config(dev, uart_cfg);
+	ret = usart_gd32_apply_runtime_config(dev, cfg_new);
 	if (ret != 0) {
 		/* Restore old config on failure */
 		(void)usart_gd32_apply_runtime_config(dev, &data->uart_cfg);
 		usart_receive_config(cfg->reg, USART_RECEIVE_ENABLE);
 		usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
 		usart_enable(cfg->reg);
+
+		irq_unlock(key);
+
 		return ret;
 	}
 
@@ -1237,19 +1252,29 @@ static int usart_gd32_configure(const struct device *dev,
 	usart_transmit_config(cfg->reg, USART_TRANSMIT_ENABLE);
 	usart_enable(cfg->reg);
 
+	irq_unlock(key);
+
 	/* Cache the new configuration */
-	data->uart_cfg = *uart_cfg;
-	data->baud_rate = uart_cfg->baudrate;
+	data->uart_cfg = *cfg_new;
+	data->baud_rate = cfg_new->baudrate;
 
 	return 0;
 }
 
 static int usart_gd32_config_get(const struct device *dev,
-				 struct uart_config *uart_cfg)
+				 struct uart_config *cfg_out)
 {
 	struct gd32_usart_data *const data = dev->data;
 
-	*uart_cfg = data->uart_cfg;
+	if (cfg_out == NULL) {
+		return -EINVAL;
+	}
+
+	cfg_out->baudrate = data->uart_cfg.baudrate;
+	cfg_out->parity = data->uart_cfg.parity;
+	cfg_out->stop_bits = data->uart_cfg.stop_bits;
+	cfg_out->data_bits = data->uart_cfg.data_bits;
+	cfg_out->flow_ctrl = data->uart_cfg.flow_ctrl;
 
 	return 0;
 }
@@ -1413,7 +1438,7 @@ static DEVICE_API(uart, usart_gd32_driver_api) = {
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure = usart_gd32_configure,
 	.config_get = usart_gd32_config_get,
-#endif
+#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.fifo_fill = usart_gd32_fifo_fill,
 	.fifo_read = usart_gd32_fifo_read,

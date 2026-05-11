@@ -23,10 +23,15 @@ LOG_MODULE_REGISTER(net_telnet_sample, LOG_LEVEL_DBG);
 
 static void setup_ipv6(void)
 {
-	struct in6_addr addr;
+	struct net_in6_addr addr;
 	struct net_if *iface = net_if_get_default();
 
-	if (net_addr_pton(AF_INET6, MCAST_IP6ADDR, &addr)) {
+	if (iface == NULL) {
+		LOG_ERR("Default interface not found");
+		return;
+	}
+
+	if (net_addr_pton(NET_AF_INET6, MCAST_IP6ADDR, &addr)) {
 		LOG_ERR("Invalid address: %s", MCAST_IP6ADDR);
 		return;
 	}

@@ -32,7 +32,7 @@ LOG_MODULE_REGISTER(VEML6046, CONFIG_SENSOR_LOG_LEVEL);
  * Maximum value of RGBIR data which also means that the sensor is in
  * saturation and that the measured value might be wrong.
  * In such a case the user program should reduce one or more of the following
- * attributes to get a relyable value:
+ * attributes to get a reliable value:
  *   gain
  *   integration time
  *   effective photodiode size divider
@@ -147,8 +147,9 @@ static int veml6046_read16(const struct device *dev, uint8_t cmd, uint16_t *data
 static int veml6046_write16(const struct device *dev, uint8_t cmd, uint8_t *data)
 {
 	const struct veml6046_config *conf = dev->config;
+	uint8_t buf[3] = {cmd, data[0], data[1]};
 
-	return i2c_burst_write_dt(&conf->bus, cmd, data, 2);
+	return i2c_write_dt(&conf->bus, buf, sizeof(buf));
 }
 
 static int veml6046_write_conf(const struct device *dev)
@@ -523,7 +524,7 @@ static int veml6046_init(const struct device *dev)
 	uint16_t val;
 
 	if (!i2c_is_ready_dt(&conf->bus)) {
-		LOG_ERR("VEML device not ready");
+		LOG_ERR_DEVICE_NOT_READY(conf->bus.bus);
 		return -ENODEV;
 	}
 

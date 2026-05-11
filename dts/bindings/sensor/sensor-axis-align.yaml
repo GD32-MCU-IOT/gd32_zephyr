@@ -27,33 +27,13 @@ description: |
     y -> -y
     z -> -z
 
-    Example of how to encode that into DTS:
-    #include <zephyr/dt-bindings/sensor/sensor_axis_align.h>
-
-    sensor-top-90: sensor-top-90@0 {
-      ...
-      axis-align-x = <SENSOR_AXIS_ALIGN_DT_Y>
-      axis-align-y = <SENSOR_AXIS_ALIGN_DT_X>
-      axis-align-y-sign = <SENSOR_AXIS_ALIGN_DT_NEG>
-      axis-align-z = <SENSOR_AXIS_ALIGN_DT_Z>
-    };
-
-    sensor-bottom: sensor-bottom@1 {
-      ...
-      axis-align-x = <SENSOR_AXIS_ALIGN_DT_X>
-      axis-align-y = <SENSOR_AXIS_ALIGN_DT_Y>
-      axis-align-y-sign = <SENSOR_AXIS_ALIGN_DT_NEG>
-      axis-align-z = <SENSOR_AXIS_ALIGN_DT_Z>
-      axis-align-z-sign = <SENSOR_AXIS_ALIGN_DT_NEG>
-    };
-
 include: base.yaml
 properties:
   axis-align-x:
     type: int
     default: 0
     description: |
-      Align sensor chanel x output with hardware orientation axis.
+      Align sensor channel x output with hardware orientation axis.
       Defaults to x.
     enum:
       - 0 # SENSOR_AXIS_ALIGN_DT_X
@@ -64,7 +44,7 @@ properties:
     type: int
     default: 2
     description: |
-      Align sensor chanel x output with hardware orientation axis sign component.
+      Align sensor channel x output with hardware orientation axis sign component.
       Defaults to positive.
     enum:
       - 0 # SENSOR_AXIS_ALIGN_DT_NEG
@@ -74,7 +54,7 @@ properties:
     type: int
     default: 1
     description: |
-      Align sensor chanel y output with hardware orientation axis.
+      Align sensor channel y output with hardware orientation axis.
       Defaults to y.
     enum:
       - 0 # SENSOR_AXIS_ALIGN_DT_X
@@ -85,7 +65,7 @@ properties:
     type: int
     default: 2
     description: |
-      Align sensor chanel y output with hardware orientation axis sign component.
+      Align sensor channel y output with hardware orientation axis sign component.
       Defaults to positive.
     enum:
       - 0 # SENSOR_AXIS_ALIGN_DT_NEG
@@ -95,7 +75,7 @@ properties:
     type: int
     default: 2
     description: |
-      Align sensor chanel z output with hardware orientation axis.
+      Align sensor channel z output with hardware orientation axis.
       Defaults to z.
     enum:
       - 0 # SENSOR_AXIS_ALIGN_DT_X
@@ -106,8 +86,29 @@ properties:
     type: int
     default: 2
     description: |
-      Align sensor chanel z output with hardware orientation axis sign component.
+      Align sensor channel z output with hardware orientation axis sign component.
       Defaults to positive.
     enum:
       - 0 # SENSOR_AXIS_ALIGN_DT_NEG
       - 2 # SENSOR_AXIS_ALIGN_DT_POS
+
+examples:
+  - |
+    #include <zephyr/dt-bindings/sensor/sensor_axis_align.h>
+
+    sensor-top-90: sensor-top-90@0 {
+      /* ... */
+      axis-align-x = <SENSOR_AXIS_ALIGN_DT_Y>
+      axis-align-y = <SENSOR_AXIS_ALIGN_DT_X>
+      axis-align-y-sign = <SENSOR_AXIS_ALIGN_DT_NEG>
+      axis-align-z = <SENSOR_AXIS_ALIGN_DT_Z>
+    };
+
+    sensor-bottom: sensor-bottom@1 {
+      /* ... */
+      axis-align-x = <SENSOR_AXIS_ALIGN_DT_X>
+      axis-align-y = <SENSOR_AXIS_ALIGN_DT_Y>
+      axis-align-y-sign = <SENSOR_AXIS_ALIGN_DT_NEG>
+      axis-align-z = <SENSOR_AXIS_ALIGN_DT_Z>
+      axis-align-z-sign = <SENSOR_AXIS_ALIGN_DT_NEG>
+    };

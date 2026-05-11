@@ -12,6 +12,11 @@
 #include <zephyr/arch/cpu.h>
 #include "asm_macros.inc"
 
+#ifdef CONFIG_CUSTOM_STACK_GUARD
+GTEXT(z_riscv_custom_stack_guard_enable)
+GTEXT(z_riscv_custom_stack_guard_disable)
+#endif /* CONFIG_CUSTOM_STACK_GUARD */
+
 /* Convenience macros for loading/storing register states. */
 
 #define DO_CALLEE_SAVED(op, reg) \
@@ -46,8 +51,33 @@ SECTION_FUNC(TEXT, z_riscv_switch)
 	/* Set thread->switch_handle = thread to mark completion */
 	sr a1, ___thread_t_switch_handle_OFFSET(a1)
 
+#ifdef CONFIG_CUSTOM_STACK_GUARD
+	/* Disable the custom stack guard */
+	mv s0, a0
+	call z_riscv_custom_stack_guard_disable
+	mv a0, s0
+#endif /* CONFIG_CUSTOM_STACK_GUARD */
+
 	/* Get the new thread's stack pointer */
 	lr sp, _thread_offset_to_sp(a0)
+
+#ifdef CONFIG_CUSTOM_STACK_GUARD
+#ifdef CONFIG_USERSPACE
+	/*
+	 * Check whether the new thread is a user thread.
+	 * If it is, skip enabling the custom stack guard.
+	 */
+	lh t0, _thread_offset_to_user_options(a0)
+	andi t0, t0, K_USER
+	bnez t0, 1f
+#endif /* CONFIG_USERSPACE */
+
+	/* Kernel thread: enable the custom stack guard */
+	mv s0, a0
+	call z_riscv_custom_stack_guard_enable
+	mv a0, s0
+1:
+#endif /* CONFIG_CUSTOM_STACK_GUARD */
 
 #if defined(CONFIG_THREAD_LOCAL_STORAGE)
 	/* Get the new thread's tls pointer */
@@ -61,18 +91,19 @@ SECTION_FUNC(TEXT, z_riscv_switch)
 	mv a0, s0
 #endif
 
-#if defined(CONFIG_PMP_STACK_GUARD)
-	/* Stack guard has priority over user space for PMP usage. */
+#ifdef CONFIG_PMP_KERNEL_MODE_DYNAMIC
+	/* Kernel mode has priority over user space for PMP usage. */
 	mv s0, a0
-	call z_riscv_pmp_stackguard_enable
+	call z_riscv_pmp_kernelmode_enable
 	mv a0, s0
 #elif defined(CONFIG_USERSPACE)
 	/*
-	 * When stackguard is not enabled, we need to configure the PMP only
-	 * at context switch time as the PMP is not in effect while inm-mode.
-	 * (it is done on every exception return otherwise).
+	 * When kernel mode dynamic configuration is not enabled, we need to
+	 * configure the PMP only at context switch time as the PMP is not
+	 * in effect while in m-mode. (it is done on every exception return
+	 * otherwise).
 	 */
-	lb t0, _thread_offset_to_user_options(a0)
+	lh t0, _thread_offset_to_user_options(a0)
 	andi t0, t0, K_USER
 	beqz t0, not_user_task
 	mv s0, a0

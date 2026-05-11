@@ -9,6 +9,7 @@
 #include <zephyr/dt-bindings/flash_controller/ospi.h>
 
 /delete-node/ &adc3;
+/delete-node/ &crc;
 
 / {
 	soc {
@@ -17,10 +18,48 @@
 		flash-controller@52002000 {
 			flash0: flash@8000000 {
 				compatible = "st,stm32-nv-flash", "soc-nv-flash";
+				#address-cells = <1>;
+				#size-cells = <1>;
 				write-block-size = <16>;
 				erase-block-size = <DT_SIZE_K(8)>;
 				/* maximum erase time for a 8K sector */
 				max-erase-time = <3>;
+			};
+
+			/*
+			 * Delete OTP region declared in root DTSI
+			 * which is not correct for this line.
+			 */
+			/delete-node/ flash@1ff1e000;
+
+			/* "FLASH read-only area" */
+			flash@8fff800 {
+				compatible = "st,stm32-nvm-otp";
+				reg = <0x08fff800 512>;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					vrefint_otp: vrefint@10 {
+						reg = <0x10 0x2>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+
+					ts_cal1_otp: ts-cal1@14 {
+						reg = <0x14 0x2>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+
+					ts_cal2_otp: ts-cal2@18 {
+						reg = <0x18 0x2>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+				};
 			};
 		};
 
@@ -108,6 +147,14 @@
 			clocks = <&rcc STM32_CLOCK(APB4, 26)>;
 			status = "disabled";
 		};
+
+		crc: crc@40023000 {
+			compatible = "st,stm32-crc";
+			reg = <0x40023000 0x400>;
+			clocks = <&rcc STM32_CLOCK(AHB1, 9)>;
+			resets = <&rctl STM32_RESET(AHB1, 9)>;
+			status = "disabled";
+		};
 	};
 
 	/* System data RAM accessible over AXI bus: AXI SRAM1 in CD domain */
@@ -125,10 +172,11 @@
 	};
 
 	/* System data RAM accessible over AXI bus: AXI SRAM3 in CD domain */
-	sram2: memory@240A0000 {
+	sram2: memory@240a0000 {
 		compatible = "zephyr,memory-region", "mmio-sram";
-		reg = <0x240A0000 DT_SIZE_K(384)>;
+		reg = <0x240a0000 DT_SIZE_K(384)>;
 		zephyr,memory-region = "SRAM2";
+		#memory-region-cells = <0>;
 	};
 
 	/* System data RAM accessible over AHB bus: SRAM1 in CD domain */
@@ -136,6 +184,7 @@
 		compatible = "zephyr,memory-region", "mmio-sram";
 		reg = <0x30000000 DT_SIZE_K(64)>;
 		zephyr,memory-region = "SRAM3";
+		#memory-region-cells = <0>;
 	};
 
 	/* System data RAM accessible over AHB bus: SRAM2 in CD domain  */
@@ -152,18 +201,6 @@
 		zephyr,memory-region = "SRAM5";
 	};
 
-	dtcm: memory@20000000 {
-		compatible = "zephyr,memory-region", "arm,dtcm";
-		reg = <0x20000000 DT_SIZE_K(128)>;
-		zephyr,memory-region = "DTCM";
-	};
-
-	itcm: memory@0 {
-		compatible = "zephyr,memory-region", "arm,itcm";
-		reg = <0x00000000 DT_SIZE_K(64)>;
-		zephyr,memory-region = "ITCM";
-	};
-
 	ext_memory2: memory@70000000 {
 		compatible = "zephyr,memory-region";
 		reg = <0x70000000 DT_SIZE_M(256)>; /* max addressable area */
@@ -177,18 +214,19 @@
 	};
 
 	die_temp: dietemp {
-		ts-cal1-addr = <0x08FFF814>;
-		ts-cal2-addr = <0x08FFF818>;
 		io-channels = <&adc2 18>;
 		ts-cal2-temp = <130>;
 	};
 
 	vref: vref {
-		vrefint-cal-addr = <0x08FFF810>;
 		io-channels = <&adc2 19>;
 	};
 
 	vbat: vbat {
 		io-channels = <&adc2 14>;
 	};
+};
+
+&mac {
+	memory-regions = <&sram3>;
 };

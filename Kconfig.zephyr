@@ -9,6 +9,10 @@ source "Kconfig.constants"
 
 osource "$(APPLICATION_SOURCE_DIR)/VERSION"
 
+# This should be sourced early since the autogen Kconfig.dts options
+# and macros may get used by shields/boards/SoC defconfig or modules.
+source "dts/Kconfig"
+
 # Include Kconfig.defconfig files first so that they can override defaults and
 # other symbol/choice properties by adding extra symbol/choice definitions.
 # After merging all definitions for a symbol/choice, Kconfig picks the first
@@ -32,10 +36,6 @@ source "$(KCONFIG_BINARY_DIR)/soc/Kconfig.defconfig"
 osource "$(TOOLCHAIN_KCONFIG_DIR)/Kconfig.defconfig"
 # This loads the testsuite defconfig
 source "subsys/testsuite/Kconfig.defconfig"
-
-# This should be early since the autogen Kconfig.dts symbols may get
-# used by modules
-source "dts/Kconfig"
 
 menu "Modules"
 
@@ -86,7 +86,13 @@ config HAS_FLASH_LOAD_OFFSET
 	  This option is selected by targets having a FLASH_LOAD_OFFSET
 	  and FLASH_LOAD_SIZE.
 
-if HAS_FLASH_LOAD_OFFSET
+# Workaround for not being able to have commas in macro arguments
+DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
+DT_CHOSEN_Z_FLASH := zephyr,flash
+DT_COMPAT_Z_MAPPED_PARTITION := zephyr,mapped-partition
+DT_HAS_MAPPED_PARTITION := $(dt_node_has_compat,$(dt_chosen_path,$(DT_CHOSEN_Z_CODE_PARTITION)),$(DT_COMPAT_Z_MAPPED_PARTITION))
+
+if HAS_FLASH_LOAD_OFFSET || $(DT_HAS_MAPPED_PARTITION)
 
 config USE_DT_CODE_PARTITION
 	bool "Link application into /chosen/zephyr,code-partition from devicetree"
@@ -96,8 +102,31 @@ config USE_DT_CODE_PARTITION
 	  When this is disabled, the flash load offset and size can be set manually
 	  below.
 
-# Workaround for not being able to have commas in macro arguments
-DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
+config FLASH_USES_MAPPED_PARTITION
+	bool
+	default $(DT_HAS_MAPPED_PARTITION)
+	depends on USE_DT_CODE_PARTITION
+	help
+	  Temporary Kconfig to indicate if underlying chosen chosen flash partition uses the
+	  zephyr,mapped-partition compatible, this is to allow ease of migration from
+	  fixed-partitions and should not be relied upon outside of the zephyr build system and
+	  will be removed in future.
+
+config FLASH_CODE_PARTITION_USING_FIXED_PARTITIONS
+	bool
+	default y if XIP && \
+		$(dt_chosen_has_compat,$(dt_node_parent,$(dt_chosen_path,$(DT_CHOSEN_Z_CODE_PARTITION))),fixed-partitions) || \
+		$(dt_chosen_has_compat,$(dt_node_parent,$(dt_chosen_path,$(DT_CHOSEN_Z_CODE_PARTITION))),fixed-subpartitions)
+	depends on USE_DT_CODE_PARTITION
+	help
+	  If this item is selected then it is because your device is using ``fixed-partitions`` or
+	  ``fixed-subpartitions`` for partition layout, this has been replaced with
+	  ``zephyr,mapped-partitions``.
+
+	  Support for this will be deprecated and requires that your files be updated correctly for
+	  a future release, check the Zephyr 4.4 migration notes.
+
+if !FLASH_USES_MAPPED_PARTITION
 
 config FLASH_LOAD_OFFSET
 	# Only user-configurable when USE_DT_CODE_PARTITION is disabled
@@ -125,7 +154,9 @@ config FLASH_LOAD_SIZE
 
 	  If unsure, leave at the default value 0.
 
-endif # HAS_FLASH_LOAD_OFFSET
+endif # !FLASH_USES_MAPPED_PARTITION
+
+endif # HAS_FLASH_LOAD_OFFSET || $(DT_HAS_MAPPED_PARTITION)
 
 config ROM_START_OFFSET
 	hex
@@ -357,18 +388,19 @@ menu "Compiler Options"
 
 config REQUIRES_STD_C99
 	bool
+	select DEPRECATED
 	help
 	  Hidden option to select compiler support C99 standard or higher.
 
 config REQUIRES_STD_C11
 	bool
+	select DEPRECATED
 	select REQUIRES_STD_C99
 	help
 	  Hidden option to select compiler support C11 standard or higher.
 
 config REQUIRES_STD_C17
 	bool
-	select REQUIRES_STD_C11
 	help
 	  Hidden option to select compiler support C17 standard or higher.
 
@@ -381,27 +413,28 @@ config REQUIRES_STD_C23
 choice STD_C
 	prompt "C Standard"
 	default STD_C23 if REQUIRES_STD_C23
-	default STD_C17 if REQUIRES_STD_C17
-	default STD_C11 if REQUIRES_STD_C11
-	default STD_C99
+	default STD_C17
 	help
 	  C Standards.
 
 config STD_C90
-	bool "C90"
+	bool "C90 [DEPRECATED]"
+	select DEPRECATED
 	depends on !REQUIRES_STD_C99
 	help
 	  1989 C standard as completed in 1989 and ratified by ISO/IEC
 	  as ISO/IEC 9899:1990. This version is known as "ANSI C".
 
 config STD_C99
-	bool "C99"
+	bool "C99 [DEPRECATED]"
+	select DEPRECATED
 	depends on !REQUIRES_STD_C11
 	help
 	  1999 C standard.
 
 config STD_C11
-	bool "C11"
+	bool "C11 [DEPRECATED]"
+	select DEPRECATED
 	depends on !REQUIRES_STD_C17
 	help
 	  2011 C standard.
@@ -480,7 +513,7 @@ choice COMPILER_OPTIMIZATIONS
 	prompt "Optimization level"
 	default NO_OPTIMIZATIONS    if COVERAGE
 	default DEBUG_OPTIMIZATIONS if DEBUG
-	default SIZE_OPTIMIZATIONS_AGGRESSIVE if "$(ZEPHYR_TOOLCHAIN_VARIANT)" = "llvm"
+	default SIZE_OPTIMIZATIONS_AGGRESSIVE if "$(TOOLCHAIN_VARIANT_COMPILER)" = "llvm"
 	default SIZE_OPTIMIZATIONS
 	help
 	  Note that these flags shall only control the compiler
@@ -528,6 +561,14 @@ config LTO
 	depends on !CODE_DATA_RELOCATION
 	help
 	  This option enables Link Time Optimization.
+
+config LTO_SINGLE_THREADED
+	bool "Single-threaded LTO"
+	depends on LTO
+	help
+	  This option instructs the linker to use a single thread to process
+	  LTO. See the following issue for more info:
+	  https://github.com/zephyrproject-rtos/sdk-ng/issues/1038
 
 config COMPILER_WARNINGS_AS_ERRORS
 	bool "Treat warnings as errors"
@@ -618,6 +659,51 @@ config TOOLCHAIN_SUPPORTS_VLA_IN_STATEMENTS
 	help
 	  Hidden symbol to state if the toolchain can handle vla in
 	  statements.
+
+config TOOLCHAIN_SUPPORTS_VARIABLE_CLEANUP_ATTRIBUTE
+	bool
+	default y
+	help
+	  Hidden option to signal that toolchain supports the variable
+	  __cleanup(function) attribute.
+
+config SCOPE_CLEANUP_HELPERS
+	bool "Scope-based Cleanup Helpers"
+	depends on TOOLCHAIN_SUPPORTS_VARIABLE_CLEANUP_ATTRIBUTE
+	help
+	  This option enables scope-based cleanup helpers, which are macros making
+	  use of the variable cleanup function attribute.
+
+menu "Code Generation"
+
+choice COMPILER_CODEGEN_VLIW
+	prompt "VLIW (Very Long Instruction Word)"
+	default COMPILER_CODEGEN_VLIW_AUTO
+	help
+	  This option instructs the compiler whether to use VLIW
+	  (Very Long Instruction Word) instructions. VLIW allows
+	  the compiler to fuse instructions for parallel execution.
+
+config COMPILER_CODEGEN_VLIW_AUTO
+	bool "Auto"
+	help
+	  Let the compiler decide whether to generate VLIW instructions.
+
+	  This usually means using the compiler defaults.
+
+config COMPILER_CODEGEN_VLIW_ENABLED
+	bool "Generate VLIW"
+	help
+	  Explicitly instructs the compiler to generate VLIW instructions if possible.
+
+config COMPILER_CODEGEN_VLIW_DISABLED
+	bool "DO NOT generate VLIW"
+	help
+	  Explicitly instructs the compiler to NEVER generate VLIW instructions.
+
+endchoice # COMPILER_CODEGEN_VLIW
+
+endmenu # Code Generation
 
 endmenu
 
@@ -782,6 +868,20 @@ config BUILD_OUTPUT_S19_GAP_FILL
 	help
 	  Fill gaps in s19 based files.
 
+config BUILD_OUTPUT_VERILOG
+	bool "Build a binary in Verilog memory hex dump format"
+	help
+	  Build a Verilog memory hex dump binary zephyr/zephyr.mem in the build
+	  directory. The name of this file can be customized with
+	  CONFIG_KERNEL_BIN_NAME.
+
+config BUILD_OUTPUT_VERILOG_DATA_WIDTH
+	int "Verilog output format data width"
+	depends on BUILD_OUTPUT_VERILOG
+	default 1
+	help
+	  Verilog memory hex dump output format data element width in bytes.
+
 config BUILD_OUTPUT_UF2
 	bool "Build a binary in UF2 format"
 	depends on BUILD_OUTPUT_BIN
@@ -802,6 +902,7 @@ config BUILD_OUTPUT_UF2_FAMILY_ID
 	default "0x1c5f21b0" if SOC_SERIES_ESP32
 	default "0x621e937a" if SOC_NRF52833_QIAA
 	default "0xada52840" if SOC_NRF52840_QIAA
+	default "0x11de784a" if SOC_SERIES_BL70X
 	default "0x4fb2d5bd" if SOC_SERIES_IMXRT10XX || SOC_SERIES_IMXRT11XX
 	default "0x2abc77ec" if SOC_SERIES_LPC55XXX
 	default "0xe48bff56" if SOC_SERIES_RP2040
@@ -1011,7 +1112,8 @@ config WARN_DEPRECATED
 	prompt "Warn on deprecated usage"
 	help
 	  Print a warning when the Kconfig tree is parsed if any deprecated
-	  features are enabled.
+	  features are enabled, or at compile time, when deprecated macros or
+	  symbols are used.
 
 config EXPERIMENTAL
 	bool
@@ -1061,8 +1163,6 @@ menu "Boot Options"
 
 config IS_BOOTLOADER
 	bool "Act as a bootloader"
-	depends on XIP
-	depends on ARM
 	help
 	  This option indicates that Zephyr will act as a bootloader to execute
 	  a separate Zephyr image payload.

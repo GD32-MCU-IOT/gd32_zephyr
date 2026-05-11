@@ -51,7 +51,7 @@ struct gpio_ite_cfg {
 	/* Wake up control mask */
 	uint8_t wuc_mask[8];
 	/* GPIO's irq */
-	uint8_t gpio_irq[8];
+	ite_irq_t gpio_irq[8];
 	/* Support input voltage selection */
 	uint8_t has_volt_sel[8];
 	/* Number of pins per group of GPIO */
@@ -378,7 +378,7 @@ static void gpio_ite_isr(const void *arg)
 	const struct device *dev = (const struct device *)arg;
 	const struct gpio_ite_cfg *gpio_config = (const struct gpio_ite_cfg *)dev->config;
 	struct gpio_ite_data *data = (struct gpio_ite_data *)dev->data;
-	uint8_t irq = ite_intc_get_irq_num();
+	ite_irq_t irq = ite_intc_get_irq_num();
 	uint8_t num_pins = gpio_config->num_pins;
 	uint8_t pin;
 
@@ -432,7 +432,7 @@ static int gpio_ite_pin_interrupt_configure(const struct device *dev,
 					    enum gpio_int_trig trig)
 {
 	const struct gpio_ite_cfg *gpio_config = dev->config;
-	uint8_t gpio_irq = gpio_config->gpio_irq[pin];
+	ite_irq_t gpio_irq = gpio_config->gpio_irq[pin];
 	struct gpio_ite_data *data = dev->data;
 
 #ifdef CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT
@@ -536,7 +536,7 @@ static int gpio_ite_init(const struct device *dev)
 		     "The maximum number of pins per port is 8.");                                 \
 	static struct gpio_ite_data gpio_ite_data_##inst;                                          \
 	static const struct gpio_ite_cfg gpio_ite_cfg_##inst = {                                   \
-		.common = {.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(inst)},                \
+		.common = GPIO_COMMON_CONFIG_FROM_DT_INST(inst),                                   \
 		.reg_gpdr = DT_INST_REG_ADDR_BY_IDX(inst, 0),                                      \
 		.reg_gpdmr = DT_INST_REG_ADDR_BY_IDX(inst, 1),                                     \
 		.reg_gpotr = DT_INST_REG_ADDR_BY_IDX(inst, 2),                                     \

@@ -68,8 +68,8 @@
 #define PAD_CFG1_IOSTERM_MASK		(0x03 << PAD_CFG1_IOSTERM_POS)
 #define PAD_CFG1_IOSTERM_FUNC		(0 << PAD_CFG1_IOSTERM_POS)
 #define PAD_CFG1_IOSTERM_DISPUD		(1 << PAD_CFG1_IOSTERM_POS)
-#define PAD_CFG1_IOSTERM_PU		(2 << PAD_CFG1_IOSTERM_POS)
-#define PAD_CFG1_IOSTERM_PD		(3 << PAD_CFG1_IOSTERM_POS)
+#define PAD_CFG1_IOSTERM_PD		(2 << PAD_CFG1_IOSTERM_POS)
+#define PAD_CFG1_IOSTERM_PU		(3 << PAD_CFG1_IOSTERM_POS)
 
 #define PAD_CFG1_TERM_POS		10
 #define PAD_CFG1_TERM_MASK		(0x0F << PAD_CFG1_TERM_POS)
@@ -630,10 +630,7 @@ static int gpio_intel_acpi_enum(const struct device *dev, int bank_idx, char *hi
 
 #define GPIO_INIT_CONFIG(n)                                                                        \
 	static const struct gpio_intel_config gpio_intel_cfg_##n = {                               \
-		.common =                                                                          \
-			{                                                                          \
-				.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(n),               \
-			},                                                                         \
+		.common = GPIO_COMMON_CONFIG_FROM_DT_INST(n),                                      \
 	}
 #else
 
@@ -698,10 +695,7 @@ static int gpio_intel_dts_init(const struct device *dev)
 
 #define GPIO_INIT_CONFIG(n)                                                                        \
 	static const struct gpio_intel_config gpio_intel_cfg_##n = {                               \
-		.common =                                                                          \
-			{                                                                          \
-				.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(n),               \
-			},                                                                         \
+		.common = GPIO_COMMON_CONFIG_FROM_DT_INST(n),                                      \
 		GPIO_MMIO_ROM_INIT(n).pin_offset = DT_INST_PROP(n, pin_offset),                    \
 		.group_index = DT_INST_PROP_OR(n, group_index, 0),                                 \
 		.num_pins = DT_INST_PROP(n, ngpios),                                               \

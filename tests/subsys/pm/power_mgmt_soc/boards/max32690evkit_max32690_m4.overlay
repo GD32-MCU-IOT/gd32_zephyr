@@ -6,7 +6,7 @@
 
 / {
 	chosen {
-		zephyr,cortex-m-idle-timer = &counter0;
+		zephyr,system-timer-companion = &counter0;
 	};
 };
 
@@ -18,6 +18,7 @@
 	status = "okay";
 	clock-source = <ADI_MAX32_PRPH_CLK_SRC_ERTCO>;
 	wakeup-source;
+
 	counter0: counter {
 		status = "okay";
 	};

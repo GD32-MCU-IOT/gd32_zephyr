@@ -1,15 +1,13 @@
+common:
+  tags:
+    - kernel
+    - interrupt
 tests:
   arch.interrupt:
     platform_exclude: qemu_cortex_m0
-    tags:
-      - kernel
-      - interrupt
     filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE
   arch.interrupt.qemu_cortex_m0:
     platform_allow: qemu_cortex_m0
-    tags:
-      - kernel
-      - interrupt
     filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE
     extra_configs:
       - CONFIG_QEMU_ICOUNT=y
@@ -17,8 +15,6 @@ tests:
     filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE and CONFIG_MINIMAL_LIBC_SUPPORTED
     platform_exclude: qemu_cortex_m0
     tags:
-      - kernel
-      - interrupt
       - libc
     extra_configs:
       - CONFIG_MINIMAL_LIBC=y
@@ -26,8 +22,6 @@ tests:
     filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE and CONFIG_MINIMAL_LIBC_SUPPORTED
     platform_allow: qemu_cortex_m0
     tags:
-      - kernel
-      - interrupt
       - libc
     extra_configs:
       - CONFIG_QEMU_ICOUNT=y
@@ -39,28 +33,48 @@ tests:
       # On it8xxx2_evb, current trigger_irq implementation of RISC-V architecture
       # does not trigger interrupts
       - it8xxx2_evb
+      - max32655evkit/max32655/rv32
+      - max32690evkit/max32690/rv32
+      - max78002evkit/max78002/rv32
+      # whisper does not support writing to MIP register to trigger interrupts
+      - cdns_swerv/s400/whisper
+      - cdns_swerv/s400/pmp/whisper
+      - cdns_swerv/s420/whisper
+      - cdns_swerv/s420/64/whisper
+      # In S-mode only SSIP (IRQ 1) can be triggered from software; the
+      # shared interrupt test requires two independent triggerable IRQ lines.
+      - qemu_riscv64/qemu_virt_riscv64/smode
     arch_exclude:
       # test needs 2 working interrupt lines
       - xtensa
       # TODO: make test work on this arch
       - mips
-    tags:
-      - kernel
-      - interrupt
     extra_configs:
       - CONFIG_SHARED_INTERRUPTS=y
     filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE
   arch.shared_interrupt.lto: &shared-interrupt-lto
-    # excluded because of failures during test_prevent_interruption
-    platform_exclude: qemu_cortex_m0
+    platform_exclude:
+      # excluded because of failures during test_prevent_interruption
+      - qemu_cortex_m0
+      - max32655evkit/max32655/rv32
+      - max32690evkit/max32690/rv32
+      - max78002evkit/max78002/rv32
+      # excluded because of assertion during test_isr_offload_job_identi (issue #98658)
+      - mpfs_icicle/polarfire/u54/smp
+      # whisper does not support writing to MIP register to trigger interrupts
+      - cdns_swerv/s400/whisper
+      - cdns_swerv/s400/pmp/whisper
+      - cdns_swerv/s420/whisper
+      - cdns_swerv/s420/64/whisper
+      # In S-mode only SSIP (IRQ 1) can be triggered from software; the
+      # shared interrupt test requires two independent triggerable IRQ lines.
+      - qemu_riscv64/qemu_virt_riscv64/smode
     arch_exclude:
       # test needs 2 working interrupt lines
       - xtensa
       # TODO: make test work on this arch
       - mips
     tags:
-      - kernel
-      - interrupt
       - lto
     extra_configs:
       - CONFIG_SHARED_INTERRUPTS=y

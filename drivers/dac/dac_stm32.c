@@ -22,6 +22,12 @@ LOG_MODULE_REGISTER(dac_stm32);
 
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 
+#if CONFIG_STM32_HAL2
+#define STM32_DAC_OUTPUT_CONNECT_EXTERNAL	LL_DAC_OUTPUT_CONNECT_EXTERNAL
+#else /* CONFIG_STM32_HAL2 */
+#define STM32_DAC_OUTPUT_CONNECT_EXTERNAL	LL_DAC_OUTPUT_CONNECT_GPIO
+#endif /* CONFIG_STM32_HAL2 */
+
 /* some low-end MCUs have DAC with only one channel */
 #ifdef LL_DAC_CHANNEL_2
 #define STM32_CHANNEL_COUNT		2
@@ -121,7 +127,7 @@ static int dac_stm32_channel_setup(const struct device *dev,
 	if (channel_cfg->internal) {
 		cfg_setting = LL_DAC_OUTPUT_CONNECT_INTERNAL;
 	} else {
-		cfg_setting = LL_DAC_OUTPUT_CONNECT_GPIO;
+		cfg_setting = STM32_DAC_OUTPUT_CONNECT_EXTERNAL;
 	}
 
 	LL_DAC_SetOutputConnection(cfg->base, channel, cfg_setting);
@@ -147,11 +153,6 @@ static int dac_stm32_init(const struct device *dev)
 	/* enable clock for subsystem */
 	const struct device *const clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
 
-	if (!device_is_ready(clk)) {
-		LOG_ERR("clock control device not ready");
-		return -ENODEV;
-	}
-
 	if (clock_control_on(clk,
 			     (clock_control_subsys_t) &cfg->pclken) != 0) {
 		return -EIO;
@@ -175,25 +176,22 @@ static DEVICE_API(dac, api_stm32_driver_api) = {
 
 #define STM32_DAC_INIT(index)						\
 									\
-PINCTRL_DT_INST_DEFINE(index);						\
+	PINCTRL_DT_INST_DEFINE(index);					\
 									\
-static const struct dac_stm32_cfg dac_stm32_cfg_##index = {		\
-	.base = (DAC_TypeDef *)DT_INST_REG_ADDR(index),			\
-	.pclken = {							\
-		.enr = DT_INST_CLOCKS_CELL(index, bits),		\
-		.bus = DT_INST_CLOCKS_CELL(index, bus),			\
-	},								\
-	.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),			\
-};									\
+	static const struct dac_stm32_cfg dac_stm32_cfg_##index = {	\
+		.base = (DAC_TypeDef *)DT_INST_REG_ADDR(index),		\
+		.pclken = STM32_DT_INST_CLOCK_INFO(index),		\
+		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),		\
+	};								\
 									\
-static struct dac_stm32_data dac_stm32_data_##index = {			\
-	.channel_count = STM32_CHANNEL_COUNT				\
-};									\
+	static struct dac_stm32_data dac_stm32_data_##index = {		\
+		.channel_count = STM32_CHANNEL_COUNT			\
+	};								\
 									\
-DEVICE_DT_INST_DEFINE(index, &dac_stm32_init, NULL,			\
-		    &dac_stm32_data_##index,				\
-		    &dac_stm32_cfg_##index, POST_KERNEL,		\
-		    CONFIG_DAC_INIT_PRIORITY,				\
-		    &api_stm32_driver_api);
+	DEVICE_DT_INST_DEFINE(index, &dac_stm32_init, NULL,		\
+			      &dac_stm32_data_##index,			\
+			      &dac_stm32_cfg_##index, POST_KERNEL,	\
+			      CONFIG_DAC_INIT_PRIORITY,			\
+			      &api_stm32_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(STM32_DAC_INIT)

@@ -32,26 +32,25 @@ static const struct bt_uuid_128 read_characteristic_uuid = BT_UUID_INIT_128(
 static const struct bt_uuid_128 write_characteristic_uuid = BT_UUID_INIT_128(
 	BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef2));
 
-static int signed_value;
+static int stored_value;
 static struct bt_le_adv_param adv_param;
 static bt_addr_le_t bond_addr;
 
-static ssize_t read_signed(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-			   void *buf, uint16_t len, uint16_t offset)
+static ssize_t read_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
+		       uint16_t len, uint16_t offset)
 {
-	int *value = &signed_value;
+	int *value = &stored_value;
 
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, value,
-				 sizeof(signed_value));
+				 sizeof(stored_value));
 }
 
-static ssize_t write_signed(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-			    const void *buf, uint16_t len, uint16_t offset,
-			    uint8_t flags)
+static ssize_t write_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf,
+			uint16_t len, uint16_t offset, uint8_t flags)
 {
-	int *value = &signed_value;
+	int *value = &stored_value;
 
-	if (offset + len > sizeof(signed_value)) {
+	if (offset + len > sizeof(stored_value)) {
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
 	}
 
@@ -66,11 +65,11 @@ BT_GATT_SERVICE_DEFINE(primary_service,
 	BT_GATT_CHARACTERISTIC(&read_characteristic_uuid.uuid,
 			       BT_GATT_CHRC_READ,
 			       BT_GATT_PERM_READ,
-			       read_signed, NULL, NULL),
+			       read_cb, NULL, NULL),
 	BT_GATT_CHARACTERISTIC(&write_characteristic_uuid.uuid,
 			       BT_GATT_CHRC_WRITE,
 			       BT_GATT_PERM_WRITE_ENCRYPT,
-			       NULL, write_signed, NULL),
+			       NULL, write_cb, NULL),
 );
 
 static const struct bt_data ad[] = {
@@ -106,7 +105,6 @@ static void copy_last_bonded_addr(const struct bt_bond_info *info, void *data)
 static void bt_ready(void)
 {
 	int err;
-	char addr[BT_ADDR_LE_STR_LEN];
 
 	printk("Bluetooth initialized\n");
 
@@ -121,8 +119,7 @@ static void bt_ready(void)
 	 * This means there is no bond yet.
 	 */
 	if (bt_addr_le_cmp(&bond_addr, BT_ADDR_LE_NONE) != 0) {
-		bt_addr_le_to_str(&bond_addr, addr, sizeof(addr));
-		printk("Direct advertising to %s\n", addr);
+		printk("Direct advertising to %s\n", bt_addr_le_str(&bond_addr));
 
 		adv_param = *BT_LE_ADV_CONN_DIR_LOW_DUTY(&bond_addr);
 		adv_param.options |= BT_LE_ADV_OPT_DIR_ADDR_RPA;

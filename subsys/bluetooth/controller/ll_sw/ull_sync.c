@@ -65,7 +65,6 @@
 #include "ull_llcp.h"
 #include "ll.h"
 
-#include <soc.h>
 #include "hal/debug.h"
 
 /* Check that timeout_reload member is at safe offset when ll_sync_set is
@@ -253,7 +252,7 @@ void ull_sync_setup_from_sync_transfer(struct ll_conn *conn, uint16_t service_da
 	interval = sys_le16_to_cpu(si->interval);
 	interval_us = interval * PERIODIC_INT_UNIT_US;
 
-	/* Convert fromm 10ms units to interval units */
+	/* Convert from 10ms units to interval units */
 	if (sync->timeout != 0  && interval_us != 0) {
 		sync->timeout_reload = RADIO_SYNC_EVENTS((sync->timeout * 10U *
 						  USEC_PER_MSEC), interval_us);
@@ -275,6 +274,8 @@ void ull_sync_setup_from_sync_transfer(struct ll_conn *conn, uint16_t service_da
 		if (sync->skip > skip_max) {
 			sync->skip = skip_max;
 		}
+	} else {
+		sync->skip = 0U;
 	}
 
 	sync->sync_expire = CONN_ESTAB_COUNTDOWN;
@@ -322,14 +323,9 @@ void ull_sync_setup_from_sync_transfer(struct ll_conn *conn, uint16_t service_da
 	conn_interval_us = conn->lll.interval * CONN_INT_UNIT_US;
 
 	/* Calculate offset and schedule sync radio events */
-	ready_delay_us = lll_radio_rx_ready_delay_get(lll->phy, PHY_FLAGS_S8);
-
 	sync_offset_us = PDU_ADV_SYNC_INFO_OFFSET_GET(si) * lll->window_size_event_us;
 	/* offs_adjust may be 1 only if sync setup by LL_PERIODIC_SYNC_IND */
 	sync_offset_us += (PDU_ADV_SYNC_INFO_OFFS_ADJUST_GET(si) ? OFFS_ADJUST_US : 0U);
-	sync_offset_us -= EVENT_TICKER_RES_MARGIN_US;
-	sync_offset_us -= EVENT_JITTER_US;
-	sync_offset_us -= ready_delay_us;
 
 	if (conn_evt_offset) {
 		int64_t conn_offset_us = (int64_t)conn_evt_offset * conn_interval_us;
@@ -387,6 +383,7 @@ void ull_sync_setup_from_sync_transfer(struct ll_conn *conn, uint16_t service_da
 
 	/* Calculate event time reservation */
 	slot_us = PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_RX_SIZE, lll->phy);
+	ready_delay_us = lll_radio_rx_ready_delay_get(lll->phy, PHY_FLAGS_S8);
 	slot_us += ready_delay_us;
 
 	/* Add implementation defined radio event overheads */
@@ -411,7 +408,7 @@ void ull_sync_setup_from_sync_transfer(struct ll_conn *conn, uint16_t service_da
 #if defined(CONFIG_BT_PERIPHERAL)
 	if (conn->lll.role == BT_HCI_ROLE_PERIPHERAL) {
 		/* Compensate for window widening */
-		ticks_anchor += HAL_TICKER_US_TO_TICKS(conn->lll.periph.window_widening_event_us);
+		sync_offset_us += conn->lll.periph.window_widening_event_us;
 	}
 #endif /* CONFIG_BT_PERIPHERAL */
 
@@ -690,8 +687,8 @@ uint8_t ll_sync_transfer(uint16_t conn_handle, uint16_t service_data, uint16_t s
  *                        Range: 0x0000 to 0x0EFF.
  * @param[in] mode Mode specifies the action to be taken when a periodic advertising
  *                 synchronization is received.
- * @param[in] skip Skip specifying the number of consectutive periodic advertising
- *                 packets that the receiver may skip after successfully reciving a
+ * @param[in] skip Skip specifying the number of consecutive periodic advertising
+ *                 packets that the receiver may skip after successfully receiving a
  *                 periodic advertising packet. Range: 0x0000 to 0x01F3.
  * @param[in] timeout Sync_timeout specifying the maximum permitted time between
  *                    successful receives. Range: 0x000A to 0x4000.
@@ -729,8 +726,8 @@ uint8_t ll_past_param(uint16_t conn_handle, uint8_t mode, uint16_t skip, uint16_
  *
  * @param[in] mode Mode specifies the action to be taken when a periodic advertising
  *                   synchronization is received.
- * @param[in] skip Skip specifying the number of consectutive periodic advertising
- *                   packets that the receiver may skip after successfully reciving a
+ * @param[in] skip Skip specifying the number of consecutive periodic advertising
+ *                   packets that the receiver may skip after successfully receiving a
  *                   periodic advertising packet. Range: 0x0000 to 0x01F3.
  * @param[in] timeout Sync_timeout specifying the maximum permitted time between
  *                    successful receives. Range: 0x000A to 0x4000.
@@ -1003,7 +1000,7 @@ void ull_sync_setup(struct ll_scan_set *scan, uint8_t phy,
 	sync->interval = interval;
 #endif /* CONFIG_BT_CTLR_SYNC_TRANSFER_SENDER */
 
-	/* Convert fromm 10ms units to interval units */
+	/* Convert from 10ms units to interval units */
 	sync->timeout_reload = RADIO_SYNC_EVENTS((sync->timeout * 10U *
 						  USEC_PER_MSEC), interval_us);
 
@@ -1503,7 +1500,7 @@ void ull_sync_chm_update(uint8_t sync_handle, uint8_t *acad, uint8_t acad_len)
  * @retval 0            Successful ticker slot update.
  * @retval -ENOENT      Ticker node related with provided sync is already stopped.
  * @retval -ENOMEM      Couldn't enqueue update ticker job.
- * @retval -EFAULT      Somethin else went wrong.
+ * @retval -EFAULT      Something else went wrong.
  */
 int ull_sync_slot_update(struct ll_sync_set *sync, uint32_t slot_plus_us,
 			 uint32_t slot_minus_us)

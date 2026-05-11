@@ -15,7 +15,7 @@ LOG_MODULE_REGISTER(spi_xmc4xxx);
 #include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/spi.h>
-#include <zephyr/drivers/spi/rtio.h>
+#include "spi_rtio.h"
 
 #include <xmc_spi.h>
 #include <xmc_usic.h>
@@ -400,13 +400,7 @@ static int spi_xmc4xxx_transceive_dma(const struct device *dev, const struct spi
 			XMC_USIC_CH_TBUF_STATUS_BUSY) {
 		};
 
-		if (data->ctx.rx_len == 0) {
-			dma_len = data->ctx.tx_len;
-		} else if (data->ctx.tx_len == 0) {
-			dma_len = data->ctx.rx_len;
-		} else {
-			dma_len = MIN(data->ctx.tx_len, data->ctx.rx_len);
-		}
+		dma_len = spi_context_max_continuous_chunk(&data->ctx);
 
 		if (ctx->rx_buf) {
 

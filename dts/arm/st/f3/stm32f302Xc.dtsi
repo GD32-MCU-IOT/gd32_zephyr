@@ -5,7 +5,6 @@
  */
 
 #include <st/f3/stm32f302.dtsi>
-#include <zephyr/dt-bindings/adc/stm32l4_adc.h>
 
 / {
 	sram0: memory@20000000 {
@@ -16,6 +15,7 @@
 		flash-controller@40022000 {
 			flash0: flash@8000000 {
 				reg = <0x08000000 DT_SIZE_K(256)>;
+				ranges = <0 0x8000000 DT_SIZE_K(256)>;
 			};
 		};
 
@@ -68,6 +68,11 @@
 				compatible = "st,stm32-pwm";
 				status = "disabled";
 				#pwm-cells = <3>;
+			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
 			};
 
 			qdec {

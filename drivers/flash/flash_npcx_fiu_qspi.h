@@ -109,6 +109,15 @@ void qspi_npcx_fiu_mutex_lock(const struct device *dev);
 void qspi_npcx_fiu_mutex_unlock(const struct device *dev);
 
 /**
+ * @brief Check if the npcx qspi bus controller is locked.
+ *
+ * @param dev Pointer to the device structure for qspi bus controller instance.
+ *
+ * @return true if the mutex is locked, false otherwise.
+ */
+bool qspi_npcx_fiu_mutex_is_locked(const struct device *dev);
+
+/**
  * @brief Apply qspi configuration
  *
  * @param dev Pointer to the device structure for qspi bus controller instance.
@@ -142,7 +151,7 @@ void qspi_npcx_fiu_set_spi_size(const struct device *dev, const struct npcx_qspi
  * @brief Block FIU master to generate flash transactions.
  *
  * @param dev Pointer to the device structure for qspi bus controller instance.
- * @param lock Block or unblock FIU master transactions.
+ * @param lock_en Block or unblock FIU master transactions.
  * @retval 0 on success, otherwise a negative error code.
  */
 int qspi_npcx_fiu_uma_block(const struct device *dev, bool lock_en);

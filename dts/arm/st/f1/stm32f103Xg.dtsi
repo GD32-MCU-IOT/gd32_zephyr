@@ -24,6 +24,7 @@
 				 * otherwise a non-issue.
 				 */
 				reg = <0x08000000 DT_SIZE_K(1024)>;
+				ranges = <0 0x8000000 DT_SIZE_K(1024)>;
 				erase-block-size = <DT_SIZE_K(2)>;
 			};
 		};
@@ -44,6 +45,11 @@
 				status = "disabled";
 				#pwm-cells = <3>;
 			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
 		};
 
 		timers10: timers@40015000 {
@@ -61,6 +67,11 @@
 				compatible = "st,stm32-pwm";
 				status = "disabled";
 				#pwm-cells = <3>;
+			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
 			};
 		};
 
@@ -80,6 +91,11 @@
 				status = "disabled";
 				#pwm-cells = <3>;
 			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
 		};
 
 		timers12: timers@40001800 {
@@ -97,6 +113,11 @@
 				compatible = "st,stm32-pwm";
 				status = "disabled";
 				#pwm-cells = <3>;
+			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
 			};
 		};
 
@@ -116,6 +137,11 @@
 				status = "disabled";
 				#pwm-cells = <3>;
 			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
 		};
 
 		timers14: timers@40002000 {
@@ -133,6 +159,11 @@
 				compatible = "st,stm32-pwm";
 				status = "disabled";
 				#pwm-cells = <3>;
+			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
 			};
 		};
 	};

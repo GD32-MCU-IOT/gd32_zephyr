@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_rt1170_cm7.dtsi>
+#include <nxp/imxrt/nxp_rt1170_cm7.dtsi>
 #include <zephyr/dt-bindings/led/led.h>
 #include "vmu_rt1170.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -33,7 +33,7 @@
 		zephyr,console = &lpuart1;
 		zephyr,shell-uart = &lpuart1;
 		zephyr,canbus = &flexcan1;
-		zephyr,flash-controller = &mx25um51345g;
+		zephyr,flash-controller = &ext_flash_ctrl;
 		zephyr,flash = &mx25um51345g;
 		zephyr,code-partition = &slot0_partition;
 		zephyr,uart-mcumgr = &lpuart1;
@@ -525,6 +525,7 @@
 &enet1g_phy {
 	status = "okay";
 	int-gpios = <&gpio5 10 GPIO_ACTIVE_HIGH>;
+	master-slave = "auto";
 };
 
 zephyr_udc0: &usb1 {

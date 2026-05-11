@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2019 Intel Corporation
  * Copyright (c) 2021 Nordic Semiconductor
+ * Copyright (c) 2026 Philipp Steiner <philipp.steiner1987@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stdbool.h>
-#include <zephyr/posix/fcntl.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_sock_packet, CONFIG_NET_SOCKETS_LOG_LEVEL);
@@ -15,6 +15,7 @@ LOG_MODULE_REGISTER(net_sock_packet, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include <zephyr/drivers/entropy.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/net/net_context.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/ethernet.h>
@@ -95,7 +96,7 @@ static int zpacket_socket(int family, int type, int proto)
 		 * we do not need to change the protocol field handling in
 		 * other part of the network stack.
 		 */
-		proto = ntohs(proto);
+		proto = net_ntohs(proto);
 	}
 
 	ret = net_context_get(family, type, proto, &ctx);
@@ -130,8 +131,8 @@ static int zpacket_socket(int family, int type, int proto)
 }
 
 static int zpacket_bind_ctx(struct net_context *ctx,
-			    const struct sockaddr *addr,
-			    socklen_t addrlen)
+			    const struct net_sockaddr *addr,
+			    net_socklen_t addrlen)
 {
 	int ret = 0;
 
@@ -155,7 +156,7 @@ static int zpacket_bind_ctx(struct net_context *ctx,
 }
 
 static void zpacket_set_eth_pkttype(struct net_if *iface,
-				    struct sockaddr_ll *addr,
+				    struct net_sockaddr_ll *addr,
 				    struct net_linkaddr *lladdr)
 {
 	if (lladdr == NULL || lladdr->len == 0) {
@@ -163,30 +164,30 @@ static void zpacket_set_eth_pkttype(struct net_if *iface,
 	}
 
 	if (net_eth_is_addr_broadcast((struct net_eth_addr *)lladdr->addr)) {
-		addr->sll_pkttype = PACKET_BROADCAST;
+		addr->sll_pkttype = NET_PACKET_BROADCAST;
 	} else if (net_eth_is_addr_multicast(
 			   (struct net_eth_addr *)lladdr->addr)) {
-		addr->sll_pkttype = PACKET_MULTICAST;
+		addr->sll_pkttype = NET_PACKET_MULTICAST;
 	} else if (!net_linkaddr_cmp(net_if_get_link_addr(iface), lladdr)) {
-		addr->sll_pkttype = PACKET_HOST;
+		addr->sll_pkttype = NET_PACKET_HOST;
 	} else {
-		addr->sll_pkttype = PACKET_OTHERHOST;
+		addr->sll_pkttype = NET_PACKET_OTHERHOST;
 	}
 }
 
 static void zpacket_set_source_addr(struct net_context *ctx,
 				    struct net_pkt *pkt,
-				    struct sockaddr *src_addr,
-				    socklen_t *addrlen)
+				    struct net_sockaddr *src_addr,
+				    net_socklen_t *addrlen)
 {
-	struct sockaddr_ll addr = {0};
+	struct net_sockaddr_ll addr = {0};
 	struct net_if *iface = net_context_get_iface(ctx);
 
 	if (iface == NULL) {
 		return;
 	}
 
-	addr.sll_family = AF_PACKET;
+	addr.sll_family = NET_AF_PACKET;
 	addr.sll_ifindex = net_if_get_by_iface(iface);
 
 	if (net_pkt_is_l2_processed(pkt)) {
@@ -197,10 +198,10 @@ static void zpacket_set_source_addr(struct net_context *ctx,
 		memcpy(addr.sll_addr, pkt->lladdr_src.addr,
 		       MIN(sizeof(addr.sll_addr), pkt->lladdr_src.len));
 
-		addr.sll_protocol = htons(net_pkt_ll_proto_type(pkt));
+		addr.sll_protocol = net_htons(net_pkt_ll_proto_type(pkt));
 
 		if (net_if_get_link_addr(iface)->type == NET_LINK_ETHERNET) {
-			addr.sll_hatype = ARPHRD_ETHER;
+			addr.sll_hatype = NET_ARPHRD_ETHER;
 			zpacket_set_eth_pkttype(iface, &addr,
 						net_pkt_lladdr_dst(pkt));
 		}
@@ -227,7 +228,7 @@ static void zpacket_set_source_addr(struct net_context *ctx,
 		       sizeof(struct net_eth_addr));
 
 		addr.sll_protocol = hdr->type;
-		addr.sll_hatype = ARPHRD_ETHER;
+		addr.sll_hatype = NET_ARPHRD_ETHER;
 
 		(void)net_linkaddr_create(&dst_addr, hdr->dst.addr,
 					  sizeof(struct net_eth_addr),
@@ -237,16 +238,16 @@ static void zpacket_set_source_addr(struct net_context *ctx,
 		net_pkt_cursor_restore(pkt, &cur);
 	}
 
-	/* Copy the result sockaddr_ll structure into provided buffer. If the
+	/* Copy the result net_sockaddr_ll structure into provided buffer. If the
 	 * buffer is smaller than the structure size, it will be truncated.
 	 */
-	memcpy(src_addr, &addr, MIN(sizeof(struct sockaddr_ll), *addrlen));
-	*addrlen = sizeof(struct sockaddr_ll);
+	memcpy(src_addr, &addr, MIN(sizeof(struct net_sockaddr_ll), *addrlen));
+	*addrlen = sizeof(struct net_sockaddr_ll);
 }
 
 ssize_t zpacket_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
-			   int flags, const struct sockaddr *dest_addr,
-			   socklen_t addrlen)
+			   int flags, const struct net_sockaddr *dest_addr,
+			   net_socklen_t addrlen)
 {
 	k_timeout_t timeout = K_FOREVER;
 	int status;
@@ -272,7 +273,13 @@ ssize_t zpacket_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 	return status;
 }
 
-ssize_t zpacket_sendmsg_ctx(struct net_context *ctx, const struct msghdr *msg,
+static inline bool zpacket_should_update_rx_time(void)
+{
+	return IS_ENABLED(CONFIG_NET_PKT_RXTIME_STATS) ||
+	       IS_ENABLED(CONFIG_TRACING_NET_CORE);
+}
+
+ssize_t zpacket_sendmsg_ctx(struct net_context *ctx, const struct net_msghdr *msg,
 			    int flags)
 {
 	k_timeout_t timeout = K_FOREVER;
@@ -294,8 +301,8 @@ ssize_t zpacket_sendmsg_ctx(struct net_context *ctx, const struct msghdr *msg,
 }
 
 ssize_t zpacket_recvfrom_ctx(struct net_context *ctx, void *buf, size_t max_len,
-			     int flags, struct sockaddr *src_addr,
-			     socklen_t *addrlen)
+			     int flags, struct net_sockaddr *src_addr,
+			     net_socklen_t *addrlen)
 {
 	size_t recv_len = 0;
 	k_timeout_t timeout = K_FOREVER;
@@ -322,7 +329,7 @@ ssize_t zpacket_recvfrom_ctx(struct net_context *ctx, void *buf, size_t max_len,
 		pkt = k_fifo_get(&ctx->recv_q, timeout);
 	}
 
-	if (!pkt) {
+	if (pkt == NULL) {
 		errno = EAGAIN;
 		return -1;
 	}
@@ -344,9 +351,7 @@ ssize_t zpacket_recvfrom_ctx(struct net_context *ctx, void *buf, size_t max_len,
 		zpacket_set_source_addr(ctx, pkt, src_addr, addrlen);
 	}
 
-	if ((IS_ENABLED(CONFIG_NET_PKT_RXTIME_STATS) ||
-	     IS_ENABLED(CONFIG_TRACING_NET_CORE)) &&
-	    !(flags & ZSOCK_MSG_PEEK)) {
+	if (zpacket_should_update_rx_time() && !(flags & ZSOCK_MSG_PEEK)) {
 		net_socket_update_tc_rx_time(pkt, k_cycle_get_32());
 	}
 
@@ -359,8 +364,220 @@ ssize_t zpacket_recvfrom_ctx(struct net_context *ctx, void *buf, size_t max_len,
 	return recv_len;
 }
 
+static int zpacket_insert_cmsg(struct net_msghdr *msg, int level, int type, const void *data,
+			       size_t data_len)
+{
+	struct net_cmsghdr *cmsg;
+	size_t cmsg_space = NET_CMSG_SPACE(data_len);
+
+	if (msg->msg_control == NULL || msg->msg_controllen < cmsg_space) {
+		return -ENOMEM;
+	}
+
+	for (cmsg = NET_CMSG_FIRSTHDR(msg); cmsg != NULL; cmsg = NET_CMSG_NXTHDR(msg, cmsg)) {
+		if (cmsg->cmsg_len == 0) {
+			break;
+		}
+	}
+
+	if (cmsg == NULL) {
+		return -EINVAL;
+	}
+
+	cmsg->cmsg_len = NET_CMSG_LEN(data_len);
+	cmsg->cmsg_level = level;
+	cmsg->cmsg_type = type;
+	memcpy(NET_CMSG_DATA(cmsg), data, data_len);
+
+	return 0;
+}
+
+static int zpacket_update_msg_controllen(struct net_msghdr *msg)
+{
+	struct net_cmsghdr *cmsg;
+	size_t cmsg_space = 0U;
+
+	for (cmsg = NET_CMSG_FIRSTHDR(msg); cmsg != NULL; cmsg = NET_CMSG_NXTHDR(msg, cmsg)) {
+		if (cmsg->cmsg_len == 0) {
+			break;
+		}
+
+		cmsg_space += NET_ALIGN_H(cmsg->cmsg_len);
+	}
+
+	msg->msg_controllen = cmsg_space;
+
+	return 0;
+}
+
+static int zpacket_recvmsg_get_pkt(struct net_context *ctx, int flags, k_timeout_t timeout,
+				   struct net_pkt **pkt)
+{
+	if (flags & ZSOCK_MSG_PEEK) {
+		int res = k_fifo_wait_non_empty(&ctx->recv_q, timeout);
+
+		/* EAGAIN when timeout expired, EINTR when cancelled */
+		if (res != 0 && res != -EAGAIN && res != -EINTR) {
+			return res;
+		}
+
+		*pkt = k_fifo_peek_head(&ctx->recv_q);
+	} else {
+		*pkt = k_fifo_get(&ctx->recv_q, timeout);
+	}
+
+	return 0;
+}
+
+static int zpacket_recvmsg_copy_data(struct net_pkt *pkt, struct net_msghdr *msg, size_t read_len)
+{
+	for (size_t i = 0U; i < msg->msg_iovlen && read_len > 0U; i++) {
+		size_t frag_len = MIN(msg->msg_iov[i].iov_len, read_len);
+
+		if (frag_len == 0U) {
+			continue;
+		}
+
+		if (net_pkt_read(pkt, msg->msg_iov[i].iov_base, frag_len)) {
+			return -ENOBUFS;
+		}
+
+		read_len -= frag_len;
+	}
+
+	return 0;
+}
+
+static void zpacket_recvmsg_set_name(struct net_context *ctx, struct net_pkt *pkt,
+				     struct net_msghdr *msg)
+{
+	if (msg->msg_name != NULL) {
+		net_socklen_t addrlen = msg->msg_namelen;
+
+		zpacket_set_source_addr(ctx, pkt, msg->msg_name, &addrlen);
+		msg->msg_namelen = addrlen;
+	} else {
+		msg->msg_namelen = 0U;
+	}
+}
+
+static void zpacket_recvmsg_set_control(struct net_context *ctx, struct net_pkt *pkt,
+					struct net_msghdr *msg)
+{
+	uint8_t timestamping = 0U;
+
+	if (msg->msg_control == NULL) {
+		msg->msg_controllen = 0U;
+		return;
+	}
+
+	if (msg->msg_controllen == 0U) {
+		return;
+	}
+
+	memset(msg->msg_control, 0, msg->msg_controllen);
+
+	if (IS_ENABLED(CONFIG_NET_CONTEXT_TIMESTAMPING)) {
+		net_context_get_option(ctx, NET_OPT_TIMESTAMPING, &timestamping, NULL);
+
+		if (timestamping != 0U &&
+		    zpacket_insert_cmsg(msg, ZSOCK_SOL_SOCKET, ZSOCK_SO_TIMESTAMPING,
+					net_pkt_timestamp(pkt), sizeof(struct net_ptp_time)) < 0) {
+			msg->msg_flags |= ZSOCK_MSG_CTRUNC;
+		}
+	}
+
+	zpacket_update_msg_controllen(msg);
+}
+
+static void zpacket_recvmsg_update_rx_time(struct net_pkt *pkt, int flags)
+{
+	if (!(flags & ZSOCK_MSG_PEEK) && zpacket_should_update_rx_time()) {
+		net_socket_update_tc_rx_time(pkt, k_cycle_get_32());
+	}
+}
+
+static void zpacket_recvmsg_finish_pkt(struct net_pkt *pkt, int flags)
+{
+	if (!(flags & ZSOCK_MSG_PEEK)) {
+		net_pkt_unref(pkt);
+	} else {
+		net_pkt_cursor_init(pkt);
+	}
+}
+
+static ssize_t zpacket_recvmsg_ctx(struct net_context *ctx, struct net_msghdr *msg, int flags)
+{
+	size_t recv_len = 0U;
+	size_t read_len;
+	size_t max_len = 0U;
+	k_timeout_t timeout = K_FOREVER;
+	struct net_pkt *pkt = NULL;
+	int ret;
+	size_t i;
+
+	if (msg == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (msg->msg_iov == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	msg->msg_flags = 0;
+
+	for (i = 0; i < msg->msg_iovlen; i++) {
+		max_len += msg->msg_iov[i].iov_len;
+	}
+
+	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
+		timeout = K_NO_WAIT;
+	} else {
+		net_context_get_option(ctx, NET_OPT_RCVTIMEO, &timeout, NULL);
+	}
+
+	ret = zpacket_recvmsg_get_pkt(ctx, flags, timeout, &pkt);
+	if (ret < 0) {
+		errno = -ret;
+		return -1;
+	}
+
+	if (pkt == NULL) {
+		errno = EAGAIN;
+		return -1;
+	}
+
+	recv_len = net_pkt_get_len(pkt);
+	read_len = MIN(recv_len, max_len);
+
+	ret = zpacket_recvmsg_copy_data(pkt, msg, read_len);
+	if (ret < 0) {
+		errno = -ret;
+		goto cleanup;
+	}
+
+	if (recv_len > max_len) {
+		msg->msg_flags |= ZSOCK_MSG_TRUNC;
+	}
+
+	zpacket_recvmsg_set_name(ctx, pkt, msg);
+	zpacket_recvmsg_set_control(ctx, pkt, msg);
+	zpacket_recvmsg_update_rx_time(pkt, flags);
+	zpacket_recvmsg_finish_pkt(pkt, flags);
+
+	return (flags & ZSOCK_MSG_TRUNC) ? recv_len : MIN(recv_len, max_len);
+
+cleanup:
+	zpacket_recvmsg_finish_pkt(pkt, flags);
+
+	return -1;
+}
+
+
 int zpacket_getsockopt_ctx(struct net_context *ctx, int level, int optname,
-			   void *optval, socklen_t *optlen)
+			   void *optval, net_socklen_t *optlen)
 {
 	if (!optval || !optlen) {
 		errno = EINVAL;
@@ -372,7 +589,7 @@ int zpacket_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 }
 
 int zpacket_setsockopt_ctx(struct net_context *ctx, int level, int optname,
-			const void *optval, socklen_t optlen)
+			const void *optval, net_socklen_t optlen)
 {
 	return sock_fd_op_vtable.setsockopt(ctx, level, optname,
 					    optval, optlen);
@@ -398,15 +615,15 @@ static int packet_sock_ioctl_vmeth(void *obj, unsigned int request,
 /*
  * TODO: A packet socket can be bound to a network device using SO_BINDTODEVICE.
  */
-static int packet_sock_bind_vmeth(void *obj, const struct sockaddr *addr,
-				  socklen_t addrlen)
+static int packet_sock_bind_vmeth(void *obj, const struct net_sockaddr *addr,
+				  net_socklen_t addrlen)
 {
 	return zpacket_bind_ctx(obj, addr, addrlen);
 }
 
 /* The connect() function is no longer necessary. */
-static int packet_sock_connect_vmeth(void *obj, const struct sockaddr *addr,
-				     socklen_t addrlen)
+static int packet_sock_connect_vmeth(void *obj, const struct net_sockaddr *addr,
+				     net_socklen_t addrlen)
 {
 	return -EOPNOTSUPP;
 }
@@ -421,42 +638,47 @@ static int packet_sock_listen_vmeth(void *obj, int backlog)
 	return -EOPNOTSUPP;
 }
 
-static int packet_sock_accept_vmeth(void *obj, struct sockaddr *addr,
-				    socklen_t *addrlen)
+static int packet_sock_accept_vmeth(void *obj, struct net_sockaddr *addr,
+				    net_socklen_t *addrlen)
 {
 	return -EOPNOTSUPP;
 }
 
 static ssize_t packet_sock_sendto_vmeth(void *obj, const void *buf, size_t len,
 					int flags,
-					const struct sockaddr *dest_addr,
-					socklen_t addrlen)
+					const struct net_sockaddr *dest_addr,
+					net_socklen_t addrlen)
 {
 	return zpacket_sendto_ctx(obj, buf, len, flags, dest_addr, addrlen);
 }
 
-static ssize_t packet_sock_sendmsg_vmeth(void *obj, const struct msghdr *msg,
+static ssize_t packet_sock_sendmsg_vmeth(void *obj, const struct net_msghdr *msg,
 					 int flags)
 {
 	return zpacket_sendmsg_ctx(obj, msg, flags);
 }
 
+static ssize_t packet_sock_recvmsg_vmeth(void *obj, struct net_msghdr *msg, int flags)
+{
+	return zpacket_recvmsg_ctx(obj, msg, flags);
+}
+
 static ssize_t packet_sock_recvfrom_vmeth(void *obj, void *buf, size_t max_len,
-					  int flags, struct sockaddr *src_addr,
-					  socklen_t *addrlen)
+					  int flags, struct net_sockaddr *src_addr,
+					  net_socklen_t *addrlen)
 {
 	return zpacket_recvfrom_ctx(obj, buf, max_len, flags,
 				    src_addr, addrlen);
 }
 
 static int packet_sock_getsockopt_vmeth(void *obj, int level, int optname,
-					void *optval, socklen_t *optlen)
+					void *optval, net_socklen_t *optlen)
 {
 	return zpacket_getsockopt_ctx(obj, level, optname, optval, optlen);
 }
 
 static int packet_sock_setsockopt_vmeth(void *obj, int level, int optname,
-					const void *optval, socklen_t optlen)
+					const void *optval, net_socklen_t optlen)
 {
 	return zpacket_setsockopt_ctx(obj, level, optname, optval, optlen);
 }
@@ -466,13 +688,15 @@ static int packet_sock_close2_vmeth(void *obj, int fd)
 	return zsock_close_ctx(obj, fd);
 }
 
+static const struct fd_op_vtable packet_sock_fd_vtable = {
+	.read = packet_sock_read_vmeth,
+	.write = packet_sock_write_vmeth,
+	.close2 = packet_sock_close2_vmeth,
+	.ioctl = packet_sock_ioctl_vmeth,
+};
+
 static const struct socket_op_vtable packet_sock_fd_op_vtable = {
-	.fd_vtable = {
-		.read = packet_sock_read_vmeth,
-		.write = packet_sock_write_vmeth,
-		.close2 = packet_sock_close2_vmeth,
-		.ioctl = packet_sock_ioctl_vmeth,
-	},
+	.fd_vtable = packet_sock_fd_vtable,
 	.bind = packet_sock_bind_vmeth,
 	.connect = packet_sock_connect_vmeth,
 	.listen = packet_sock_listen_vmeth,
@@ -480,6 +704,7 @@ static const struct socket_op_vtable packet_sock_fd_op_vtable = {
 	.sendto = packet_sock_sendto_vmeth,
 	.sendmsg = packet_sock_sendmsg_vmeth,
 	.recvfrom = packet_sock_recvfrom_vmeth,
+	.recvmsg = packet_sock_recvmsg_vmeth,
 	.getsockopt = packet_sock_getsockopt_vmeth,
 	.setsockopt = packet_sock_setsockopt_vmeth,
 };
@@ -487,14 +712,14 @@ static const struct socket_op_vtable packet_sock_fd_op_vtable = {
 static bool packet_is_supported(int family, int type, int proto)
 {
 	switch (type) {
-	case SOCK_RAW:
-		proto = ntohs(proto);
+	case NET_SOCK_RAW:
+		proto = net_ntohs(proto);
 		return proto == 0
 		  || proto == ETH_P_ALL
 		  || proto == ETH_P_ECAT
 		  || proto == ETH_P_IEEE802154;
 
-	case SOCK_DGRAM:
+	case NET_SOCK_DGRAM:
 		return true;
 
 	default:
@@ -502,5 +727,5 @@ static bool packet_is_supported(int family, int type, int proto)
 	}
 }
 
-NET_SOCKET_REGISTER(af_packet, NET_SOCKET_DEFAULT_PRIO, AF_PACKET,
+NET_SOCKET_REGISTER(af_packet, NET_SOCKET_DEFAULT_PRIO, NET_AF_PACKET,
 		    packet_is_supported, zpacket_socket);

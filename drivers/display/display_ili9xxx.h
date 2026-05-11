@@ -59,7 +59,7 @@
 
 enum madctl_cmd_set {
 	CMD_SET_1,	/* Default for most of ILI9xxx display controllers */
-	CMD_SET_2,	/* Used by ILI9342c */
+	CMD_SET_2,	/* Used by ILI9342c & ILI9341 */
 };
 
 struct ili9xxx_quirks {
@@ -75,9 +75,17 @@ struct ili9xxx_config {
 	uint16_t x_resolution;
 	uint16_t y_resolution;
 	bool inversion;
+	bool disable_bgr_mode;
 	uint8_t te_mode;
 	const void *regs;
 	int (*regs_init_fn)(const struct device *dev);
+};
+
+struct ili9xxx_data {
+	uint8_t bytes_per_pixel;
+	enum display_pixel_format pixel_format;
+	enum display_orientation orientation;
+	uint8_t madctl; /* Cached value for quick access and runtime config */
 };
 
 int ili9xxx_transmit(const struct device *dev, uint8_t cmd,

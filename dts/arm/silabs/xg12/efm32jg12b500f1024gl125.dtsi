@@ -9,12 +9,14 @@
 
 / {
 	soc {
-		compatible = "silabs,efm32jg12b500f1024gl125", "silabs,efm32jg12b", "silabs,efm32", "simple-bus";
+		compatible = "silabs,efm32jg12b500f1024gl125", "silabs,efm32jg12b", "silabs,efm32",
+			     "simple-bus";
 	};
 };
 
 &flash0 {
 	reg = <0 DT_SIZE_K(1024)>;
+	ranges = <0 0 DT_SIZE_K(1024)>;
 };
 
 &sram0 {

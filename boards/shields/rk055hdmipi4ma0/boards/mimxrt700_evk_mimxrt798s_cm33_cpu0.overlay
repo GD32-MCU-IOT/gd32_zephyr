@@ -11,6 +11,9 @@
 	display-timings {
 		clock-frequency = <29333333>;
 	};
+
+	/* Secondary RAM space for large frame buffer(s). */
+	ext-ram = <&psram2>;
 };
 
 &zephyr_mipi_dsi {
@@ -19,4 +22,8 @@
 	 * 532.48 x 18 / 16 = 599.04MHz. In this case the 60fps cannot be used, use 30fps instead.
 	 */
 	phy-clock = <396000000>;
+};
+
+&sram1 {
+	zephyr,memory-region = "LVGL_BUF";
 };

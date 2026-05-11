@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 env:
-  DOXYGEN_VERSION: 1.14.0
-  DOXYGEN_MD5SUM: e761a5097ae20ecccfd02041925f102a
+  DOXYGEN_VERSION: 1.15.0
+  DOXYGEN_SHA256SUM: 0ec2e5b2c3cd82b7106d19cb42d8466450730b8cb7a9e85af712be38bf4523a1
   JOB_COUNT: 8
 
 jobs:
@@ -27,12 +27,12 @@ jobs:
       file_check: ${{ steps.check-doc-files.outputs.any_modified }}
     steps:
     - name: checkout
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
     - name: Check if Documentation related files changed
-      uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+      uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       id: check-doc-files
       with:
         files: |
@@ -60,7 +60,7 @@ jobs:
     runs-on:
       group: zephyr-runner-v2-linux-x64-4xlarge
     container:
-      image: ghcr.io/zephyrproject-rtos/ci-repo-cache:v0.28.6.20251003
+      image: ghcr.io/zephyrproject-rtos/ci-repo-cache:v0.29.2.20260422
       options: '--entrypoint /bin/bash'
     timeout-minutes: 60
     concurrency:
@@ -93,7 +93,7 @@ jobs:
         git remote set-url origin ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}
 
     - name: Checkout
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
@@ -124,6 +124,19 @@ jobs:
         pip install -r scripts/requirements-actions.txt --require-hashes
         pip install -r doc/requirements.txt --require-hashes
 
+    - name: Set up Node.js
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        node-version: 24
+
+    - name: Install and vendor copies of JS libs within within docs sources
+      run: |
+        npm install --prefix doc
+        for pkg in mermaid d3; do
+          mkdir -p doc/_static/js/${pkg}
+          cp -a doc/node_modules/${pkg}/dist/. doc/_static/js/${pkg}/
+        done
+
     - name: Build HTML documentation
       shell: bash
       run: |
@@ -142,7 +155,7 @@ jobs:
         DOC_TAG=${DOC_TAG} \
         SPHINXOPTS="-j ${JOB_COUNT} -W --keep-going -T" \
         SPHINXOPTS_EXTRA="-q -t publish" \
-        make -C doc ${DOC_TARGET}
+        make -C doc ${DOC_TARGET} NO_EXTERNAL_DEPS=1
 
         # API documentation coverage
         python3 -m coverxygen --xml-dir  doc/_build/html/doxygen/xml/ --src-dir include/ --output doc-coverage.info
@@ -150,20 +163,107 @@ jobs:
         lcov --remove doc-coverage.info \*/deprecated > new.info
         genhtml --no-function-coverage --no-branch-coverage new.info -o coverage-report
 
+    - name: Run accessibility check (pa11y)
+      run: |
+        apt-get update -qq && apt-get install -y --no-install-recommends \
+          libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+          libxkbcommon0 libxdamage1 libgbm1 libpango-1.0-0 \
+          libcairo2 libasound2t64
+
+        npm install -g pa11y-ci@4 pa11y-ci-reporter-html@7
+        npx puppeteer browsers install chrome
+
+        python3 -m http.server 8000 --directory doc/_build/html &
+        SERVER_PID=$!
+        sleep 1
+
+        cat <<EOF > .pa11y-ci.json
+        {
+          "defaults": {
+            "timeout": 240000,
+            "runners": [
+              "axe",
+              "htmlcs"
+            ],
+            "concurrency": 2,
+            "chromeLaunchConfig": {
+              "args": [
+                "--disable-dev-shm-usage",
+                "--no-sandbox"
+              ]
+            }
+          },
+          "urls": [
+            {
+              "url": "http://localhost:8000/index.html?mode=light",
+              "screenCapture": "./pa11y-ci-report/index.png"
+            },
+            {
+              "url": "http://localhost:8000/index.html?mode=dark",
+              "screenCapture": "./pa11y-ci-report/index-dark.png"
+            },
+            {
+              "url": "http://localhost:8000/boards/index.html?mode=light#name=devkit",
+              "screenCapture": "./pa11y-ci-report/boards.png"
+            },
+            {
+              "url": "http://localhost:8000/boards/index.html?mode=dark#name=devkit",
+              "screenCapture": "./pa11y-ci-report/boards-dark.png"
+            },
+            {
+              "url": "http://localhost:8000/samples/index.html?mode=light",
+              "screenCapture": "./pa11y-ci-report/samples.png"
+            },
+            {
+              "url": "http://localhost:8000/samples/index.html?mode=dark",
+              "screenCapture": "./pa11y-ci-report/samples-dark.png"
+            },
+            {
+              "url": "http://localhost:8000/develop/getting_started/index.html?mode=light",
+              "screenCapture": "./pa11y-ci-report/getting-started.png"
+            },
+            {
+              "url": "http://localhost:8000/develop/getting_started/index.html?mode=dark",
+              "screenCapture": "./pa11y-ci-report/getting-started-dark.png"
+            },
+            {
+              "url": "http://localhost:8000/contribute/documentation/guidelines.html?mode=light",
+              "screenCapture": "./pa11y-ci-report/guidelines.png"
+            },
+            {
+              "url": "http://localhost:8000/contribute/documentation/guidelines.html?mode=dark",
+              "screenCapture": "./pa11y-ci-report/guidelines-dark.png"
+            }
+          ]
+        }
+        EOF
+
+        mkdir -p pa11y-ci-report
+        pa11y-ci -c .pa11y-ci.json -T 9999 --reporter=pa11y-ci-reporter-html
+
+        kill $SERVER_PID
+
     - name: Compress documentation build artifacts
       run: |
         tar --use-compress-program="xz -T0" -cf html-output.tar.xz --exclude html/_sources --exclude html/doxygen/xml --directory=doc/_build html
         tar --use-compress-program="xz -T0" -cf api-output.tar.xz --directory=doc/_build html/doxygen/html
         tar --use-compress-program="xz -T0" -cf api-coverage.tar.xz coverage-report
+        tar --use-compress-program="xz -T0" -cf accessibility-report.tar.xz pa11y-ci-report
+
+    - name: Upload accessibility report
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: accessibility-report
+        path: accessibility-report.tar.xz
 
     - name: Upload HTML output
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: html-output
         path: html-output.tar.xz
 
     - name: Upload Doxygen coverage artifacts
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: api-coverage
         path: api-coverage.tar.xz
@@ -177,14 +277,19 @@ jobs:
         DOC_URL="https://builds.zephyrproject.io/${REPO_NAME}/pr/${PR_NUM}/docs/"
         API_DOC_URL="https://builds.zephyrproject.io/${REPO_NAME}/pr/${PR_NUM}/docs/doxygen/html/"
         API_COVERAGE_URL="https://builds.zephyrproject.io/${REPO_NAME}/pr/${PR_NUM}/api-coverage/"
+        A11Y_REPORT_URL="https://builds.zephyrproject.io/${REPO_NAME}/pr/${PR_NUM}/accessibility-report/"
 
         echo "${PR_NUM}" > pr_num
-        echo "Documentation will be available shortly at: ${DOC_URL}" >> $GITHUB_STEP_SUMMARY
-        echo "API Documentation will be available shortly at: ${API_DOC_URL}" >> $GITHUB_STEP_SUMMARY
-        echo "API Coverage Report will be available shortly at: ${API_COVERAGE_URL}" >> $GITHUB_STEP_SUMMARY
+        echo "Build results will be available shortly at the following URLs:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Documentation: ${DOC_URL}" >> $GITHUB_STEP_SUMMARY
+        echo "- API Documentation: ${API_DOC_URL}" >> $GITHUB_STEP_SUMMARY
+        echo "- API Coverage Report: ${API_COVERAGE_URL}" >> $GITHUB_STEP_SUMMARY
+        echo "- Accessibility Report: ${A11Y_REPORT_URL}" >> $GITHUB_STEP_SUMMARY
+
 
     - name: Upload PR number
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: github.event_name == 'pull_request'
       with:
         name: pr_num
@@ -203,12 +308,12 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         path: zephyr
 
     - name: Set up Python
-      uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: 3.12
         cache: pip
@@ -222,7 +327,7 @@ jobs:
           texlive-fonts-recommended texlive-fonts-extra texlive-xetex \
           imagemagick fonts-noto xindy
         wget --no-verbose "https://github.com/doxygen/doxygen/releases/download/Release_${DOXYGEN_VERSION//./_}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
-        echo "${DOXYGEN_MD5SUM}  doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz" | md5sum -c
+        echo "${DOXYGEN_SHA256SUM}  doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz" | sha256sum -c
         if [ $? -ne 0 ]; then
           echo "Failed to verify doxygen tarball"
           exit 1
@@ -231,7 +336,7 @@ jobs:
         echo "/opt/doxygen-${DOXYGEN_VERSION}/bin" >> $GITHUB_PATH
 
     - name: Setup Zephyr project
-      uses: zephyrproject-rtos/action-zephyr-setup@c125c5ebeeadbd727fa740b407f862734af1e52a # v1.0.9
+      uses: zephyrproject-rtos/action-zephyr-setup@700109a78599c7bb26585f2fb3d2411d65381b9d # v1.0.13
       with:
         app-path: zephyr
         toolchains: 'arm-zephyr-eabi'
@@ -260,7 +365,7 @@ jobs:
 
     - name: upload-build
       if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: pdf-output
         if-no-files-found: ignore

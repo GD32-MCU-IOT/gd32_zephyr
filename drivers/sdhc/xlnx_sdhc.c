@@ -173,7 +173,7 @@ static void xlnx_sdhc_clear_intr(volatile struct reg_base *reg)
 
 /**
  * @brief
- * Setup ADMA2 discriptor table for data transfer
+ * Setup ADMA2 descriptor table for data transfer
  */
 static int xlnx_sdhc_setup_adma(const struct device *dev, const struct sdhc_data *data)
 {
@@ -246,6 +246,14 @@ static uint16_t xlnx_sdhc_cmd_frame(struct sdhc_command *cmd, bool data, uint8_t
 
 	case SD_RSP_TYPE_R3:
 		command |= RESP_R3;
+		break;
+
+	case SD_RSP_TYPE_R4:
+		command |= RESP_R3;
+		break;
+
+	case SD_RSP_TYPE_R5:
+		command |= RESP_R1;
 		break;
 
 	case SD_RSP_TYPE_R6:
@@ -536,6 +544,23 @@ static int xlnx_sdhc_request(const struct device *dev, struct sdhc_command *cmd,
 		ret = xlnx_sdhc_transfer(dev, cmd, data);
 		break;
 
+	case SDIO_RW_EXTENDED:
+		if (IS_BIT_SET(cmd->arg, SDIO_CMD_ARG_RW_SHIFT)) {
+			dev_data->transfermode &= ~XLNX_SDHC_TM_DAT_DIR_SEL_MASK;
+		}
+		if (data->blocks > 1) {
+			dev_data->transfermode |= XLNX_SDHC_TM_MUL_SIN_BLK_SEL_MASK;
+		}
+		ret = xlnx_sdhc_transfer(dev, cmd, data);
+		break;
+
+	case SDIO_RW_DIRECT:
+		if (IS_BIT_SET(cmd->arg, SDIO_CMD_ARG_RW_SHIFT)) {
+			dev_data->transfermode &= ~XLNX_SDHC_TM_DAT_DIR_SEL_MASK;
+		}
+		ret = xlnx_sdhc_transfer(dev, cmd, data);
+		break;
+
 	default:
 		ret = xlnx_sdhc_transfer(dev, cmd, data);
 	}
@@ -587,14 +612,14 @@ static int xlnx_sdhc_host_props(const struct device *dev, struct sdhc_host_props
 			XLNX_SDHC_SLOT_TYPE_GET);
 	props->host_caps.bus_8_bit_support = XLNX_SDHC_GET_HOST_PROP_BIT(cap,
 			XLNX_SDHC_8BIT_SUPPORT);
-	props->host_caps.bus_4_bit_support = XLNX_SDHC_GET_HOST_PROP_BIT(cap,
+	props->bus_4_bit_support = XLNX_SDHC_GET_HOST_PROP_BIT(cap,
 			XLNX_SDHC_4BIT_SUPPORT);
 
 	if ((cap & CHECK_BITS(XLNX_SDHC_SDR400_SUPPORT)) != 0U) {
-		props->host_caps.hs400_support = (uint8_t)config->hs400_mode;
+		props->hs400_support = config->hs400_mode;
 		dev_data->has_phy = true;
 	}
-	props->host_caps.hs200_support = (uint8_t)config->hs200_mode;
+	props->hs200_support = config->hs200_mode;
 
 	dev_data->props = *props;
 

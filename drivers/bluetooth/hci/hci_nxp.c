@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 NXP
+ * Copyright 2023-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,7 @@
 #include <zephyr/drivers/bluetooth.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/crc.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/bluetooth/hci_types.h>
@@ -20,6 +21,12 @@
 
 #include <fwk_platform_ble.h>
 #include <fwk_platform.h>
+
+#if defined(CONFIG_NXP_SNPS_BLE_CTRL)
+#include "ble_controller.h"
+#elif defined(CONFIG_NXP_MCXW7X_BLE_CTRL)
+#include "controller_api.h"
+#endif
 
 /* -------------------------------------------------------------------------- */
 /*                                  Definitions                               */
@@ -50,19 +57,12 @@ LOG_MODULE_REGISTER(bt_driver);
 #define HCI_CMD_BT_HOST_SLEEP_CONFIG_OCF                0x59U
 #define HCI_CMD_BT_HOST_SLEEP_CONFIG_PARAM_LENGTH       2U
 #define HCI_CMD_BT_HOST_SET_MAC_ADDR_PARAM_LENGTH       8U
+#define HCI_BT_MAC_ADDR_CRC_SEED                        0xFFFFFFFFU
 #define HCI_SET_MAC_ADDR_CMD                            0x0022U
 #define BT_USER_BD                                      254
 #define BD_ADDR_OUI                                     0x37U, 0x60U, 0x00U
 #define BD_ADDR_OUI_PART_SIZE                           3U
 #define BD_ADDR_UUID_PART_SIZE                          3U
-
-#if !defined(CONFIG_HCI_NXP_SET_CAL_DATA)
-#define bt_nxp_set_calibration_data() 0
-#endif
-
-#if !defined(CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100)
-#define bt_nxp_set_calibration_data_annex100() 0
-#endif
 
 #if !defined(CONFIG_HCI_NXP_ENABLE_AUTO_SLEEP)
 #define nxp_bt_set_host_sleep_config()       0
@@ -73,20 +73,162 @@ LOG_MODULE_REGISTER(bt_driver);
 #define bt_nxp_set_mac_address(public_addr) 0
 #endif
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(standby), okay) && defined(CONFIG_PM) &&\
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(standby), okay) && defined(CONFIG_PM) &&                       \
 	defined(CONFIG_HCI_NXP_ENABLE_AUTO_SLEEP)
 #define HCI_NXP_LOCK_STANDBY_BEFORE_SEND
 #endif
 
+#if defined(CONFIG_HCI_NXP_SET_CAL_DATA)
+#if defined(CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100)
+/* For share antenna case or diversty case(ble only case) */
+#define BT_CAL_DATA_ANNEX_FRONT_END_LOSS 0x03U
+#else
+/* For dual ant case */
+#define BT_CAL_DATA_ANNEX_FRONT_END_LOSS 0x02U
+#endif /* CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100 */
+#else
+#define bt_nxp_set_calibration_data() 0
+#endif /* CONFIG_HCI_NXP_SET_CAL_DATA */
+
+#if defined(CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100)
+#if defined(CONFIG_HCI_NXP_ANT_DIVERSITY_ANT1) || defined(CONFIG_HCI_NXP_ANT_DIVERSITY_ANT2)
+/* For share antenna case or ant2 with external FEM(ble only case) */
+#define BT_CAL_DATA_ANNEX_100_EPA_FEM_MASK_LOW_BYTE 0x02U
+#define BT_CAL_DATA_ANNEX_100_LNA_FEM_MASK_LOW_BYTE 0x02U
+#elif defined(CONFIG_HCI_NXP_ANT_DIVERSITY_ANT3)
+/* diversity case(enable ant3) */
+#define BT_CAL_DATA_ANNEX_100_EPA_FEM_MASK_LOW_BYTE 0x0AU
+#define BT_CAL_DATA_ANNEX_100_LNA_FEM_MASK_LOW_BYTE 0x0AU
+#elif defined(CONFIG_HCI_NXP_ANT_DIVERSITY_ANT4)
+/* diversity case(enable ant4) */
+#define BT_CAL_DATA_ANNEX_100_EPA_FEM_MASK_LOW_BYTE 0x06U
+#define BT_CAL_DATA_ANNEX_100_LNA_FEM_MASK_LOW_BYTE 0x06U
+#else
+#error "Missing calibration data for annex100"
+#endif /* HCI_NXP_ANT_DIVERSITY_ANTx */
+#else
+#define bt_nxp_set_calibration_data_annex100() 0
+#endif /* CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100 */
+
 /* -------------------------------------------------------------------------- */
-/*                              Public prototypes                             */
+/*                               Private memory                               */
 /* -------------------------------------------------------------------------- */
+#if defined(CONFIG_HCI_NXP_SET_CAL_DATA)
+/* clang-format off */
+static const uint8_t hci_cal_data_params[] = {
+	0x00U,                            /*  Sequence Number : 0x00 */
+	0x00U,                            /*  Action : 0x00 */
+	0x01U,                            /*  Type : Not use CheckSum */
+	0x1CU,                            /*  File Length : 0x1C */
+	0x37U,                            /*  BT Annex Type : BT CFG */
+	0x71U,                            /*  Checksum : 0x71 */
+	0x1CU,                            /*  Annex Length LSB: 0x001C */
+	0x00U,                            /*  Annex Length MSB: 0x001C */
+	0xFFU,                            /*  Pointer For Next Annex[0] : 0xFFFFFFFF */
+	0xFFU,                            /*  Pointer For Next Annex[1] : 0xFFFFFFFF */
+	0xFFU,                            /*  Pointer For Next Annex[2] : 0xFFFFFFFF */
+	0xFFU,                            /*  Pointer For Next Annex[3] : 0xFFFFFFFF */
+	0x01U,                            /*  Annex Version : 0x01 */
+	0x7CU,                            /*  External Xtal Calibration Value : 0x7C */
+	0x04U,                            /*  Initial TX Power : 0x04 */
+	BT_CAL_DATA_ANNEX_FRONT_END_LOSS, /*  Front End Loss : 0x02 or 0x03 */
+	/*
+	 * BT Options :
+	 * BIT[0]] Force Class 2 operation = 0
+	 * BIT[1]] Disable Pwr Control for class 2= 0
+	 * BIT[2]] MiscFlag(to indicagte external XTAL) = 0
+	 * BIT[3] Used Internal Sleep Clock = 1
+	 * BIT[4] BT AOA location support = 0
+	 * BIT[5] Force Class 1 mode = 1
+	 * BIT[7:6] Reserved
+	 */
+	0x28U,
+	0x00U, /*  AOANumberOfAntennas: 0x00 */
+	0x00U, /*  RSSI Golden Low : 0 */
+	0x00U, /*  RSSI Golden High : 0 */
+	0xC0U, /*  UART Baud Rate[0] : 0x002DC6C0(3000000) */
+	0xC6U, /*  UART Baud Rate[1] : 0x002DC6C0(3000000) */
+	0x2DU, /*  UART Baud Rate[2] : 0x002DC6C0(3000000) */
+	0x00U, /*  UART Baud Rate[3] : 0x002DC6C0(3000000) */
+	0x00U, /*  BdAddress[0] : 0x000000000000 */
+	0x00U, /*  BdAddress[1] : 0x000000000000 */
+	0x00U, /*  BdAddress[2] : 0x000000000000 */
+	0x00U, /*  BdAddress[3] : 0x000000000000 */
+	0x00U, /*  BdAddress[4] : 0x000000000000 */
+	0x00U, /*  BdAddress[5] : 0x000000000000 */
+	/*
+	 * Encr_Key_Len[3:0]: MinEncrKeyLen = 0x0
+	 * Encr_Key_Len[7:4]: MaxEncrKeyLen = 0xF
+	 */
+	0xF0U,
+	0x00U, /*  RegionCode : 0x00 */
+};
+/* clang-format on */
+
+#if defined(CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100)
+/*
+ * a.The following parameters are used in three cases,
+ *    1.For share antenna case or ant2 with external FEM(ble only case).
+ *    2.diversity case(enable ant3)
+ *    3.diversity case(enable ant4)
+ */
+static const uint8_t hci_cal_data_annex100_params[] = {
+	0x64U, /*  Annex Type : 0x64 */
+	0x00U, /*  CheckSum: Annex100 ignores checksum */
+	0x10U, /*  Length-In-Byte : 0x0010 */
+	0x00U, /*  Length-In-Byte : 0x0010 */
+	0xFFU, /* Pointer for next annex structure : 0xFFFFFFFF */
+	0xFFU, /* Pointer for next annex structure : 0xFFFFFFFF */
+	0xFFU, /* Pointer for next annex structure : 0xFFFFFFFF */
+	0xFFU, /* Pointer for next annex structure : 0xFFFFFFFF */
+	0x01U, /* Ext_PA Gain : Bit[7:1]   Ext_PA Present : Bit[0] */
+	0x00U, /* Ext_Ant Gain : Bit[4:1]   Ext_Ant Present : Bit[0] */
+	BT_CAL_DATA_ANNEX_100_EPA_FEM_MASK_LOW_BYTE, /* BT_HW_INFO_EPA_FEM_Mask */
+	0x00U,                                       /* BT_HW_INFO_EPA_FEM_Mask */
+	0x01U, /* Ext_LNA Present : Bit[0]   Ext_LNA Gain : Bit[7:1] */
+	0x00U, /* multipurpose mask */
+	BT_CAL_DATA_ANNEX_100_LNA_FEM_MASK_LOW_BYTE, /* BT / LE ext LNA FEM BITMASK */
+	0x00U,                                       /* BT / LE ext LNA FEM BITMASK */
+};
+#endif /* CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100 */
+#endif /* CONFIG_HCI_NXP_SET_CAL_DATA */
 
 /* -------------------------------------------------------------------------- */
 /*                             Private functions                              */
 /* -------------------------------------------------------------------------- */
 
-#if defined(CONFIG_HCI_NXP_ENABLE_AUTO_SLEEP) || defined(CONFIG_HCI_NXP_SET_CAL_DATA) ||\
+int nxp_nbu_set_tx_power(int8_t level_dbm, uint8_t handle_type)
+{
+	int status = 0;
+#if defined(CONFIG_NXP_SNPS_BLE_CTRL)
+	if (handle_type == BT_HCI_VS_LL_HANDLE_TYPE_CONN) {
+		if (kBLEC_Success != BLEController_SetConnectionInitialTxPowerDbm(level_dbm)) {
+			status = -EIO;
+		}
+	} else {
+		if (kBLEC_Success != BLEController_SetTxPowerDbm(level_dbm)) {
+			status = -EIO;
+		}
+	}
+#elif defined(CONFIG_NXP_MCXW7X_BLE_CTRL)
+	if (handle_type == BT_HCI_VS_LL_HANDLE_TYPE_CONN) {
+		if (Controller_SetTxPowerLevelDbm(level_dbm, gConnTxChannel_c) !=
+		    KOSA_StatusSuccess) {
+			status = -EIO;
+		}
+	} else {
+		if (Controller_SetTxPowerLevelDbm(level_dbm, gAdvTxChannel_c) !=
+		    KOSA_StatusSuccess) {
+			status = -EIO;
+		}
+	}
+#else
+	status = -ENOENT;
+#endif
+	return status;
+}
+
+#if defined(CONFIG_HCI_NXP_ENABLE_AUTO_SLEEP) || defined(CONFIG_HCI_NXP_SET_CAL_DATA) ||           \
 	defined(CONFIG_BT_HCI_SET_PUBLIC_ADDR)
 static int nxp_bt_send_vs_command(uint16_t opcode, const uint8_t *params, uint8_t params_len)
 {
@@ -142,11 +284,9 @@ static int nxp_bt_set_host_sleep_config(void)
 static int bt_nxp_set_calibration_data(void)
 {
 	uint16_t opcode = BT_OP(BT_OGF_VS, HCI_CMD_STORE_BT_CAL_DATA_OCF);
-	extern const uint8_t hci_cal_data_params[HCI_CMD_STORE_BT_CAL_DATA_PARAM_LENGTH];
 
 	/* Send the command */
-	return nxp_bt_send_vs_command(opcode, hci_cal_data_params,
-				      HCI_CMD_STORE_BT_CAL_DATA_PARAM_LENGTH);
+	return nxp_bt_send_vs_command(opcode, hci_cal_data_params, sizeof(hci_cal_data_params));
 }
 
 #if defined(CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100)
@@ -154,12 +294,9 @@ static int bt_nxp_set_calibration_data_annex100(void)
 {
 	uint16_t opcode = BT_OP(BT_OGF_VS, HCI_CMD_STORE_BT_CAL_DATA_ANNEX100_OCF);
 
-	extern const uint8_t
-		hci_cal_data_annex100_params[HCI_CMD_STORE_BT_CAL_DATA_PARAM_ANNEX100_LENGTH];
-
 	/* Send the command */
 	return nxp_bt_send_vs_command(opcode, hci_cal_data_annex100_params,
-				      HCI_CMD_STORE_BT_CAL_DATA_PARAM_ANNEX100_LENGTH);
+				      sizeof(hci_cal_data_annex100_params));
 }
 #endif /* CONFIG_HCI_NXP_SET_CAL_DATA_ANNEX100 */
 
@@ -178,22 +315,28 @@ static int bt_nxp_set_mac_address(const bt_addr_t *public_addr)
 	uint8_t addrOUI[BD_ADDR_OUI_PART_SIZE] = {BD_ADDR_OUI};
 	uint8_t uid[16] = {0};
 	uint8_t uuidLen;
-	uint8_t params[HCI_CMD_BT_HOST_SET_MAC_ADDR_PARAM_LENGTH] = {
-		BT_USER_BD,
-		0x06U
-	};
+	uint32_t unique_val_crc = 0;
+	uint8_t params[HCI_CMD_BT_HOST_SET_MAC_ADDR_PARAM_LENGTH] = {BT_USER_BD, 0x06U};
 
 	/* If no public address is provided by the user, use a unique address made
 	 * from the device's UID (unique ID)
 	 */
 	if (bt_addr_eq(public_addr, BT_ADDR_ANY) || bt_addr_eq(public_addr, BT_ADDR_NONE)) {
 		PLATFORM_GetMCUUid(uid, &uuidLen);
-		/* Set 3 LSB of MAC address from UUID */
-		if (uuidLen > BD_ADDR_UUID_PART_SIZE) {
-			memcpy((void *)bleDeviceAddress,
-			       (void *)(uid + uuidLen - (BD_ADDR_UUID_PART_SIZE + 1)),
+
+		if (uuidLen > 0) {
+			/* Calculate a 32-bit IEEE CRC over the entire unique ID (uid)
+			 * Initial CRC value is 0xFFFFFFFFU for maximum randomization
+			 */
+			unique_val_crc = crc32_ieee_update(HCI_BT_MAC_ADDR_CRC_SEED, uid, uuidLen);
+			/* Copy the lower 3 bytes (24 bits) of the CRC result */
+			memcpy((void *)bleDeviceAddress, (const void *)&unique_val_crc,
 			       BD_ADDR_UUID_PART_SIZE);
+		} else {
+			LOG_ERR("UUID is empty, cannot generate address.");
+			return -EFAULT;
 		}
+
 		/* Set 3 MSB of MAC address from OUI */
 		memcpy((void *)(bleDeviceAddress + BD_ADDR_UUID_PART_SIZE), (void *)addrOUI,
 		       BD_ADDR_OUI_PART_SIZE);
@@ -202,11 +345,10 @@ static int bt_nxp_set_mac_address(const bt_addr_t *public_addr)
 	}
 
 	memcpy(&params[2], (const void *)bleDeviceAddress,
-		BD_ADDR_UUID_PART_SIZE + BD_ADDR_OUI_PART_SIZE);
+	       BD_ADDR_UUID_PART_SIZE + BD_ADDR_OUI_PART_SIZE);
 
 	/* Send the command */
-	return nxp_bt_send_vs_command(opcode, params,
-					HCI_CMD_BT_HOST_SET_MAC_ADDR_PARAM_LENGTH);
+	return nxp_bt_send_vs_command(opcode, params, HCI_CMD_BT_HOST_SET_MAC_ADDR_PARAM_LENGTH);
 }
 #endif /* CONFIG_BT_HCI_SET_PUBLIC_ADDR */
 
@@ -224,14 +366,13 @@ static bool is_hci_event_discardable(const uint8_t *evt_data)
 			ret = true;
 			break;
 #if defined(CONFIG_BT_EXT_ADV)
-		case BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT:
-		{
+		case BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT: {
 			const struct bt_hci_evt_le_ext_advertising_report *ext_adv =
 				(void *)&evt_data[3];
 
 			return (ext_adv->num_reports == 1) &&
-				   ((ext_adv->adv_info[0].evt_type &
-					 BT_HCI_LE_ADV_EVT_TYPE_LEGACY) != 0);
+			       ((ext_adv->adv_info[0].evt_type & BT_HCI_LE_ADV_EVT_TYPE_LEGACY) !=
+				0);
 		}
 #endif
 		default:
@@ -411,13 +552,146 @@ static void hci_rx_cb(uint8_t packetType, uint8_t *data, uint16_t len)
 }
 #endif /* CONFIG_HCI_NXP_RX_THREAD */
 
+/**
+ * @brief Send a vendor-specific command complete event back to host
+ *
+ * @param opcode The command opcode
+ * @param status The status to return (0 = success)
+ */
+static void bt_nxp_send_vs_cmd_complete(const struct device *dev, uint16_t opcode, uint8_t status)
+{
+	struct net_buf *buf;
+	uint8_t *pckt;
+	struct bt_nxp_data *hci = dev->data;
+
+	buf = bt_buf_get_evt(BT_HCI_EVT_CMD_COMPLETE, false, K_NO_WAIT);
+	if (buf == NULL) {
+		LOG_ERR("Failed to allocate buffer for complete event");
+		return;
+	}
+
+	/*
+	 * Command Complete Event:
+	 * [0] Event Code
+	 * [1] Param Length
+	 * [2] Ncmd
+	 * [3 - 4] Opcode
+	 * [5] Status
+	 */
+	pckt = net_buf_add(buf, BT_HCI_EVT_HDR_SIZE + sizeof(struct bt_hci_evt_cmd_complete) + 1U);
+	pckt[0U] = BT_HCI_EVT_CMD_COMPLETE;
+	pckt[1U] = sizeof(struct bt_hci_evt_cmd_complete) + 1U;
+	pckt[2U] = 1U;
+	sys_put_le16(opcode, &pckt[3U]);
+	pckt[5U] = status;
+
+	hci->recv(dev, buf);
+}
+
+static int bt_nxp_process_tx_power_cmd(const uint8_t *params, uint8_t params_len)
+{
+	int8_t level_dbm;
+	uint8_t handle_type;
+	uint16_t handle;
+	int8_t status = 0;
+
+	do {
+		/* Zephyr's VS TX power command format:
+		 * - handle_type: 1 byte (0=adv, 1=conn)
+		 * - handle: 2 bytes
+		 * - tx_power: 1 byte
+		 */
+		if ((params == NULL) ||
+		    (params_len < sizeof(struct bt_hci_cp_vs_write_tx_power_level))) {
+			status = -EINVAL;
+			break;
+		}
+
+		handle_type = params[0U];
+		handle = sys_get_le16(&params[1U]);
+		level_dbm = (int8_t)params[3U];
+
+		LOG_DBG("TX Power: level=%d dBm, type=%d, handle=0x%04x", level_dbm, handle_type,
+			handle);
+
+		if (nxp_nbu_set_tx_power(level_dbm, handle_type) != 0U) {
+			status = -EIO;
+			break;
+		}
+	} while (false);
+
+	return status;
+}
+
+/**
+ * @brief Check and process vendor-specific commands
+ *
+ * @param buf HCI buffer
+ * @return true if correctly handled
+ */
+static bool bt_nxp_process_vs_command(const struct device *dev, struct net_buf *buf)
+{
+	bool handled = false;
+	uint16_t opcode;
+	uint8_t param_len;
+	const uint8_t *params;
+	int ret;
+
+	if (buf->len < BT_HCI_CMD_HDR_SIZE + 1U) {
+		return false;
+	}
+
+	if (buf->data[0] != BT_HCI_H4_CMD) {
+		return false;
+	}
+
+	opcode = sys_get_le16(buf->data + 1U);
+	/* Is it a vendor command? */
+	if (BT_OGF(opcode) != BT_OGF_VS) {
+		return false;
+	}
+
+	param_len = buf->data[3U];
+
+	/* Validate that buffer contains all claimed parameters */
+	if (buf->len < (BT_HCI_CMD_HDR_SIZE + param_len + 1U)) {
+		LOG_WRN("VS command buffer too short: len=%u, expected=%u", buf->len,
+			BT_HCI_CMD_HDR_SIZE + param_len + 1U);
+		return false;
+	}
+
+	params = &buf->data[4];
+
+	/* Handle commands */
+	switch (opcode) {
+	case BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL:
+		LOG_DBG("Processing VS TX Power command");
+		ret = bt_nxp_process_tx_power_cmd(params, param_len);
+		/* Send command complete back to host */
+		bt_nxp_send_vs_cmd_complete(dev, opcode, (ret == 0) ? 0x0U : 0x1U);
+		handled = true;
+		break;
+
+	default:
+		/* Unknown VS command */
+		break;
+	}
+
+	return handled;
+}
+
 static int bt_nxp_send(const struct device *dev, struct net_buf *buf)
 {
 	ARG_UNUSED(dev);
 
+	if (bt_nxp_process_vs_command(dev, buf)) {
+		LOG_DBG("VS command handled");
+		net_buf_unref(buf);
+		return 0;
+	}
 #if defined(HCI_NXP_LOCK_STANDBY_BEFORE_SEND)
 	/* Sending an HCI message requires to wake up the controller core if it's asleep.
-	 * Platform controllers may send reponses using non wakeable interrupts which can
+	 * Platform controllers may send responses using non wakeable interrupts which can
 	 * be lost during standby usage.
 	 * Blocking standby usage until the HCI message is sent.
 	 */
@@ -552,11 +826,10 @@ static int bt_nxp_init(const struct device *dev)
 	return ret;
 }
 
-#define HCI_DEVICE_INIT(inst) \
-	static struct bt_nxp_data hci_data_##inst = { \
-	}; \
-	DEVICE_DT_INST_DEFINE(inst, bt_nxp_init, NULL, &hci_data_##inst, NULL, \
-			      POST_KERNEL, CONFIG_BT_HCI_INIT_PRIORITY, &drv)
+#define HCI_DEVICE_INIT(inst)                                                                      \
+	static struct bt_nxp_data hci_data_##inst = {};                                            \
+	DEVICE_DT_INST_DEFINE(inst, bt_nxp_init, NULL, &hci_data_##inst, NULL, POST_KERNEL,        \
+			      CONFIG_BT_HCI_INIT_PRIORITY, &drv)
 
 /* Only one instance supported right now */
 HCI_DEVICE_INIT(0)

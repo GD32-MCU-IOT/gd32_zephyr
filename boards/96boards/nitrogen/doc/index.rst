@@ -1,4 +1,4 @@
-.. _96b_nitrogen_board:
+.. zephyr:board:: 96b_nitrogen
 
 96Boards Nitrogen
 #################
@@ -25,7 +25,7 @@ Hardware
 96Boards Nitrogen provides the following hardware components:
 
 - nRF52832 microcontroller with 512kB Flash, 64kB RAM
-- ARM |reg| 32-bit Cortex |reg|-M4 CPU with FPU
+- ARM® 32-bit Cortex®-M4 CPU with FPU
 - Bluetooth LE
 - NFC
 - LPC11U35 on board SWD debugger
@@ -50,33 +50,7 @@ Hardware
 Supported Features
 ==================
 
-The Zephyr 96b_nitrogen board configuration supports the following hardware
-features:
-
-+-----------+------------+--------------------------------------+
-| Interface | Controller | Driver/Component                     |
-+===========+============+======================================+
-| NVIC      | on-chip    | nested vectored interrupt controller |
-+-----------+------------+--------------------------------------+
-| RTC       | on-chip    | system clock                         |
-+-----------+------------+--------------------------------------+
-| UART      | on-chip    | serial port                          |
-+-----------+------------+--------------------------------------+
-| GPIO      | on-chip    | gpio                                 |
-+-----------+------------+--------------------------------------+
-| FLASH     | on-chip    | flash                                |
-+-----------+------------+--------------------------------------+
-| RADIO     | on-chip    | Bluetooth                            |
-+-----------+------------+--------------------------------------+
-| RTT       | on-chip    | console                              |
-+-----------+------------+--------------------------------------+
-
-Other hardware features have not been enabled yet for this board.
-See `Nordic Semiconductor Infocenter`_ for a complete list of nRF52-based
-board hardware features.
-
-The default configuration can be found in
-:zephyr_file:`boards/96boards/nitrogen/96b_nitrogen_defconfig`
+.. zephyr:board-supported-hw::
 
 Pin Mapping
 ===========

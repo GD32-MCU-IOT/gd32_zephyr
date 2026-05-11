@@ -8,6 +8,7 @@
 LOG_MODULE_DECLARE(net_l2_ppp, CONFIG_NET_L2_PPP_LOG_LEVEL);
 
 #include <zephyr/net/net_core.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/net_if.h>
 
@@ -51,6 +52,13 @@ struct net_if *ppp_fsm_iface(struct ppp_fsm *fsm)
 	NET_ASSERT(ctx->iface);
 
 	return ctx->iface;
+}
+
+static bool ppp_fsm_is_dead(struct ppp_fsm *fsm)
+{
+	struct ppp_context *ctx = ppp_fsm_ctx(fsm);
+
+	return ctx->phase == PPP_DEAD;
 }
 
 static void fsm_send_configure_req(struct ppp_fsm *fsm, bool retransmit)
@@ -246,6 +254,10 @@ void ppp_fsm_close(struct ppp_fsm *fsm, const uint8_t *reason)
 
 	case PPP_STOPPING:
 		ppp_change_state(fsm, PPP_CLOSING);
+		if (ppp_fsm_is_dead(fsm)) {
+			fsm->retransmits = 0;
+			k_work_reschedule(&fsm->timer, K_NO_WAIT);
+		}
 		break;
 
 	default:
@@ -451,12 +463,12 @@ int ppp_send_pkt(struct ppp_fsm *fsm, struct net_if *iface,
 
 	ppp.code = type;
 	ppp.id = id;
-	ppp.length = htons(len);
+	ppp.length = net_htons(len);
 
 	if (!pkt) {
 		pkt = net_pkt_alloc_with_buffer(iface,
 						sizeof(uint16_t) + len,
-						AF_UNSPEC, 0,
+						NET_AF_UNSPEC, 0,
 						PPP_BUF_ALLOC_TIMEOUT);
 		if (!pkt) {
 			goto out_of_mem;
@@ -609,7 +621,7 @@ static enum net_verdict fsm_recv_configure_req(struct ppp_fsm *fsm,
 					sizeof(uint16_t) + sizeof(uint16_t) +
 						sizeof(uint8_t) + sizeof(uint8_t) +
 						remaining_len,
-					AF_UNSPEC, 0, PPP_BUF_ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, PPP_BUF_ALLOC_TIMEOUT);
 	if (!out) {
 		return NET_DROP;
 	}

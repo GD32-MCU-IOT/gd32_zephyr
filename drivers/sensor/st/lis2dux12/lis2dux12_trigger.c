@@ -11,7 +11,6 @@
 #include <zephyr/logging/log.h>
 #include "lis2dux12.h"
 
-#include "lis2dux12.h"
 #include "lis2dux12_rtio.h"
 
 LOG_MODULE_DECLARE(LIS2DUX12, CONFIG_SENSOR_LOG_LEVEL);
@@ -76,7 +75,7 @@ int lis2dux12_trigger_init(const struct device *dev)
 
 	/* setup data ready gpio interrupt (INT1 or INT2) */
 	if (!gpio_is_ready_dt(data->drdy_gpio)) {
-		LOG_ERR("Cannot get pointer to drdy_gpio device");
+		LOG_ERR_DEVICE_NOT_READY(data->drdy_gpio->port);
 		return -ENODEV;
 	}
 

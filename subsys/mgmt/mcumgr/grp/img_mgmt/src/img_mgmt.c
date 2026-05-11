@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 mcumgr authors
- * Copyright (c) 2022-2024 Nordic Semiconductor ASA
+ * Copyright (c) 2022-2025 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -43,40 +43,78 @@
 
 #if !defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD)
 
+#if defined(CONFIG_FLASH_USES_MAPPED_PARTITION)
+#define PARTITION_IS_RUNNING_APP_PARTITION(label)				\
+	DT_SAME_NODE(DT_CHOSEN(zephyr_code_partition), DT_NODELABEL(label))
+#else
 #ifndef CONFIG_FLASH_LOAD_OFFSET
 #error MCUmgr requires application to be built with CONFIG_FLASH_LOAD_OFFSET set \
 	to be able to figure out application running slot.
 #endif
 
-#define FIXED_PARTITION_IS_RUNNING_APP_PARTITION(label)                                            \
-	(FIXED_PARTITION_OFFSET(label) <= CONFIG_FLASH_LOAD_OFFSET &&                              \
-	 FIXED_PARTITION_OFFSET(label) + FIXED_PARTITION_SIZE(label) > CONFIG_FLASH_LOAD_OFFSET)
+#define PARTITION_IS_RUNNING_APP_PARTITION(label)                                            \
+	DT_SAME_NODE(PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)),                   \
+		PARTITION_MTD(label)) && (PARTITION_ADDRESS(label) <=                  \
+			(CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET) &&                  \
+		PARTITION_ADDRESS(label) + PARTITION_SIZE(label) >                     \
+			(CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET))
+#endif
 
 BUILD_ASSERT(sizeof(struct image_header) == IMAGE_HEADER_SIZE,
 	     "struct image_header not required size");
 
 #if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2
-#if FIXED_PARTITION_EXISTS(slot0_ns_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_ns_partition)
+#if PARTITION_EXISTS(slot0_ns_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot0_ns_partition)
 #define ACTIVE_IMAGE_IS 0
-#elif FIXED_PARTITION_EXISTS(slot0_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition)
+#elif PARTITION_EXISTS(slot0_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition)
 #define ACTIVE_IMAGE_IS 0
-#elif FIXED_PARTITION_EXISTS(slot1_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)
+#elif PARTITION_EXISTS(slot1_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)
 #define ACTIVE_IMAGE_IS 0
-#elif FIXED_PARTITION_EXISTS(slot2_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot2_partition)
+#elif PARTITION_EXISTS(slot2_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot2_partition)
 #define ACTIVE_IMAGE_IS 1
-#elif FIXED_PARTITION_EXISTS(slot3_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot3_partition)
+#elif PARTITION_EXISTS(slot3_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot3_partition)
 #define ACTIVE_IMAGE_IS 1
-#elif FIXED_PARTITION_EXISTS(slot4_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot4_partition)
+#elif PARTITION_EXISTS(slot4_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot4_partition)
 #define ACTIVE_IMAGE_IS 2
-#elif FIXED_PARTITION_EXISTS(slot5_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot5_partition)
+#elif PARTITION_EXISTS(slot5_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot5_partition)
 #define ACTIVE_IMAGE_IS 2
+#elif PARTITION_EXISTS(slot6_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot6_partition)
+#define ACTIVE_IMAGE_IS 3
+#elif PARTITION_EXISTS(slot7_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot7_partition)
+#define ACTIVE_IMAGE_IS 3
+#elif PARTITION_EXISTS(slot8_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot8_partition)
+#define ACTIVE_IMAGE_IS 4
+#elif PARTITION_EXISTS(slot9_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot9_partition)
+#define ACTIVE_IMAGE_IS 4
+#elif PARTITION_EXISTS(slot10_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot10_partition)
+#define ACTIVE_IMAGE_IS 5
+#elif PARTITION_EXISTS(slot11_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot11_partition)
+#define ACTIVE_IMAGE_IS 5
+#elif PARTITION_EXISTS(slot12_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot12_partition)
+#define ACTIVE_IMAGE_IS 6
+#elif PARTITION_EXISTS(slot13_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot13_partition)
+#define ACTIVE_IMAGE_IS 6
+#elif PARTITION_EXISTS(slot14_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot14_partition)
+#define ACTIVE_IMAGE_IS 7
+#elif PARTITION_EXISTS(slot15_partition) &&			\
+	PARTITION_IS_RUNNING_APP_PARTITION(slot15_partition)
+#define ACTIVE_IMAGE_IS 7
 #else
 #define ACTIVE_IMAGE_IS 0
 #endif
@@ -130,22 +168,6 @@ void img_mgmt_release_lock(void)
 #endif
 }
 
-#if defined(CONFIG_MCUMGR_GRP_IMG_SLOT_INFO_HOOKS)
-static bool img_mgmt_reset_zse(struct smp_streamer *ctxt)
-{
-	zcbor_state_t *zse = ctxt->writer->zs;
-
-	/* Because there is already data in the buffer, it must be cleared first */
-	net_buf_reset(ctxt->writer->nb);
-	ctxt->writer->nb->len = sizeof(struct smp_hdr);
-	zcbor_new_encode_state(zse, ARRAY_SIZE(ctxt->writer->zs),
-			       ctxt->writer->nb->data + sizeof(struct smp_hdr),
-			       net_buf_tailroom(ctxt->writer->nb), 0);
-
-	return zcbor_map_start_encode(zse, CONFIG_MCUMGR_SMP_CBOR_MAX_MAIN_MAP_ENTRIES);
-}
-#endif
-
 #if defined(CONFIG_MCUMGR_GRP_IMG_TOO_LARGE_SYSBUILD)
 static bool img_mgmt_slot_max_size(size_t *area_sizes, zcbor_state_t *zse)
 {
@@ -173,7 +195,7 @@ static bool img_mgmt_slot_max_size(size_t *area_sizes, zcbor_state_t *zse)
 
 	ARG_UNUSED(area_sizes);
 
-	rc = blinfo_lookup(BLINFO_MAX_APPLICATION_SIZE, &max_app_size, sizeof(max_app_size))
+	rc = blinfo_lookup(BLINFO_MAX_APPLICATION_SIZE, &max_app_size, sizeof(max_app_size));
 
 	if (rc < 0) {
 		LOG_ERR("Failed to lookup max application size: %d", rc);
@@ -234,7 +256,7 @@ int img_mgmt_active_slot(int image)
 	slot = (int)temp_slot;
 #else
 	/* This covers single image, including DirectXiP */
-	if (FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)) {
+	if (PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)) {
 		slot = 1;
 	}
 #endif
@@ -345,6 +367,7 @@ int img_mgmt_read_info(int image_slot, struct image_version *ver, uint8_t *hash,
 				return rc;
 			}
 		}
+		data_off += IMAGE_SHA_LEN;
 	}
 
 	if (!hash_found) {
@@ -596,7 +619,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 					return err_rc;
 				}
 
-				ok = img_mgmt_reset_zse(ctxt) &&
+				ok = smp_mgmt_reset_zse(ctxt) &&
 				     smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
 
 				goto finish;
@@ -625,7 +648,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 			}
 
 #if defined(CONFIG_MCUMGR_GRP_IMG_TOO_LARGE_SYSBUILD) || \
-	defined(MCUMGR_GRP_IMG_TOO_LARGE_BOOTLOADER_INFO)
+	defined(CONFIG_MCUMGR_GRP_IMG_TOO_LARGE_BOOTLOADER_INFO)
 			ok = img_mgmt_slot_max_size(area_sizes, zse);
 
 			if (!ok) {
@@ -644,7 +667,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 					return err_rc;
 				}
 
-				ok = img_mgmt_reset_zse(ctxt) &&
+				ok = smp_mgmt_reset_zse(ctxt) &&
 				     smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
 
 				goto finish;

@@ -65,9 +65,9 @@ struct pca9533_data {
  */
 static uint8_t ms_to_psc(uint32_t period_ms)
 {
-	uint32_t tmp = (period_ms * 152U + 500U) / 1000U;
+	int32_t tmp = (period_ms * 152U + 500U) / 1000U;
 
-	return CLAMP(tmp - 1U, 0U, UINT8_MAX);
+	return CLAMP(tmp - 1, 0U, UINT8_MAX);
 }
 
 /**
@@ -397,7 +397,7 @@ static int pca9533_led_init(const struct device *dev)
 	return pm_device_driver_init(dev, pca9533_pm_action);
 }
 
-static const struct led_driver_api pca9533_led_api = {
+static DEVICE_API(led, pca9533_led_api) = {
 	.blink = pca9533_led_blink,
 	.set_brightness = pca9533_led_set_brightness,
 };

@@ -13,6 +13,7 @@
 LOG_MODULE_REGISTER(net_mqtt, CONFIG_MQTT_LOG_LEVEL);
 
 #include <zephyr/net/mqtt.h>
+#include <zephyr/net/net_log.h>
 
 #include "mqtt_transport.h"
 #include "mqtt_internal.h"
@@ -203,7 +204,7 @@ static int client_write(struct mqtt_client *client, const uint8_t *data,
 }
 
 static int client_write_msg(struct mqtt_client *client,
-			    const struct msghdr *message)
+			    const struct net_msghdr *message)
 {
 	int err_code;
 
@@ -240,8 +241,8 @@ void mqtt_client_init(struct mqtt_client *client)
 
 #if defined(CONFIG_SOCKS)
 int mqtt_client_set_proxy(struct mqtt_client *client,
-			  struct sockaddr *proxy_addr,
-			  socklen_t addrlen)
+			  struct net_sockaddr *proxy_addr,
+			  net_socklen_t addrlen)
 {
 	if (IS_ENABLED(CONFIG_SOCKS)) {
 		if (!client || !proxy_addr) {
@@ -298,8 +299,8 @@ int mqtt_publish(struct mqtt_client *client,
 {
 	int err_code;
 	struct buf_ctx packet;
-	struct iovec io_vector[2];
-	struct msghdr msg;
+	struct net_iovec io_vector[2];
+	struct net_msghdr msg;
 
 	NULL_PARAM_CHECK(client);
 	NULL_PARAM_CHECK(param);

@@ -34,6 +34,8 @@ LOG_MODULE_REGISTER(bt_driver);
 
 #define BLE_TX_RX_PRIO      0
 #define BLE_TX_RX_FLAGS     0
+#define BLE_RRM_PRIO        0
+#define BLE_RRM_FLAGS       0
 #define BLE_RXTX_SEQ_PRIO   3
 #define BLE_RXTX_SEQ_FLAGS  0
 #define PKA_PRIO	    2
@@ -105,7 +107,8 @@ static void register_radio_event(uint32_t time, bool unregister)
 			pm_policy_event_unregister(&radio_evt);
 		}
 	} else {
-		value_ms = HAL_RADIO_TIMER_DiffSysTimeMs(time, HAL_RADIO_TIMER_GetCurrentSysTime());
+		value_ms = HAL_RADIO_TIMER_DiffSysTimeMs(HAL_RADIO_TIMER_GetFutureSysTime64(time),
+							 HAL_RADIO_TIMER_GetCurrentSysTime());
 		ticks = k_ms_to_ticks_floor64(value_ms) + k_uptime_ticks();
 		if (first_time) {
 			pm_policy_event_register(&radio_evt, ticks);
@@ -121,7 +124,7 @@ uint8_t BLEPLAT_SetRadioTimerValue(uint32_t Time, uint8_t EventType, uint8_t Cal
 	uint8_t retval;
 
 	retval = HAL_RADIO_TIMER_SetRadioTimerValue(Time, EventType, CalReq);
-	if (IS_ENABLED(CONFIG_PM_DEVICE)) {
+	if (IS_ENABLED(CONFIG_PM_DEVICE) && !retval) {
 		register_radio_event(Time, false);
 	}
 	return retval;
@@ -277,6 +280,11 @@ void HAL_RADIO_TxRxCallback(uint32_t flags)
 	k_work_schedule(&ble_stack_work, K_NO_WAIT);
 }
 
+void HAL_RADIO_RRMCallback(uint32_t ble_irq_status)
+{
+	BLE_STACK_RRMHandler(ble_irq_status);
+}
+
 ISR_DIRECT_DECLARE(RADIO_TXRX_IRQHandler)
 {
 	HAL_RADIO_TXRX_IRQHandler();
@@ -287,6 +295,13 @@ ISR_DIRECT_DECLARE(RADIO_TXRX_IRQHandler)
 ISR_DIRECT_DECLARE(RADIO_TXRX_SEQ_IRQHandler)
 {
 	HAL_RADIO_TXRX_SEQ_IRQHandler();
+	ISR_DIRECT_PM(); /* PM done after servicing interrupt for best latency */
+	return 1;
+}
+
+ISR_DIRECT_DECLARE(RADIO_RRM_IRQHandler)
+{
+	HAL_RADIO_RRM_IRQHandler();
 	ISR_DIRECT_PM(); /* PM done after servicing interrupt for best latency */
 	return 1;
 }
@@ -307,6 +322,7 @@ static void _PKA_IRQHandler(void *args)
 static void ble_isr_installer(void)
 {
 	IRQ_DIRECT_CONNECT(RADIO_TXRX_IRQn, BLE_TX_RX_PRIO, RADIO_TXRX_IRQHandler, BLE_TX_RX_FLAGS);
+	IRQ_DIRECT_CONNECT(RADIO_RRM_IRQn, BLE_RRM_PRIO, RADIO_RRM_IRQHandler, BLE_RRM_FLAGS);
 	IRQ_DIRECT_CONNECT(RADIO_TXRX_SEQ_IRQn, BLE_RXTX_SEQ_PRIO, RADIO_TXRX_SEQ_IRQHandler,
 			   BLE_RXTX_SEQ_FLAGS);
 	IRQ_CONNECT(PKA_IRQn, PKA_PRIO, _PKA_IRQHandler, NULL, PKA_FLAGS);
@@ -316,20 +332,24 @@ static void ble_isr_installer(void)
 static int ble_pm_action(const struct device *dev,
 			 enum pm_device_action action)
 {
-	static uint32_t pka_cr_vr;
+	static uint32_t pka_cr_vr, ble_rrm_irq_enable_vr;
 
 	switch (action) {
 	case PM_DEVICE_ACTION_SUSPEND:
 		LL_PWR_EnableWU_EWBLE();
 		pka_cr_vr = PKA->CR;
 		/* TBD: Manage PKA save for WB06 & WB07 */
+
+		ble_rrm_irq_enable_vr = RRM->BLE_IRQ_ENABLE;
 		break;
 	case PM_DEVICE_ACTION_RESUME:
 		LL_PWR_DisableWU_EWBLE();
 		/* TBD: Manage PKA restore for WB06 & WB07 */
 		PKA->CLRFR = PKA_CLRFR_PROCENDFC | PKA_CLRFR_RAMERRFC | PKA_CLRFR_ADDRERRFC;
 		PKA->CR = pka_cr_vr;
+		RRM->BLE_IRQ_ENABLE = ble_rrm_irq_enable_vr;
 		irq_enable(RADIO_TXRX_IRQn);
+		irq_enable(RADIO_RRM_IRQn);
 		irq_enable(RADIO_TXRX_SEQ_IRQn);
 		irq_enable(PKA_IRQn);
 		break;
@@ -343,7 +363,7 @@ static int ble_pm_action(const struct device *dev,
 
 static void rng_get_random(void *num, size_t size)
 {
-	const struct device *dev = DEVICE_DT_GET(DT_DRV_INST(0));
+	const struct device *dev = entropy_get_default_device();
 	int res;
 
 	/* try to allocate from pool */
@@ -517,6 +537,7 @@ static int bt_hci_stm32wb0_open(const struct device *dev, bt_hci_recv_t recv)
 		.NumOfBrcBIS = CFG_BLE_NUM_BRC_BIS_MAX,
 		.NumOfCIG = CFG_BLE_NUM_CIG_MAX,
 		.NumOfCIS = CFG_BLE_NUM_CIS_MAX,
+		.ExtraLLProcedureContexts = CFG_BLE_EXTRA_LL_PROCEDURE_CONTEXTS,
 		.isr0_fifo_size = CFG_BLE_ISR0_FIFO_SIZE,
 		.isr1_fifo_size = CFG_BLE_ISR1_FIFO_SIZE,
 		.user_fifo_size = CFG_BLE_USER_FIFO_SIZE

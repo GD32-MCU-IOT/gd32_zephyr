@@ -129,7 +129,7 @@ static uint8_t *upipe_rx(uint8_t *buf, size_t *off)
 
 	if (upipe->rx_len == upipe->rx_off) {
 		pkt = net_pkt_rx_alloc_with_buffer(upipe->iface, upipe->rx_len,
-						   AF_UNSPEC, 0, K_NO_WAIT);
+						   NET_AF_UNSPEC, 0, K_NO_WAIT);
 		if (!pkt) {
 			LOG_DBG("No pkt available");
 			goto flush;
@@ -271,7 +271,7 @@ static int upipe_tx(const struct device *dev,
 	uint8_t i, data;
 
 	if (mode != IEEE802154_TX_MODE_DIRECT) {
-		NET_ERR("TX mode %d not supported", mode);
+		LOG_ERR("TX mode %d not supported", mode);
 		return -ENOTSUP;
 	}
 

@@ -25,11 +25,18 @@
 
 LOG_MODULE_REGISTER(qdec_stm32, CONFIG_SENSOR_LOG_LEVEL);
 
+#ifdef CONFIG_STM32_HAL2
+#define STM32_TIM_ACTIVEINPUT_DIRECT	LL_TIM_ACTIVEINPUT_DIRECT
+#else /* CONFIG_STM32_HAL2 */
+#define STM32_TIM_ACTIVEINPUT_DIRECT	LL_TIM_ACTIVEINPUT_DIRECTTI
+#endif /* CONFIG_STM32_HAL2 */
+
 /* Device constant configuration parameters */
 struct qdec_stm32_dev_cfg {
 	const struct pinctrl_dev_config *pin_config;
 	struct stm32_pclken pclken;
 	TIM_TypeDef *timer_inst;
+	uint32_t prescaler;
 	uint32_t encoder_mode;
 	bool is_input_polarity_inverted;
 	uint8_t input_filtering_level;
@@ -39,23 +46,29 @@ struct qdec_stm32_dev_cfg {
 /* Device run time data */
 struct qdec_stm32_dev_data {
 	uint32_t position;
+	uint32_t counts;
 };
 
 static int qdec_stm32_fetch(const struct device *dev, enum sensor_channel chan)
 {
 	struct qdec_stm32_dev_data *dev_data = dev->data;
 	const struct qdec_stm32_dev_cfg *dev_cfg = dev->config;
+	uint32_t total_counter_value;
 	uint32_t counter_value;
 
-	if ((chan != SENSOR_CHAN_ALL) && (chan != SENSOR_CHAN_ROTATION)) {
+	if ((chan != SENSOR_CHAN_ALL) &&
+	    (chan != SENSOR_CHAN_ROTATION) && (chan != SENSOR_CHAN_ENCODER_COUNT)) {
 		return -ENOTSUP;
 	}
+
+	total_counter_value = LL_TIM_GetCounter(dev_cfg->timer_inst);
+	dev_data->counts = total_counter_value;
 
 	/* We're only interested in the remainder between the current counter value and
 	 * counts_per_revolution. The integer part represents an entire rotation so it
 	 * can be ignored
 	 */
-	counter_value = LL_TIM_GetCounter(dev_cfg->timer_inst) % dev_cfg->counts_per_revolution;
+	counter_value = total_counter_value % dev_cfg->counts_per_revolution;
 
 	/* The angle calculated in the fixed-point format (Q26.6 format) */
 	dev_data->position = (counter_value * 23040) / dev_cfg->counts_per_revolution;
@@ -71,6 +84,9 @@ static int qdec_stm32_get(const struct device *dev, enum sensor_channel chan,
 	if (chan == SENSOR_CHAN_ROTATION) {
 		val->val1 = dev_data->position >> 6;
 		val->val2 = (dev_data->position & 0x3F) * 15625;
+	} else if (chan == SENSOR_CHAN_ENCODER_COUNT) {
+		val->val1 = dev_data->counts;
+		val->val2 = 0;
 	} else {
 		return -ENOTSUP;
 	}
@@ -82,7 +98,7 @@ static void qdec_stm32_initialize_channel(const struct device *dev, uint32_t ll_
 {
 	const struct qdec_stm32_dev_cfg *const dev_cfg = dev->config;
 
-	LL_TIM_IC_SetActiveInput(dev_cfg->timer_inst, ll_channel, LL_TIM_ACTIVEINPUT_DIRECTTI);
+	LL_TIM_IC_SetActiveInput(dev_cfg->timer_inst, ll_channel, STM32_TIM_ACTIVEINPUT_DIRECT);
 	LL_TIM_IC_SetFilter(dev_cfg->timer_inst, ll_channel,
 			    dev_cfg->input_filtering_level * LL_TIM_IC_FILTER_FDIV1_N2);
 	LL_TIM_IC_SetPrescaler(dev_cfg->timer_inst, ll_channel, LL_TIM_ICPSC_DIV1);
@@ -102,11 +118,6 @@ static int qdec_stm32_initialize(const struct device *dev)
 		return retval;
 	}
 
-	if (!device_is_ready(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE))) {
-		LOG_ERR("Clock control device not ready");
-		return -ENODEV;
-	}
-
 	retval = clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
 				  (clock_control_subsys_t)&dev_cfg->pclken);
 	if (retval < 0) {
@@ -121,6 +132,8 @@ static int qdec_stm32_initialize(const struct device *dev)
 		max_counter_value = UINT16_MAX - (UINT16_MAX % dev_cfg->counts_per_revolution) - 1;
 	}
 	LL_TIM_SetAutoReload(dev_cfg->timer_inst, max_counter_value);
+
+	LL_TIM_SetPrescaler(dev_cfg->timer_inst, dev_cfg->prescaler);
 
 	LL_TIM_SetClockSource(dev_cfg->timer_inst, dev_cfg->encoder_mode);
 
@@ -150,8 +163,8 @@ static DEVICE_API(sensor, qdec_stm32_driver_api) = {
 	static const struct qdec_stm32_dev_cfg qdec##n##_stm32_config = {                          \
 		.pin_config = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                   \
 		.timer_inst = ((TIM_TypeDef *)DT_REG_ADDR(DT_INST_PARENT(n))),                     \
-		.pclken = {.bus = DT_CLOCKS_CELL(DT_INST_PARENT(n), bus),                          \
-			   .enr = DT_CLOCKS_CELL(DT_INST_PARENT(n), bits)},                        \
+		.prescaler = DT_PROP(DT_INST_PARENT(n), st_prescaler),                             \
+		.pclken = STM32_CLOCK_INFO(0, DT_INST_PARENT(n)),				   \
 		.encoder_mode = DT_INST_PROP(n, st_encoder_mode),                                  \
 		.is_input_polarity_inverted = DT_INST_PROP(n, st_input_polarity_inverted),         \
 		.input_filtering_level = DT_INST_PROP(n, st_input_filter_level),                   \

@@ -42,7 +42,7 @@ endif()
 # GD32E50X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32E50X})
   zephyr_compile_definitions(GD32E50X)
-  if (${CONFIG_SOC_GD32E507})
+  if(${CONFIG_SOC_GD32E507})
     zephyr_compile_definitions(GD32E50X_CL)
   endif()
 endif()

@@ -6,6 +6,7 @@
 
 #include <zephyr/ztest.h>
 #include <soc.h>
+#include <stm32_bitops.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <zephyr/logging/log.h>
@@ -81,10 +82,12 @@ ZTEST(stm32_syclck_config, test_pll_src)
 ZTEST(stm32_syclck_config, test_hse_css)
 {
 	/* there is no function to read CSS status, so read directly from the register */
-#if STM32_HSE_CSS
-	zassert_true(READ_BIT(RCC->CR, RCC_CR_CSSHSEON), "HSE CSS is not enabled");
+#ifdef STM32_HSE_CSS
+	zassert_true(stm32_reg_read_bits(&RCC->CR, RCC_CR_CSSHSEON) == RCC_CR_CSSHSEON,
+		     "HSE CSS is not enabled");
 #else
-	zassert_false(READ_BIT(RCC->CR, RCC_CR_CSSHSEON), "HSE CSS unexpectedly enabled");
+	zassert_false(stm32_reg_read_bits(&RCC->CR, RCC_CR_CSSHSEON) == RCC_CR_CSSHSEON,
+		      "HSE CSS unexpectedly enabled");
 #endif /* STM32_HSE_CSS */
 
 }

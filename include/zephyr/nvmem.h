@@ -5,7 +5,7 @@
 
 /**
  * @file
- * @brief Main header file for NVMEM API.
+ * @brief Public NVMEM header file.
  * @ingroup nvmem_interface
  */
 
@@ -13,8 +13,8 @@
 #define ZEPHYR_INCLUDE_NVMEM_H_
 
 /**
- * @brief Interfaces for NVMEM cells.
  * @defgroup nvmem_interface NVMEM
+ * @brief Non-volatile memory cells.
  * @since 4.3
  * @version 0.1.0
  * @ingroup io_interfaces
@@ -25,6 +25,7 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/devicetree/nvmem.h>
+#include <zephyr/sys/byteorder.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,8 @@ extern "C" {
  * @brief Non-Volatile Memory cell representation.
  */
 struct nvmem_cell {
+	/* @cond INTERNAL_HIDDEN */
+
 	/** NVMEM parent controller device instance. */
 	const struct device *dev;
 	/** Offset of the NVMEM cell relative to the parent controller's base address */
@@ -42,10 +45,12 @@ struct nvmem_cell {
 	size_t size;
 	/** Indicator if the NVMEM cell is read-write or read-only */
 	bool read_only;
+
+	/* @endcond */
 };
 
 /**
- * @brief Static initializer for a struct nvmem_cell.
+ * @brief Get a static initializer for a struct nvmem_cell.
  *
  * This returns a static initializer for a struct nvmem_cell given a devicetree
  * node identifier.
@@ -84,7 +89,7 @@ struct nvmem_cell {
  *	// }
  * @endcode
  *
- * @param node_id Devicetree node identifier.
+ * @param node_id Node identifier for an NVMEM cell.
  *
  * @return Static initializer for a struct nvmem_cell
  */
@@ -97,7 +102,7 @@ struct nvmem_cell {
 	}
 
 /**
- * @brief Static initializer for a struct nvmem_cell.
+ * @brief Get a static initializer for a struct nvmem_cell by name.
  *
  * This returns a static initializer for a struct nvmem_cell given a devicetree
  * node identifier and a name.
@@ -139,7 +144,7 @@ struct nvmem_cell {
  *	// }
  * @endcode
  *
- * @param node_id Devicetree node identifier.
+ * @param node_id Node identifier for a node with an nvmem-cells property.
  * @param name Lowercase-and-underscores name of an nvmem-cells element as defined by
  *             the node's nvmem-cell-names property.
  *
@@ -150,10 +155,10 @@ struct nvmem_cell {
 #define NVMEM_CELL_GET_BY_NAME(node_id, name) NVMEM_CELL_INIT(DT_NVMEM_CELL_BY_NAME(node_id, name))
 
 /**
- * @brief Static initializer for a struct nvmem_cell from a DT_DRV_COMPAT
- *        instance.
+ * @brief Get a static initializer for a struct nvmem_cell from a DT_DRV_COMPAT
+ *        instance by name.
  *
- * @param inst DT_DRV_COMPAT instance number
+ * @param inst DT_DRV_COMPAT instance number.
  * @param name Lowercase-and-underscores name of an nvmem-cells element as defined by
  *             the node's nvmem-cell-names property.
  *
@@ -164,14 +169,14 @@ struct nvmem_cell {
 #define NVMEM_CELL_INST_GET_BY_NAME(inst, name) NVMEM_CELL_GET_BY_NAME(DT_DRV_INST(inst), name)
 
 /**
- * @brief Like NVMEM_CELL_GET_BY_NAME(), with a fallback to a default value.
+ * @brief Get a static initializer for a struct nvmem_cell by name, with a fallback.
  *
  * If the devicetree node identifier 'node_id' refers to a node with a property
  * 'nvmem-cells', this expands to <tt>NVMEM_CELL_GET_BY_NAME(node_id, name)</tt>. The
  * @p default_value parameter is not expanded in this case. Otherwise, this
  * expands to @p default_value.
  *
- * @param node_id Devicetree node identifier.
+ * @param node_id Node identifier for a node that may have an nvmem-cells property.
  * @param name Lowercase-and-underscores name of an nvmem-cells element as defined by
  *             the node's nvmem-cell-names property.
  * @param default_value Fallback value to expand to.
@@ -182,15 +187,15 @@ struct nvmem_cell {
  * @see NVMEM_CELL_INST_GET_BY_NAME_OR
  */
 #define NVMEM_CELL_GET_BY_NAME_OR(node_id, name, default_value)                                    \
-	COND_CODE_1(DT_NODE_HAS_PROP(node_id, nvmem_cells),                                        \
+	COND_CODE_1(DT_PROP_HAS_NAME(node_id, nvmem_cells, name),                                  \
 		    (NVMEM_CELL_GET_BY_NAME(node_id, name)),                                       \
 		    (default_value))
 
 /**
- * @brief Like NVMEM_CELL_INST_GET_BY_NAME(), with a fallback to a default
- *        value.
+ * @brief Get a static initializer for a struct nvmem_cell from a DT_DRV_COMPAT
+ *        instance by name, with a fallback.
  *
- * @param inst DT_DRV_COMPAT instance number
+ * @param inst DT_DRV_COMPAT instance number.
  * @param name Lowercase-and-underscores name of an nvmem-cells element as defined by
  *             the node's nvmem-cell-names property.
  * @param default_value Fallback value to expand to.
@@ -204,7 +209,7 @@ struct nvmem_cell {
 	NVMEM_CELL_GET_BY_NAME_OR(DT_DRV_INST(inst), name, default_value)
 
 /**
- * @brief Static initializer for a struct nvmem_cell.
+ * @brief Get a static initializer for a struct nvmem_cell by index.
  *
  * This returns a static initializer for a struct nvmem_cell given a devicetree
  * node identifier and an index.
@@ -246,7 +251,7 @@ struct nvmem_cell {
  *	// }
  * @endcode
  *
- * @param node_id Devicetree node identifier.
+ * @param node_id Node identifier for a node with an nvmem-cells property.
  * @param idx Logical index into 'nvmem-cells' property.
  *
  * @return Static initializer for a struct nvmem_cell for the property.
@@ -256,10 +261,10 @@ struct nvmem_cell {
 #define NVMEM_CELL_GET_BY_IDX(node_id, idx) NVMEM_CELL_INIT(DT_NVMEM_CELL_BY_IDX(node_id, idx))
 
 /**
- * @brief Static initializer for a struct nvmem_cell from a DT_DRV_COMPAT
- *        instance.
+ * @brief Get a static initializer for a struct nvmem_cell from a DT_DRV_COMPAT
+ *        instance by index.
  *
- * @param inst DT_DRV_COMPAT instance number
+ * @param inst DT_DRV_COMPAT instance number.
  * @param idx Logical index into 'nvmem-cells' property.
  *
  * @return Static initializer for a struct nvmem_cell for the property.
@@ -269,14 +274,14 @@ struct nvmem_cell {
 #define NVMEM_CELL_INST_GET_BY_IDX(inst, idx) NVMEM_CELL_GET_BY_IDX(DT_DRV_INST(inst), idx)
 
 /**
- * @brief Like NVMEM_CELL_GET_BY_IDX(), with a fallback to a default value.
+ * @brief Get a static initializer for a struct nvmem_cell by index, with a fallback.
  *
  * If the devicetree node identifier 'node_id' refers to a node with a property
  * 'nvmem-cells', this expands to <tt>NVMEM_CELL_GET_BY_IDX(node_id, idx)</tt>. The
  * @p default_value parameter is not expanded in this case. Otherwise, this
  * expands to @p default_value.
  *
- * @param node_id Devicetree node identifier.
+ * @param node_id Node identifier for a node that may have an nvmem-cells property.
  * @param idx Logical index into 'nvmem-cells' property.
  * @param default_value Fallback value to expand to.
  *
@@ -286,15 +291,15 @@ struct nvmem_cell {
  * @see NVMEM_CELL_INST_GET_BY_IDX_OR
  */
 #define NVMEM_CELL_GET_BY_IDX_OR(node_id, idx, default_value)                                      \
-	COND_CODE_1(DT_NODE_HAS_PROP(node_id, nvmem_cells),                                        \
+	COND_CODE_1(DT_PROP_HAS_IDX(node_id, nvmem_cells, idx),                                    \
 		    (NVMEM_CELL_GET_BY_IDX(node_id, idx)),                                         \
 		    (default_value))
 
 /**
- * @brief Like NVMEM_CELL_INST_GET_BY_IDX(), with a fallback to a default
- *        value.
+ * @brief Get a static initializer for a struct nvmem_cell from a DT_DRV_COMPAT
+ *        instance by index, with a fallback.
  *
- * @param inst DT_DRV_COMPAT instance number
+ * @param inst DT_DRV_COMPAT instance number.
  * @param idx Logical index into 'nvmem-cells' property.
  * @param default_value Fallback value to expand to.
  *
@@ -309,41 +314,387 @@ struct nvmem_cell {
 /**
  * @brief Read data from an NVMEM cell.
  *
- * @param cell The NVMEM cell.
- * @param data Buffer to store read data.
- * @param off The offset to start reading from.
+ * @param cell NVMEM cell to read from.
+ * @param[out] data Buffer to store the read data.
+ *                  Must be at least @p len bytes.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *            Must be less than the cell size.
  * @param len Number of bytes to read.
+ *            @p off + @p len must not exceed the cell size.
  *
  * @kconfig_dep{CONFIG_NVMEM}
  *
- * @return 0 on success, negative errno code on failure.
+ * @retval -EINVAL Invalid offset or length arguments.
+ * @retval -ENODEV The controller device is not ready.
+ * @retval -ENXIO  No runtime device API available.
+ * @return The result of the underlying device API call.
  */
 int nvmem_cell_read(const struct nvmem_cell *cell, void *data, off_t off, size_t len);
 
 /**
  * @brief Write data to an NVMEM cell.
  *
- * @param cell The NVMEM cell.
- * @param data Buffer with data to write.
- * @param off The offset to start writing to.
+ * @param cell NVMEM cell to write to.
+ *             Must not be read-only.
+ * @param data Buffer containing data to write.
+ *             Must be at least @p len bytes.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *            Must be less than the cell size.
  * @param len Number of bytes to write.
+ *            @p off + @p len must not exceed the cell size.
  *
  * @kconfig_dep{CONFIG_NVMEM}
  *
- * @return 0 on success, negative errno code on failure.
+ * @retval -EINVAL Invalid offset or length arguments.
+ * @retval -EROFS  Writing to a read-only NVMEM Cell.
+ * @retval -ENODEV The controller device is not ready.
+ * @retval -ENXIO  No runtime device API available.
+ * @return The result of the underlying device API call.
  */
 int nvmem_cell_write(const struct nvmem_cell *cell, const void *data, off_t off, size_t len);
 
 /**
- * @brief Validate that the NVMEM cell is ready.
+ * @brief Check if an NVMEM cell is ready.
  *
- * @param cell The NVMEM cell.
+ * @param cell NVMEM cell to check. May be NULL.
  *
- * @return true if the NVMEM cell is ready for use and false otherwise.
+ * @return True if the NVMEM cell is ready for use and false otherwise.
  */
 static inline bool nvmem_cell_is_ready(const struct nvmem_cell *cell)
 {
 	return cell != NULL && device_is_ready(cell->dev);
+}
+
+/**
+ * @brief Check if an NVMEM cell is read-only.
+ *
+ * @param cell NVMEM cell to check. Can't be NULL.
+ *
+ * @return True if the NVMEM cell is read-only and false otherwise.
+ */
+static inline bool nvmem_cell_is_read_only(const struct nvmem_cell *cell)
+{
+	return cell->read_only;
+}
+
+/**
+ * @brief Read a little-endian 16-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_le16(const struct nvmem_cell *cell, uint16_t *val, off_t off)
+{
+	uint8_t buf[sizeof(uint16_t)];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_le16(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a big-endian 16-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_be16(const struct nvmem_cell *cell, uint16_t *val, off_t off)
+{
+	uint8_t buf[sizeof(uint16_t)];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_be16(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a little-endian 32-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_le32(const struct nvmem_cell *cell, uint32_t *val, off_t off)
+{
+	uint8_t buf[sizeof(uint32_t)];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_le32(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a big-endian 32-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_be32(const struct nvmem_cell *cell, uint32_t *val, off_t off)
+{
+	uint8_t buf[sizeof(uint32_t)];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_be32(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a little-endian 48-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_le48(const struct nvmem_cell *cell, uint64_t *val, off_t off)
+{
+	uint8_t buf[6];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_le48(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a big-endian 48-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_be48(const struct nvmem_cell *cell, uint64_t *val, off_t off)
+{
+	uint8_t buf[6];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_be48(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a little-endian 64-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_le64(const struct nvmem_cell *cell, uint64_t *val, off_t off)
+{
+	uint8_t buf[sizeof(uint64_t)];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_le64(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Read a big-endian 64-bit value from an NVMEM cell.
+ *
+ * @param cell NVMEM cell to read from.
+ * @param[out] val Pointer to store the host-endian result.
+ * @param off Offset within the cell to start reading from, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_read_be64(const struct nvmem_cell *cell, uint64_t *val, off_t off)
+{
+	uint8_t buf[sizeof(uint64_t)];
+	int ret;
+
+	ret = nvmem_cell_read(cell, buf, off, sizeof(buf));
+	if (ret == 0) {
+		*val = sys_get_be64(buf);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Write a little-endian 16-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_le16(const struct nvmem_cell *cell, uint16_t val, off_t off)
+{
+	uint8_t buf[sizeof(uint16_t)];
+
+	sys_put_le16(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a big-endian 16-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_be16(const struct nvmem_cell *cell, uint16_t val, off_t off)
+{
+	uint8_t buf[sizeof(uint16_t)];
+
+	sys_put_be16(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a little-endian 32-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_le32(const struct nvmem_cell *cell, uint32_t val, off_t off)
+{
+	uint8_t buf[sizeof(uint32_t)];
+
+	sys_put_le32(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a big-endian 32-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_be32(const struct nvmem_cell *cell, uint32_t val, off_t off)
+{
+	uint8_t buf[sizeof(uint32_t)];
+
+	sys_put_be32(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a little-endian 48-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_le48(const struct nvmem_cell *cell, uint64_t val, off_t off)
+{
+	uint8_t buf[6];
+
+	sys_put_le48(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a big-endian 48-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_be48(const struct nvmem_cell *cell, uint64_t val, off_t off)
+{
+	uint8_t buf[6];
+
+	sys_put_be48(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a little-endian 64-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_le64(const struct nvmem_cell *cell, uint64_t val, off_t off)
+{
+	uint8_t buf[sizeof(uint64_t)];
+
+	sys_put_le64(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
+}
+
+/**
+ * @brief Write a big-endian 64-bit value to an NVMEM cell.
+ *
+ * @param cell NVMEM cell to write to.
+ * @param val Host-endian value to write.
+ * @param off Offset within the cell to start writing to, in bytes.
+ *
+ * @return 0 on success, or a negative error code.
+ */
+static inline int nvmem_cell_write_be64(const struct nvmem_cell *cell, uint64_t val, off_t off)
+{
+	uint8_t buf[sizeof(uint64_t)];
+
+	sys_put_be64(val, buf);
+
+	return nvmem_cell_write(cell, buf, off, sizeof(buf));
 }
 
 #ifdef __cplusplus

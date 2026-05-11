@@ -25,11 +25,41 @@ represents the fastest cycle counter that the operating system is able
 to present to the user (for example, a CPU cycle counter) and that the
 read operation is very fast.  The expectation is that very sensitive
 application code might use this in a polling manner to achieve maximal
-precision.  The frequency of this counter is required to be steady
-over time, and is available from
-:c:func:`sys_clock_hw_cycles_per_sec` (which on almost all
-platforms is a runtime constant that evaluates to
-CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC).
+precision.  The frequency of this counter is available from
+:c:func:`sys_clock_hw_cycles_per_sec`. On most platforms this is a runtime
+constant that evaluates to :kconfig:option:`CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC`
+and is fixed for the lifetime of the system. On platforms where the system
+timer frequency is not fixed, :c:func:`sys_clock_hw_cycles_per_sec` returns a
+runtime value and application code must not assume a single immutable
+frequency.
+
+Runtime System Timer Frequency
+------------------------------
+
+Some platforms need the system timer frequency to be available at runtime,
+either because the timer driver discovers the clock rate from hardware or
+because the timer clock rate can change after boot.
+
+Platforms that can change the active system timer frequency at runtime must
+enable :kconfig:option:`CONFIG_SYSTEM_CLOCK_HW_CYCLES_PER_SEC_RUNTIME_UPDATE` and:
+
+* Call :c:func:`z_sys_clock_hw_cycles_per_sec_update` after applying the clock change.
+* If the system timer driver caches derived constants (e.g. cycles-per-tick) or
+  needs to reprogram hardware when the clock changes, provide a timer-driver
+  override of :c:func:`z_sys_clock_hw_cycles_per_sec_update`.
+
+The default implementation of :c:func:`z_sys_clock_hw_cycles_per_sec_update` only updates
+the stored frequency value.
+
+.. note::
+
+  :kconfig:option:`CONFIG_SYSTEM_CLOCK_HW_CYCLES_PER_SEC_RUNTIME_UPDATE` tracks
+  the system timer frequency as a single **global** value. It is not compatible
+  with per-CPU frequency scaling configurations where different CPUs could
+  observe different system timer frequencies.
+
+  When enabled, :c:func:`sys_clock_hw_cycles_per_sec` and time unit conversions
+  follow the current runtime value.
 
 For asynchronous timekeeping, the kernel defines a "ticks" concept.  A
 "tick" is the internal count in which the kernel does all its internal
@@ -80,6 +110,11 @@ The internal tracking, however, is as a 64 bit integer count of ticks.
 Apps with precise timing requirements (that are willing to do their
 own conversions to portable real time units) may access this with
 :c:func:`k_uptime_ticks`.
+
+:c:func:`k_uptime_delta` can be used to get the time elapsed between a reference
+and the current time. The referenced time will be updated to the current uptime,
+to easily calculate the next elapsed time.
+
 
 Timeouts
 ========
@@ -194,6 +229,33 @@ comparatively simple API.
   compared to a real world clock) since the last call to
   :c:func:`sys_clock_announce`, which the kernel needs to test newly
   arriving timeouts for expiration.
+
+Timer Driver Locking
+--------------------
+
+The kernel exposes a unified timer lock via :c:func:`sys_clock_lock` and
+:c:func:`sys_clock_unlock`.  This lock protects both the kernel's internal
+tick accounting (``curr_tick``, the timeout queue) and any driver-private
+state that must be consistent with it (e.g. a hardware cycle counter
+baseline).
+
+Timer drivers that maintain internal state should acquire this lock at
+the start of their ISR, update their hardware state, then pass the lock
+key to :c:func:`sys_clock_announce_locked` which consumes it.  This
+ensures that the driver's cycle counter baseline and the kernel's
+``curr_tick`` are always updated under the same lock, eliminating race
+conditions that can arise on SMP systems (or, less commonly, on UP
+systems where higher-priority ISRs need consistent realtime references)
+when two separate locks are used.
+
+The driver-provided callbacks :c:func:`sys_clock_set_timeout` and
+:c:func:`sys_clock_elapsed` are always invoked by the kernel with this
+lock already held.
+
+For backward compatibility, :c:func:`sys_clock_announce` remains
+available and acquires the lock internally.  New and migrated drivers
+should prefer the :c:func:`sys_clock_lock` /
+:c:func:`sys_clock_announce_locked` pattern.
 
 Note that a natural implementation of this API results in a "tickless"
 kernel, which receives and processes timer interrupts only for

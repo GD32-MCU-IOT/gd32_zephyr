@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <zephyr/init.h>
@@ -8,9 +8,6 @@
 #include "fsl_clock.h"
 #include <soc.h>
 #include <fsl_glikey.h>
-#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pmc_tmpsns))
-#include "fsl_romapi_otp.h"
-#endif
 
 /*!< System oscillator settling time in us */
 #define SYSOSC_SETTLING_US 220U
@@ -32,7 +29,6 @@
 #define SET_UP_FLEXCOMM_CLOCK(x)                                                                   \
 	do {                                                                                       \
 		CLOCK_AttachClk(kFCCLK0_to_FLEXCOMM##x);                                           \
-		RESET_ClearPeripheralReset(kFC##x##_RST_SHIFT_RSTn);                               \
 		CLOCK_EnableClock(kCLOCK_LPFlexComm##x);                                           \
 	} while (0)
 
@@ -281,21 +277,18 @@ void board_early_init_hook(void)
 	CLOCK_AttachClk(kFRO1_DIV1_to_LPSPI14);
 	CLOCK_SetClkDiv(kCLOCK_DivLpspi14Clk, 3U);
 	CLOCK_EnableClock(kCLOCK_LPSpi14);
-	RESET_ClearPeripheralReset(kLPSPI14_RST_SHIFT_RSTn);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpi2c15))
 	CLOCK_AttachClk(kSENSE_BASE_to_LPI2C15);
 	CLOCK_SetClkDiv(kCLOCK_DivLpi2c15Clk, 2U);
 	CLOCK_EnableClock(kCLOCK_LPI2c15);
-	RESET_ClearPeripheralReset(kLPI2C15_RST_SHIFT_RSTn);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpspi16))
 	CLOCK_AttachClk(kFRO0_DIV1_to_LPSPI16);
 	CLOCK_SetClkDiv(kCLOCK_DivLpspi16Clk, 1U);
 	CLOCK_EnableClock(kCLOCK_LPSpi16);
-	RESET_ClearPeripheralReset(kLPSPI16_RST_SHIFT_RSTn);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(flexcomm17))
@@ -439,14 +432,8 @@ void board_early_init_hook(void)
 	SYSCON4->USBPHY0_CLK_ACTIVE |= SYSCON4_USBPHY0_CLK_ACTIVE_IPG_CLK_ACTIVE_MASK;
 	CLOCK_AttachClk(k32KHZ_WAKE_to_USB);
 	CLOCK_AttachClk(kOSC_CLK_to_USB_24MHZ);
-	CLOCK_EnableClock(kCLOCK_Usb0);
-	CLOCK_EnableClock(kCLOCK_UsbphyRef);
 	RESET_PeripheralReset(kUSB0_RST_SHIFT_RSTn);
 	RESET_PeripheralReset(kUSBPHY0_RST_SHIFT_RSTn);
-	CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M,
-				DT_PROP_BY_PHANDLE(DT_NODELABEL(usb0), clocks, clock_frequency));
-	CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M,
-				DT_PROP_BY_PHANDLE(DT_NODELABEL(usb0), clocks, clock_frequency));
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(usdhc0)) && CONFIG_IMX_USDHC
@@ -462,11 +449,35 @@ void board_early_init_hook(void)
 	CLOCK_InitAudioPfd(kCLOCK_Pfd0, 24U); /* Target 400MHZ. */
 	CLOCK_AttachClk(kAUDIO_PLL_PFD0_to_SDIO0);
 	CLOCK_SetClkDiv(kCLOCK_DivSdio0Clk, 1);
-	RESET_ClearPeripheralReset(kUSDHC0_RST_SHIFT_RSTn);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(usdhc1)) && CONFIG_IMX_USDHC
+	/* Make sure USDHC1 ram buffer has power up */
+	POWER_DisablePD(kPDRUNCFG_APD_SDHC1_SRAM);
+	POWER_DisablePD(kPDRUNCFG_PPD_SDHC1_SRAM);
+	POWER_DisablePD(kPDRUNCFG_PD_LPOSC);
+	POWER_ApplyPD();
+
+	/* USDHC1 */
+	/* usdhc depend on 32K clock also */
+	CLOCK_AttachClk(kLPOSC_DIV32_to_32K_WAKE);
+	CLOCK_InitAudioPfd(kCLOCK_Pfd0, 24U); /* Target 400MHZ. */
+	CLOCK_AttachClk(kAUDIO_PLL_PFD0_to_SDIO1);
+	CLOCK_SetClkDiv(kCLOCK_DivSdio1Clk, 1);
+	RESET_ClearPeripheralReset(kUSDHC1_RST_SHIFT_RSTn);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(wwdt0))
 	CLOCK_AttachClk(kLPOSC_to_WWDT0);
+	/* ROM may change ITRC OUT3_SEL0 and OUT4_SEL0, which will select
+	 * WWDT0-2 as input for ITRC. When a WWDT timeout happened the
+	 * event will first assert and trigger a ITRC reset, This ITRC
+	 * reset is faster than WWDT reset and reset the system before
+	 * a WWDT reset. Change back the OUT3_SEL0 and OUT4_SEL0 to allow
+	 * RSTCTL capturing WWDT reset event.
+	 */
+	ITRC->OUT_SEL[3][0] = 0xAAAAAA0A;
+	ITRC->OUT_SEL[4][0] = 0xAAAAAA0A;
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(sai0))
@@ -474,7 +485,6 @@ void board_early_init_hook(void)
 	CLOCK_AttachClk(kAUDIO_PLL_PFD3_to_AUDIO_VDD2);
 	CLOCK_AttachClk(kAUDIO_VDD2_to_SAI012);
 	CLOCK_SetClkDiv(kCLOCK_DivSai012Clk, 15U);
-	RESET_ClearPeripheralReset(kSAI0_RST_SHIFT_RSTn);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(sc_timer))
@@ -551,7 +561,49 @@ void board_early_init_hook(void)
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pmc_tmpsns))
 	POWER_DisablePD(kPDRUNCFG_PD_PMC_TEMPSNS);
 	POWER_ApplyPD();
-	otp_init(SystemCoreClock);
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(co5300_zc143ac72mipi), okay)
+	POWER_DisablePD(kPDRUNCFG_SHUT_MEDIA_MAINCLK);
+	POWER_DisablePD(kPDRUNCFG_APD_LCDIF);
+	POWER_DisablePD(kPDRUNCFG_PPD_LCDIF);
+	POWER_ApplyPD();
+
+	CLOCK_EnableClock(kCLOCK_Lcdif);
+	RESET_ClearPeripheralReset(kLCDIF_RST_SHIFT_RSTn);
+
+
+	CLOCK_InitMainPfd(kCLOCK_Pfd2, 17);
+	CLOCK_SetClkDiv(kCLOCK_DivMediaMainClk, 2U);
+	CLOCK_AttachClk(kMAIN_PLL_PFD2_to_MEDIA_MAIN);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xspi0))
+	POWER_DisablePD(kPDRUNCFG_APD_XSPI0);
+	POWER_DisablePD(kPDRUNCFG_PPD_XSPI0);
+	POWER_ApplyPD();
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xspi1))
+	xspi_setup_clock(XSPI1, 1U, 1U); /* Audio PLL PDF1 DIV1. */
+
+	POWER_DisablePD(kPDRUNCFG_APD_XSPI1);
+	POWER_DisablePD(kPDRUNCFG_PPD_XSPI1);
+	POWER_ApplyPD();
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xspi2))
+#if CONFIG_SOC_MIMXRT798S_CM33_CPU0
+	CLOCK_AttachClk(kMAIN_PLL_PFD3_to_XSPI2);
+#elif CONFIG_SOC_MIMXRT798S_CM33_CPU1
+	CLOCK_AttachClk(kFRO1_DIV1_to_COMMON_BASE);
+	CLOCK_AttachClk(kCOMMON_BASE_to_XSPI2);
+#endif
+	CLOCK_SetClkDiv(kCLOCK_DivXspi2Clk, 1U);
+
+	POWER_DisablePD(kPDRUNCFG_APD_XSPI2);
+	POWER_DisablePD(kPDRUNCFG_PPD_XSPI2);
+	POWER_ApplyPD();
 #endif
 }
 

@@ -13,7 +13,6 @@
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/pwm/stm32_pwm.h>
 #include <zephyr/dt-bindings/dma/stm32_dma.h>
-#include <zephyr/dt-bindings/adc/stm32l4_adc.h>
 #include <zephyr/dt-bindings/reset/stm32wb_l_reset.h>
 #include <zephyr/dt-bindings/power/stm32_pwr.h>
 #include <freq.h>
@@ -21,6 +20,7 @@
 
 / {
 	chosen {
+		zephyr,crc = &crc;
 		zephyr,entropy = &rng;
 		zephyr,flash-controller = &flash;
 	};
@@ -113,6 +113,7 @@
 	mcos {
 		mco1: mco1 {
 			compatible = "st,stm32-clock-mco";
+			clock-names = "clksel";
 			status = "disabled";
 		};
 	};
@@ -125,14 +126,52 @@
 
 			#address-cells = <1>;
 			#size-cells = <1>;
+			ranges;
 
 			flash0: flash@8000000 {
 				compatible = "st,stm32-nv-flash", "soc-nv-flash";
-
+				#address-cells = <1>;
+				#size-cells = <1>;
 				write-block-size = <8>;
 				erase-block-size = <2048>;
 				/* maximum erase time(ms) for a 2K sector */
 				max-erase-time = <25>;
+			};
+
+			st_nvm_user_otp: flash@1fff7000 {
+				compatible = "st,stm32-nvm-otp";
+				reg = <0x1fff7000 DT_SIZE_K(1)>;
+				status = "disabled";
+			};
+
+			/* Undocumented/unnamed RO area */
+			flash@1fff7500 {
+				compatible = "st,stm32-nvm-otp";
+				reg = <0x1fff7500 768>;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					ts_cal1_otp: ts-cal1@a8 {
+						reg = <0xa8 0x2>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+
+					vrefint_otp: vrefint@aa {
+						reg = <0xaa 0x2>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+
+					ts_cal2_otp: ts-cal2@c8 {
+						reg = <0xc8 0x2>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+				};
 			};
 		};
 
@@ -205,10 +244,11 @@
 		lptim1: timers@40007c00 {
 			compatible = "st,stm32-lptim";
 			clocks = <&rcc STM32_CLOCK(APB1, 31)>;
+			resets = <&rctl STM32_RESET(APB1L, 31)>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x40007c00 0x400>;
-			interrupts = <39 1>;
+			interrupts = <39 0>;
 			interrupt-names = "wakeup";
 			status = "disabled";
 		};
@@ -244,9 +284,9 @@
 
 		wwdg: watchdog@40002c00 {
 			compatible = "st,stm32-window-watchdog";
-			reg = <0x40002C00 0x400>;
+			reg = <0x40002c00 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB1, 11)>;
-			interrupts = <0 7>;
+			interrupts = <0 0>;
 			status = "disabled";
 		};
 
@@ -319,8 +359,9 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x40013000 0x400>;
-			interrupts = <34 5>;
+			interrupts = <34 0>;
 			clocks = <&rcc STM32_CLOCK(APB2, 12)>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 		};
 
@@ -329,8 +370,9 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x40003800 0x400>;
-			interrupts = <35 5>;
+			interrupts = <35 0>;
 			clocks = <&rcc STM32_CLOCK(APB1, 14)>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 		};
 
@@ -339,8 +381,9 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x58010000 0x400>;
-			interrupts = <44 5>;
+			interrupts = <44 0>;
 			clocks = <&rcc STM32_CLOCK(APB3, 0)>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 			use-subghzspi-nss;
 
@@ -357,12 +400,10 @@
 			compatible = "st,stm32-adc";
 			reg = <0x40012400 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB2, 9)>;
+			clock-names = "adcx";
 			interrupts = <18 0>;
 			#io-channel-cells = <1>;
-			resolutions = <STM32_ADC_RES(12, 0x00)
-				       STM32_ADC_RES(10, 0x01)
-				       STM32_ADC_RES(8, 0x02)
-				       STM32_ADC_RES(6, 0x03)>;
+			st,adc-resolutions = <12 10 8 6>;
 			sampling-times = <2 4 8 13 20 40 80 161>;
 			num-sampling-time-common-channels = <2>;
 			st,adc-sequencer = "fixed";
@@ -394,6 +435,11 @@
 				compatible = "st,stm32-pwm";
 				status = "disabled";
 				#pwm-cells = <3>;
+			};
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
 			};
 		};
 
@@ -480,6 +526,7 @@
 			reg = <0x58001000 0x400>;
 			interrupts = <52 0>;
 			clocks = <&rcc STM32_CLOCK(AHB3, 18)>;
+			nist-config = <0xf00d00>;
 			health-test-magic = <0x17590abc>;
 			health-test-config = <0xaa74>;
 			status = "disabled";
@@ -546,12 +593,20 @@
 				wkup-gpios = <&gpiob 3 STM32_PWR_WKUP_PIN_NOT_MUXED>;
 			};
 		};
+
+		crc: crc@40023000 {
+			compatible = "st,stm32-crc";
+			reg = <0x40023000 0x400>;
+			clocks = <&rcc STM32_CLOCK(AHB1, 12)>;
+			resets = <&rctl STM32_RESET(AHB1, 12)>;
+			status = "disabled";
+		};
 	};
 
 	die_temp: dietemp {
 		compatible = "st,stm32-temp-cal";
-		ts-cal1-addr = <0x1FFF75A8>;
-		ts-cal2-addr = <0x1FFF75C8>;
+		nvmem-cells = <&ts_cal1_otp>, <&ts_cal2_otp>;
+		nvmem-cell-names = "TS_CAL1", "TS_CAL2";
 		ts-cal1-temp = <30>;
 		ts-cal2-temp = <130>;
 		ts-cal-vrefanalog = <3300>;
@@ -561,7 +616,7 @@
 
 	vref: vref {
 		compatible = "st,stm32-vref";
-		vrefint-cal-addr = <0x1FFF75AA>;
+		nvmem-cells = <&vrefint_otp>;
 		vrefint-cal-mv = <3300>;
 		io-channels = <&adc1 13>;
 		status = "disabled";

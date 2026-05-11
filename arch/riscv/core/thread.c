@@ -8,7 +8,6 @@
 #include <zephyr/kernel.h>
 #include <kernel_internal.h>
 #include <zephyr/arch/riscv/csr.h>
-#include <stdio.h>
 #include <pmp.h>
 
 #ifdef CONFIG_USERSPACE
@@ -51,7 +50,7 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 *
 	 * Given that thread startup happens through the exception exit
 	 * path, initially set:
-	 * 1) MSTATUS to MSTATUS_DEF_RESTORE in the thread stack to enable
+	 * 1) MSTATUS to RV_STATUS_DEF_RESTORE in the thread stack to enable
 	 *    interrupts when the newly created thread will be scheduled;
 	 * 2) MEPC to the address of the z_thread_entry in the thread
 	 *    stack.
@@ -63,7 +62,7 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 *    counter will be restored following the MEPC value set within the
 	 *    thread stack.
 	 */
-	stack_init->mstatus = MSTATUS_DEF_RESTORE;
+	stack_init->mstatus = RV_STATUS_DEF_RESTORE;
 
 #if defined(CONFIG_FPU_SHARING)
 	/* thread birth happens through the exception return path */
@@ -89,18 +88,18 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 		/* Supervisor thread */
 		stack_init->mepc = (unsigned long)z_thread_entry;
 
-#if defined(CONFIG_PMP_STACK_GUARD)
+#ifdef CONFIG_PMP_KERNEL_MODE_DYNAMIC
 		/* Enable PMP in mstatus.MPRV mode for RISC-V machine mode
 		 * if thread is supervisor thread.
 		 */
 		stack_init->mstatus |= MSTATUS_MPRV;
-#endif /* CONFIG_PMP_STACK_GUARD */
+#endif /* CONFIG_PMP_KERNEL_MODE_DYNAMIC */
 	}
 
-#if defined(CONFIG_PMP_STACK_GUARD)
-	/* Setup PMP regions of PMP stack guard of thread. */
-	z_riscv_pmp_stackguard_prepare(thread);
-#endif /* CONFIG_PMP_STACK_GUARD */
+#ifdef CONFIG_PMP_KERNEL_MODE_DYNAMIC
+	/* Setup PMP regions of kernel mode configuration of thread. */
+	z_riscv_pmp_kernelmode_prepare(thread);
+#endif /* CONFIG_PMP_KERNEL_MODE_DYNAMIC */
 
 #ifdef CONFIG_RISCV_SOC_CONTEXT_SAVE
 	stack_init->soc_context = soc_esf_init;
@@ -164,21 +163,31 @@ FUNC_NORETURN void arch_user_mode_enter(k_thread_entry_t user_entry,
 				_current->stack_info.size -
 				_current->stack_info.delta);
 
+#ifdef CONFIG_RISCV_S_MODE
+	status = csr_read(sstatus);
+	/* Clear SPP so that sret returns to U-mode */
+	status = INSERT_FIELD(status, SSTATUS_SPP, 0);
+	/* Enable IRQs when entering user mode (SPIE) */
+	status = INSERT_FIELD(status, SSTATUS_SPIE, 1);
+	/* Disable IRQs in S-mode until the mode switch */
+	status = INSERT_FIELD(status, SSTATUS_SIE, 0);
+	csr_write(sstatus, status);
+	csr_write(sepc, z_thread_entry);
+#else
 	status = csr_read(mstatus);
-
 	/* Set next CPU status to user mode */
 	status = INSERT_FIELD(status, MSTATUS_MPP, PRV_U);
 	/* Enable IRQs for user mode */
 	status = INSERT_FIELD(status, MSTATUS_MPIE, 1);
 	/* Disable IRQs for m-mode until the mode switch */
 	status = INSERT_FIELD(status, MSTATUS_MIE, 0);
-
 	csr_write(mstatus, status);
 	csr_write(mepc, z_thread_entry);
+#endif
 
-#ifdef CONFIG_PMP_STACK_GUARD
-	/* reconfigure as the kernel mode stack will be different */
-	z_riscv_pmp_stackguard_prepare(_current);
+#ifdef CONFIG_PMP_KERNEL_MODE_DYNAMIC
+	/* reconfigure as the kernel mode configuration will be different */
+	z_riscv_pmp_kernelmode_prepare(_current);
 #endif
 
 	/* Set up Physical Memory Protection */
@@ -190,16 +199,29 @@ FUNC_NORETURN void arch_user_mode_enter(k_thread_entry_t user_entry,
 
 	is_user_mode = true;
 
+#ifdef CONFIG_CUSTOM_STACK_GUARD
+	/* disable custom stack guard before enter user mode */
+	z_riscv_custom_stack_guard_disable();
+#endif /* CONFIG_CUSTOM_STACK_GUARD */
+
 	register void *a0 __asm__("a0") = user_entry;
 	register void *a1 __asm__("a1") = p1;
 	register void *a2 __asm__("a2") = p2;
 	register void *a3 __asm__("a3") = p3;
 
+#ifdef CONFIG_RISCV_S_MODE
+	__asm__ volatile (
+	"mv sp, %4; sret"
+	:
+	: "r" (a0), "r" (a1), "r" (a2), "r" (a3), "r" (top_of_user_stack)
+	: "memory");
+#else
 	__asm__ volatile (
 	"mv sp, %4; mret"
 	:
 	: "r" (a0), "r" (a1), "r" (a2), "r" (a3), "r" (top_of_user_stack)
 	: "memory");
+#endif
 
 	CODE_UNREACHABLE;
 }
@@ -207,6 +229,15 @@ FUNC_NORETURN void arch_user_mode_enter(k_thread_entry_t user_entry,
 int arch_thread_priv_stack_space_get(const struct k_thread *thread, size_t *stack_size,
 				     size_t *unused_ptr)
 {
+	if (!IS_ENABLED(CONFIG_INIT_STACKS) || !IS_ENABLED(CONFIG_THREAD_STACK_INFO)) {
+		/*
+		 * This is needed to ensure that the call to z_stack_space_get() below is properly
+		 * dead-stripped when linking using LLVM / lld. For more info, please see issue
+		 * #98491.
+		 */
+		return -EINVAL;
+	}
+
 	if ((thread->base.user_options & K_USER) != K_USER) {
 		return -EINVAL;
 	}
@@ -239,13 +270,27 @@ FUNC_NORETURN void z_riscv_switch_to_main_no_multithreading(k_thread_entry_t mai
 	main_stack = (K_THREAD_STACK_BUFFER(z_main_stack) +
 		      K_THREAD_STACK_SIZEOF(z_main_stack));
 
-	irq_unlock(MSTATUS_IEN);
+#ifdef CONFIG_CUSTOM_STACK_GUARD
+	z_riscv_custom_stack_guard_disable();
+
+	irq_unlock(RV_STATUS_IE);
+
+	__asm__ volatile (
+	"mv sp, %0\n"
+	"call z_riscv_custom_stack_guard_enable\n"
+	"jalr ra, %1, 0\n"
+	:
+	: "r" (main_stack), "r" (main_entry)
+	: "memory");
+#else
+	irq_unlock(RV_STATUS_IE);
 
 	__asm__ volatile (
 	"mv sp, %0; jalr ra, %1, 0"
 	:
 	: "r" (main_stack), "r" (main_entry)
 	: "memory");
+#endif /* CONFIG_CUSTOM_STACK_GUARD */
 
 	/* infinite loop */
 	irq_lock();

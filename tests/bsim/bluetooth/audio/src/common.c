@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019 Bose Corporation
- * Copyright (c) 2020-2025 Nordic Semiconductor ASA
+ * Copyright (c) 2020-2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,6 +11,7 @@
 
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/csip.h>
@@ -27,6 +28,7 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 #include "bs_cmd_line.h"
 #include "bs_dynargs.h"
@@ -42,7 +44,7 @@ struct bt_conn *default_conn;
 atomic_t flag_connected;
 atomic_t flag_disconnected;
 atomic_t flag_conn_updated;
-atomic_t flag_audio_received;
+atomic_t flag_security_changed;
 volatile bt_security_t security_level;
 #if defined(CONFIG_BT_CSIP_SET_MEMBER)
 uint8_t csip_rsi[BT_CSIP_RSI_SIZE];
@@ -79,8 +81,9 @@ static const struct bt_data connectable_ad[] = {
 
 static void device_found(const struct bt_le_scan_recv_info *info, struct net_buf_simple *ad_buf)
 {
-	char addr_str[BT_ADDR_LE_STR_LEN];
 	int err;
+
+	ARG_UNUSED(ad_buf);
 
 	if (default_conn) {
 		return;
@@ -92,8 +95,7 @@ static void device_found(const struct bt_le_scan_recv_info *info, struct net_buf
 		return;
 	}
 
-	bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
-	printk("Device found: %s (RSSI %d)\n", addr_str, info->rssi);
+	printk("Device found: %s (RSSI %d)\n", bt_addr_le_str(info->addr), info->rssi);
 
 	/* connect only to devices in close proximity */
 	if (info->rssi < -70) {
@@ -109,7 +111,7 @@ static void device_found(const struct bt_le_scan_recv_info *info, struct net_buf
 
 	err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN, BT_BAP_CONN_PARAM_RELAXED,
 				&default_conn);
-	if (err) {
+	if (err != 0) {
 		FAIL("Could not connect to peer: %d", err);
 	}
 }
@@ -120,10 +122,6 @@ struct bt_le_scan_cb common_scan_cb = {
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
-	(void)bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
 	if (default_conn == NULL) {
 		default_conn = bt_conn_ref(conn);
 	}
@@ -132,25 +130,21 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		bt_conn_unref(default_conn);
 		default_conn = NULL;
 
-		FAIL("Failed to connect to %s (0x%02x)\n", addr, err);
+		FAIL("Failed to connect to %s (0x%02x)\n", bt_conn_dst_str(conn), err);
 		return;
 	}
 
-	printk("Connected to %s (%p)\n", addr, conn);
+	printk("Connected to %s (%p)\n", bt_conn_dst_str(conn), conn);
 	SET_FLAG(flag_connected);
 }
 
 void disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
 	if (conn != default_conn) {
 		return;
 	}
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-	printk("Disconnected: %s (reason 0x%02x)\n", addr, reason);
+	printk("Disconnected: %s (reason 0x%02x)\n", bt_conn_dst_str(conn), reason);
 
 	bt_conn_unref(default_conn);
 	default_conn = NULL;
@@ -177,6 +171,8 @@ static void security_changed_cb(struct bt_conn *conn, bt_security_t level, enum 
 	if (err == BT_SECURITY_ERR_SUCCESS) {
 		security_level = level;
 	}
+
+	SET_FLAG(flag_security_changed);
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -186,6 +182,28 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.security_changed = security_changed_cb,
 };
 
+void update_security(struct bt_conn *conn)
+{
+	struct bt_conn_info info;
+	int err;
+
+	err = bt_conn_get_info(conn, &info);
+	__ASSERT(err == 0, "Failed to get conn info: %d", err);
+
+	if (info.security.level >= BT_SECURITY_L2) {
+		printk("Skipping security update for %p\n", conn);
+		return;
+	}
+
+	UNSET_FLAG(flag_security_changed);
+	err = bt_conn_set_security(conn, BT_SECURITY_L2);
+	if (err != 0) {
+		FAIL("Failed to set security: %d\n", err);
+		return;
+	}
+
+	WAIT_FOR_FLAG(flag_security_changed);
+}
 
 void setup_connectable_adv(struct bt_le_ext_adv **ext_adv)
 {
@@ -241,7 +259,7 @@ void setup_broadcast_adv(struct bt_le_ext_adv **adv)
 
 	/* Set periodic advertising parameters */
 	err = bt_le_per_adv_set_param(*adv, BT_BAP_PER_ADV_PARAM_BROADCAST_SLOW);
-	if (err) {
+	if (err != 0) {
 		FAIL("Failed to set periodic advertising parameters: %d\n", err);
 		return;
 	}
@@ -249,7 +267,6 @@ void setup_broadcast_adv(struct bt_le_ext_adv **adv)
 
 void start_broadcast_adv(struct bt_le_ext_adv *adv)
 {
-	char addr_str[BT_ADDR_LE_STR_LEN];
 	struct bt_le_ext_adv_info info;
 	int err;
 
@@ -264,15 +281,6 @@ void start_broadcast_adv(struct bt_le_ext_adv *adv)
 		return;
 	}
 
-	if (info.ext_adv_state == BT_LE_EXT_ADV_STATE_DISABLED) {
-		/* Start extended advertising */
-		err = bt_le_ext_adv_start(adv, BT_LE_EXT_ADV_START_DEFAULT);
-		if (err != 0) {
-			FAIL("Failed to start extended advertising: %d\n", err);
-			return;
-		}
-	}
-
 	if (info.per_adv_state == BT_LE_PER_ADV_STATE_DISABLED) {
 		/* Enable Periodic Advertising */
 		err = bt_le_per_adv_start(adv);
@@ -282,12 +290,22 @@ void start_broadcast_adv(struct bt_le_ext_adv *adv)
 		}
 	}
 
-	bt_addr_le_to_str(info.addr, addr_str, sizeof(addr_str));
-	printk("Started advertising with addr %s\n", addr_str);
+	if (info.ext_adv_state == BT_LE_EXT_ADV_STATE_DISABLED) {
+		/* Start extended advertising */
+		err = bt_le_ext_adv_start(adv, BT_LE_EXT_ADV_START_DEFAULT);
+		if (err != 0) {
+			FAIL("Failed to start extended advertising: %d\n", err);
+			return;
+		}
+	}
+
+	printk("Started advertising with addr %s\n", bt_addr_le_str(info.addr));
 }
 
 void test_tick(bs_time_t HW_device_time)
 {
+	ARG_UNUSED(HW_device_time);
+
 	if (bst_result != Passed) {
 		FAIL("test failed (not passed after %i seconds)\n", WAIT_SECONDS);
 	}

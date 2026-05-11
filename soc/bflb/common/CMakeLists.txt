@@ -4,10 +4,14 @@
 
 zephyr_include_directories(.)
 
-if(CONFIG_SOC_SERIES_BL60X OR CONFIG_SOC_SERIES_BL70X)
+if(CONFIG_SOC_SERIES_BL60X OR CONFIG_SOC_SERIES_BL70X OR CONFIG_SOC_SERIES_BL70XL)
 zephyr_include_directories(e24)
 zephyr_sources(
 e24/soc_irq_privileged.c
 e24/soc.c
 )
 endif()
+
+zephyr_sources(
+power.c
+)

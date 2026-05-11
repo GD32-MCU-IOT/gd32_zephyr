@@ -43,7 +43,6 @@ struct ft8xx_touch_transform {
 };
 
 /**
- * @typedef ft8xx_int_callback
  * @brief Callback API to inform API user that FT8xx triggered interrupt
  *
  * This callback is called from IRQ context.
@@ -91,6 +90,19 @@ void ft8xx_touch_transform_set(const struct device *dev,
  * @return Tag value 0-255 of recently touched element
  */
 int ft8xx_get_touch_tag(const struct device *dev);
+
+/**
+ * @brief Get the tag and the tracking value of the tracked object.
+ *
+ * The reported tag and the tracking value apply to an object tracked by the
+ * coprocessor with the ft8xx_copro_cmd_track() function.
+ *
+ * @param dev Pointer to the device structure for the driver instance
+ *
+ * @return Track register content where 2 MS bytes (0xffff0000 mask) indicate
+ *         the track value and 2 LS bytes (0x0000ffff mask) indicate the tag.
+ */
+uint32_t ft8xx_get_tracker_value(const struct device *dev);
 
 /**
  * @brief Set callback executed when FT8xx triggers interrupt

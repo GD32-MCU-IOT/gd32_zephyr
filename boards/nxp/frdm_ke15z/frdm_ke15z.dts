@@ -1,12 +1,12 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /dts-v1/;
 
-#include <nxp/nxp_ke1xz.dtsi>
+#include <nxp/kinetis/nxp_ke1xz.dtsi>
 #include "frdm_ke15z-pinctrl.dtsi"
 #include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -16,6 +16,7 @@
 	compatible = "nxp,ke15z", "nxp,mke15z7";
 
 	aliases {
+		watchdog0 = &wdog;
 		led0 = &green_led;
 		led1 = &blue_led;
 		led2 = &red_led;
@@ -102,10 +103,22 @@
 	pinctrl-names = "default";
 };
 
+&adc0 {
+	status = "okay";
+	sample-time = <12>;
+	vref-mv = <3300>;
+	pinctrl-0 = <&adc0_default>;
+	pinctrl-names = "default";
+};
+
 &gpiob {
 	status = "okay";
 };
 
 &gpiod {
+	status = "okay";
+};
+
+&wdog {
 	status = "okay";
 };

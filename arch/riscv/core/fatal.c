@@ -40,7 +40,7 @@ uintptr_t z_riscv_get_sp_before_exc(const struct arch_esf *esf)
 	uintptr_t sp = (uintptr_t)esf + sizeof(struct arch_esf);
 
 #ifdef CONFIG_USERSPACE
-	if ((esf->mstatus & MSTATUS_MPP) == PRV_U) {
+	if ((esf->mstatus & RV_STATUS_PP) == RV_STATUS_PP_U) {
 		/*
 		 * Exception happened in user space:
 		 * consider the saved user stack instead.
@@ -77,18 +77,17 @@ const char *z_riscv_mcause_str(unsigned long cause)
 	return mcause_str[MIN(cause, ARRAY_SIZE(mcause_str) - 1)];
 }
 
-FUNC_NORETURN void z_riscv_fatal_error(unsigned int reason,
+void z_riscv_fatal_error(unsigned int reason,
 				       const struct arch_esf *esf)
 {
-	z_riscv_fatal_error_csf(reason, esf, NULL);
-}
-
-FUNC_NORETURN void z_riscv_fatal_error_csf(unsigned int reason, const struct arch_esf *esf,
-					   const _callee_saved_t *csf)
-{
+	__maybe_unused _callee_saved_t *csf = NULL;
 	unsigned long mcause;
 
+#ifdef CONFIG_RISCV_S_MODE
+	__asm__ volatile("csrr %0, scause" : "=r" (mcause));
+#else
 	__asm__ volatile("csrr %0, mcause" : "=r" (mcause));
+#endif
 
 	mcause &= CONFIG_RISCV_MCAUSE_EXCEPTION_MASK;
 	EXCEPTION_DUMP("");
@@ -97,7 +96,11 @@ FUNC_NORETURN void z_riscv_fatal_error_csf(unsigned int reason, const struct arc
 #ifndef CONFIG_SOC_OPENISA_RV32M1
 	unsigned long mtval;
 
+#ifdef CONFIG_RISCV_S_MODE
+	__asm__ volatile("csrr %0, stval" : "=r" (mtval));
+#else
 	__asm__ volatile("csrr %0, mtval" : "=r" (mtval));
+#endif
 	EXCEPTION_DUMP("  mtval: %lx", mtval);
 #endif /* CONFIG_SOC_OPENISA_RV32M1 */
 
@@ -122,6 +125,8 @@ FUNC_NORETURN void z_riscv_fatal_error_csf(unsigned int reason, const struct arc
 		EXCEPTION_DUMP("   mepc: " PR_REG, esf->mepc);
 		EXCEPTION_DUMP("mstatus: " PR_REG, esf->mstatus);
 		EXCEPTION_DUMP("");
+
+		csf = esf->csf;
 	}
 
 	if (csf != NULL) {
@@ -145,7 +150,6 @@ FUNC_NORETURN void z_riscv_fatal_error_csf(unsigned int reason, const struct arc
 #endif /* CONFIG_EXCEPTION_STACK_TRACE */
 
 	z_fatal_error(reason, esf);
-	CODE_UNREACHABLE;
 }
 
 static bool bad_stack_pointer(struct arch_esf *esf)
@@ -189,8 +193,18 @@ static bool bad_stack_pointer(struct arch_esf *esf)
 #endif /* CONFIG_MULTITHREADING */
 #endif /* CONFIG_PMP_STACK_GUARD */
 
+#ifdef CONFIG_CUSTOM_STACK_GUARD
+	if (z_riscv_custom_stack_guard_is_fault(esf)) {
+		return true;
+	}
+#endif /* CONFIG_CUSTOM_STACK_GUARD */
+
 #ifdef CONFIG_USERSPACE
-	if ((esf->mstatus & MSTATUS_MPP) == 0 &&
+	/*
+	 * Check whether the user-mode stack pointer is within bounds.
+	 * Only do this when the exception was actually taken from U-mode.
+	 */
+	if ((esf->mstatus & RV_STATUS_PP) == RV_STATUS_PP_U &&
 	    (esf->sp < _current->stack_info.start ||
 	     esf->sp > _current->stack_info.start +
 		       _current->stack_info.size -
@@ -224,17 +238,18 @@ void z_riscv_fault(struct arch_esf *esf)
 	unsigned int reason = K_ERR_CPU_EXCEPTION;
 
 	if (bad_stack_pointer(esf)) {
-#ifdef CONFIG_PMP_STACK_GUARD
+#if defined(CONFIG_PMP_STACK_GUARD) && defined(CONFIG_MULTITHREADING)
 		/*
 		 * Remove the thread's PMP setting to prevent triggering a stack
 		 * overflow error again due to the previous configuration.
 		 */
-		z_riscv_pmp_stackguard_disable();
+		z_riscv_pmp_kernelmode_disable();
 #endif /* CONFIG_PMP_STACK_GUARD */
 		reason = K_ERR_STACK_CHK_FAIL;
 	}
 
 	z_riscv_fatal_error(reason, esf);
+	CODE_UNREACHABLE;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -248,11 +263,19 @@ void z_impl_user_fault(unsigned int reason)
 {
 	struct arch_esf *oops_esf = _current->syscall_frame;
 
+#ifdef CONFIG_EXCEPTION_DEBUG
+	/* csf isn't populated in the syscall frame */
+	if (oops_esf != NULL) {
+		oops_esf->csf = NULL;
+	}
+#endif /* CONFIG_EXCEPTION_DEBUG */
+
 	if (((_current->base.user_options & K_USER) != 0) &&
 		reason != K_ERR_STACK_CHK_FAIL) {
 		reason = K_ERR_KERNEL_OOPS;
 	}
 	z_riscv_fatal_error(reason, oops_esf);
+	CODE_UNREACHABLE;
 }
 
 static void z_vrfy_user_fault(unsigned int reason)

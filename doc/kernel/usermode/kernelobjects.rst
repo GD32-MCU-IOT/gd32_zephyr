@@ -12,7 +12,7 @@ A kernel object can be one of three classes of data:
   set of subsystems
 
 The set of known kernel objects and driver subsystems is defined in
-include/kernel.h as :c:enum:`k_objects`.
+:zephyr_file:`include/zephyr/sys/kobject.h` as :c:enum:`k_objects`.
 
 Kernel objects are completely opaque to user threads. User threads work
 with addresses to kernel objects when making API calls, but may never
@@ -185,6 +185,13 @@ removed with the :c:func:`k_object_access_revoke` API. This API is not
 available to user threads, however user threads may use
 :c:func:`k_object_release` to relinquish their own permissions on an
 object.
+
+Supervisor threads may use :c:func:`k_object_access_revoke_others` to revoke
+access from all threads except the caller. This is useful to reset the
+permissions of an object in cases where access was previously given to an
+untrusted user thread, which may have in turn given it to others.
+This API also reverts a public access state which may have been set previously
+via :c:func:`k_object_access_all_grant`.
 
 API calls from supervisor mode to set permissions on kernel objects that are
 not being tracked by the kernel will be no-ops. Doing the same from user mode

@@ -23,11 +23,12 @@ LOG_MODULE_REGISTER(net_utils, CONFIG_NET_UTILS_LOG_LEVEL);
 
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/socketcan.h>
 
-char *net_sprint_addr(sa_family_t af, const void *addr)
+char *net_sprint_addr(net_sa_family_t af, const void *addr)
 {
 #define NBUFS 3
 	static char buf[NBUFS][NET_IPV6_ADDR_LEN];
@@ -52,22 +53,22 @@ const char *net_verdict2str(enum net_verdict verdict)
 
 const char *net_proto2str(int family, int proto)
 {
-	if (family == AF_INET || family == AF_INET6) {
+	if (family == NET_AF_INET || family == NET_AF_INET6) {
 		switch (proto) {
-		case IPPROTO_ICMP:
+		case NET_IPPROTO_ICMP:
 			return "ICMPv4";
-		case IPPROTO_TCP:
+		case NET_IPPROTO_TCP:
 			return "TCP";
-		case IPPROTO_UDP:
+		case NET_IPPROTO_UDP:
 			return "UDP";
-		case IPPROTO_ICMPV6:
+		case NET_IPPROTO_ICMPV6:
 			return "ICMPv6";
 		default:
 			break;
 		}
-	} else if (family == AF_CAN) {
+	} else if (family == NET_AF_CAN) {
 		switch (proto) {
-		case CAN_RAW:
+		case NET_CAN_RAW:
 			return "CAN_RAW";
 		default:
 			break;
@@ -157,11 +158,11 @@ static int net_value_to_udec(char *buf, uint32_t value, int precision)
 	return buf - start;
 }
 
-char *z_impl_net_addr_ntop(sa_family_t family, const void *src,
+char *z_impl_net_addr_ntop(net_sa_family_t family, const void *src,
 			   char *dst, size_t size)
 {
-	struct in_addr addr = { 0 };
-	struct in6_addr addr6 = { 0 };
+	struct net_in_addr addr = { 0 };
+	struct net_in6_addr addr6 = { 0 };
 	uint16_t *w = NULL;
 	int i;
 	uint8_t longest = 1U;
@@ -175,8 +176,8 @@ char *z_impl_net_addr_ntop(sa_family_t family, const void *src,
 	bool mapped = false;
 
 	switch (family) {
-	case AF_INET6:
-		if (size < INET6_ADDRSTRLEN) {
+	case NET_AF_INET6:
+		if (size < NET_INET6_ADDRSTRLEN) {
 			/* POSIX definition is the size - includes nil */
 			return NULL;
 		}
@@ -211,8 +212,8 @@ char *z_impl_net_addr_ntop(sa_family_t family, const void *src,
 		}
 		break;
 
-	case AF_INET:
-		if (size < INET_ADDRSTRLEN) {
+	case NET_AF_INET:
+		if (size < NET_INET_ADDRSTRLEN) {
 			/* POSIX definition is the size - includes nil */
 			return NULL;
 		}
@@ -254,7 +255,7 @@ print_mapped:
 			len = 4;
 			addr.s_addr = addr6.s6_addr32[3];
 			*ptr++ = ':';
-			family = AF_INET;
+			family = NET_AF_INET;
 			goto print_mapped;
 		}
 
@@ -295,7 +296,7 @@ print_mapped:
 		needcolon = true;
 	}
 
-	if (family == AF_INET) {
+	if (family == NET_AF_INET) {
 		*(ptr - 1) = '\0';
 	} else {
 		*ptr = '\0';
@@ -305,22 +306,22 @@ print_mapped:
 }
 
 #if defined(CONFIG_USERSPACE)
-char *z_vrfy_net_addr_ntop(sa_family_t family, const void *src,
+char *z_vrfy_net_addr_ntop(net_sa_family_t family, const void *src,
 			   char *dst, size_t size)
 {
-	char str[INET6_ADDRSTRLEN];
-	struct in6_addr addr6;
-	struct in_addr addr4;
+	char str[NET_INET6_ADDRSTRLEN];
+	struct net_in6_addr addr6;
+	struct net_in_addr addr4;
 	char *out;
 	const void *addr;
 
 	K_OOPS(K_SYSCALL_MEMORY_WRITE(dst, size));
 
-	if (family == AF_INET) {
+	if (family == NET_AF_INET) {
 		K_OOPS(k_usermode_from_copy(&addr4, (const void *)src,
 					sizeof(addr4)));
 		addr = &addr4;
-	} else if (family == AF_INET6) {
+	} else if (family == NET_AF_INET6) {
 		K_OOPS(k_usermode_from_copy(&addr6, (const void *)src,
 					sizeof(addr6)));
 		addr = &addr6;
@@ -340,15 +341,15 @@ char *z_vrfy_net_addr_ntop(sa_family_t family, const void *src,
 #include <zephyr/syscalls/net_addr_ntop_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-int z_impl_net_addr_pton(sa_family_t family, const char *src,
+int z_impl_net_addr_pton(net_sa_family_t family, const char *src,
 			 void *dst)
 {
-	if (family == AF_INET) {
-		struct in_addr *addr = (struct in_addr *)dst;
+	if (family == NET_AF_INET) {
+		struct net_in_addr *addr = (struct net_in_addr *)dst;
 		uint8_t index = 0, digits = 0;
 		uint16_t value = 0, count = 0;
 
-		(void)memset(addr, 0, sizeof(struct in_addr));
+		(void)memset(addr, 0, sizeof(struct net_in_addr));
 
 		/* A valid IPv4 address that can be used with inet_pton
 		 * must be in the standard dotted-decimal notation:
@@ -358,7 +359,7 @@ int z_impl_net_addr_pton(sa_family_t family, const char *src,
 		 *    - No leading zeros in each octet
 		 */
 
-		while (index < sizeof(struct in_addr)) {
+		while (index < sizeof(struct net_in_addr)) {
 			if (*src == '\0' || *src == '.') {
 				if (*src == '.') {
 					count++;
@@ -404,12 +405,12 @@ int z_impl_net_addr_pton(sa_family_t family, const char *src,
 			return -EINVAL;
 		}
 
-	} else if (family == AF_INET6) {
+	} else if (family == NET_AF_INET6) {
 		/* If the string contains a '.', it means it's of the form
 		 * X:X:X:X:X:X:x.x.x.x, and contains only 6 16-bit pieces
 		 */
 		int expected_groups = strchr(src, '.') ? 6 : 8;
-		struct in6_addr *addr = (struct in6_addr *)dst;
+		struct net_in6_addr *addr = (struct net_in6_addr *)dst;
 		int i, len;
 
 		if (*src == ':') {
@@ -436,7 +437,7 @@ int z_impl_net_addr_pton(sa_family_t family, const char *src,
 
 			if (*src != ':') {
 				/* Normal IPv6 16-bit piece */
-				UNALIGNED_PUT(htons(strtol(src, NULL, 16)),
+				UNALIGNED_PUT(net_htons(strtol(src, NULL, 16)),
 					      &addr->s6_addr16[i]);
 				src = strchr(src, ':');
 				if (src) {
@@ -513,21 +514,21 @@ int z_impl_net_addr_pton(sa_family_t family, const char *src,
 }
 
 #if defined(CONFIG_USERSPACE)
-int z_vrfy_net_addr_pton(sa_family_t family, const char *src,
+int z_vrfy_net_addr_pton(net_sa_family_t family, const char *src,
 			 void *dst)
 {
-	char str[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)] = {};
-	struct in6_addr addr6;
-	struct in_addr addr4;
+	char str[MAX(NET_INET_ADDRSTRLEN, NET_INET6_ADDRSTRLEN)] = {};
+	struct net_in6_addr addr6;
+	struct net_in_addr addr4;
 	void *addr;
 	size_t size;
 	int err;
 
-	if (family == AF_INET) {
-		size = sizeof(struct in_addr);
+	if (family == NET_AF_INET) {
+		size = sizeof(struct net_in_addr);
 		addr = &addr4;
-	} else if (family == AF_INET6) {
-		size = sizeof(struct in6_addr);
+	} else if (family == NET_AF_INET6) {
+		size = sizeof(struct net_in6_addr);
 		addr = &addr6;
 	} else {
 		return -EINVAL;
@@ -684,30 +685,46 @@ static inline uint16_t pkt_calc_chksum(struct net_pkt *pkt, uint16_t sum)
 	return sum;
 }
 
-uint16_t net_calc_chksum(struct net_pkt *pkt, uint8_t proto)
+/**
+ * @brief Calculate the checksum for a network packet.
+ *
+ * This function calculates the checksum for the given network packet,
+ * considering the specified protocol. It supports IPv4 and IPv6.
+ * For protocols other than ICMP and IGMP in IPv4, a pseudo-header is included
+ * in the checksum calculation.
+ *
+ * @param pkt The network packet for which to calculate the checksum.
+ * @param proto The protocol number (e.g., IPPROTO_TCP, IPPROTO_UDP).
+ * @param out_chksum Pointer to a uint16_t where the calculated checksum will be stored (in network
+ * byte order).
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int net_calc_chksum(struct net_pkt *pkt, uint8_t proto, uint16_t *out_chksum)
 {
 	size_t len = 0U;
 	uint16_t sum = 0U;
 	struct net_pkt_cursor backup;
 	bool ow;
+	int ret;
 
 	if (IS_ENABLED(CONFIG_NET_IPV4) &&
-	    net_pkt_family(pkt) == AF_INET) {
-		if (proto != IPPROTO_ICMP && proto != IPPROTO_IGMP) {
-			len = 2 * sizeof(struct in_addr);
+	    net_pkt_family(pkt) == NET_AF_INET) {
+		if (proto != NET_IPPROTO_ICMP && proto != NET_IPPROTO_IGMP) {
+			len = 2 * sizeof(struct net_in_addr);
 			sum = net_pkt_get_len(pkt) -
 				net_pkt_ip_hdr_len(pkt) -
 				net_pkt_ipv4_opts_len(pkt) + proto;
 		}
 	} else if (IS_ENABLED(CONFIG_NET_IPV6) &&
-		   net_pkt_family(pkt) == AF_INET6) {
-		len = 2 * sizeof(struct in6_addr);
+		   net_pkt_family(pkt) == NET_AF_INET6) {
+		len = 2 * sizeof(struct net_in6_addr);
 		sum =  net_pkt_get_len(pkt) -
 			net_pkt_ip_hdr_len(pkt) -
 			net_pkt_ipv6_ext_len(pkt) + proto;
 	} else {
 		NET_DBG("Unknown protocol family %d", net_pkt_family(pkt));
-		return 0;
+		return -EINVAL;
 	}
 
 	net_pkt_cursor_backup(pkt, &backup);
@@ -716,25 +733,41 @@ uint16_t net_calc_chksum(struct net_pkt *pkt, uint8_t proto)
 	ow = net_pkt_is_being_overwritten(pkt);
 	net_pkt_set_overwrite(pkt, true);
 
-	net_pkt_skip(pkt, net_pkt_ip_hdr_len(pkt) - len);
+	ret = net_pkt_skip(pkt, net_pkt_ip_hdr_len(pkt) - len);
+	if (ret < 0) {
+		NET_DBG("Failed to skip IP header");
+		net_pkt_cursor_restore(pkt, &backup);
+		net_pkt_set_overwrite(pkt, ow);
+		return ret;
+	}
 
 	sum = calc_chksum(sum, pkt->cursor.pos, len);
-	net_pkt_skip(pkt, len + net_pkt_ip_opts_len(pkt));
+	ret = net_pkt_skip(pkt, len + net_pkt_ip_opts_len(pkt));
+	if (ret < 0) {
+		NET_DBG("Failed to skip options");
+		net_pkt_cursor_restore(pkt, &backup);
+		net_pkt_set_overwrite(pkt, ow);
+		return ret;
+	}
 
 	sum = pkt_calc_chksum(pkt, sum);
 
-	sum = (sum == 0U) ? 0xffff : htons(sum);
+	sum = (sum == 0U) ? 0xffff : net_htons(sum);
 
 	net_pkt_cursor_restore(pkt, &backup);
 
 	net_pkt_set_overwrite(pkt, ow);
 
-	return ~sum;
+	if (out_chksum) {
+		*out_chksum = ~sum;
+	}
+
+	return 0;
 }
 #endif
 
 #if defined(CONFIG_NET_NATIVE_IPV4)
-uint16_t net_calc_chksum_ipv4(struct net_pkt *pkt)
+int net_calc_chksum_ipv4(struct net_pkt *pkt, uint16_t *out_chksum)
 {
 	uint16_t sum;
 
@@ -742,16 +775,20 @@ uint16_t net_calc_chksum_ipv4(struct net_pkt *pkt)
 			  net_pkt_ip_hdr_len(pkt) +
 			  net_pkt_ipv4_opts_len(pkt));
 
-	sum = (sum == 0U) ? 0xffff : htons(sum);
+	sum = (sum == 0U) ? 0xffff : net_htons(sum);
 
-	return ~sum;
+	if (out_chksum) {
+		*out_chksum = ~sum;
+	}
+
+	return 0;
 }
 #endif /* CONFIG_NET_NATIVE_IPV4 */
 
 #if defined(CONFIG_NET_IPV4_IGMP)
-uint16_t net_calc_chksum_igmp(struct net_pkt *pkt)
+int net_calc_chksum_igmp(struct net_pkt *pkt, uint16_t *out_chksum)
 {
-	return net_calc_chksum(pkt, IPPROTO_IGMP);
+	return net_calc_chksum(pkt, NET_IPPROTO_IGMP, out_chksum);
 }
 #endif /* CONFIG_NET_IPV4_IGMP */
 
@@ -776,15 +813,15 @@ static bool convert_port(const char *buf, uint16_t *port)
 
 #if defined(CONFIG_NET_IPV6)
 static bool parse_ipv6(const char *str, size_t str_len,
-		       struct sockaddr *addr, bool has_port)
+		       struct net_sockaddr *addr, bool has_port)
 {
 	char *ptr = NULL;
-	struct in6_addr *addr6;
-	char ipaddr[INET6_ADDRSTRLEN + 1];
+	struct net_in6_addr *addr6;
+	char ipaddr[NET_INET6_ADDRSTRLEN + 1];
 	int end, len, ret, i;
 	uint16_t port;
 
-	len = MIN(INET6_ADDRSTRLEN, str_len);
+	len = MIN(NET_INET6_ADDRSTRLEN, str_len);
 
 	for (i = 0; i < len; i++) {
 		if (!str[i]) {
@@ -811,12 +848,12 @@ static bool parse_ipv6(const char *str, size_t str_len,
 
 	addr6 = &net_sin6(addr)->sin6_addr;
 
-	ret = net_addr_pton(AF_INET6, ipaddr, addr6);
+	ret = net_addr_pton(NET_AF_INET6, ipaddr, addr6);
 	if (ret < 0) {
 		return false;
 	}
 
-	net_sin6(addr)->sin6_family = AF_INET6;
+	net_sin6(addr)->sin6_family = NET_AF_INET6;
 
 	if (!has_port) {
 		return true;
@@ -846,21 +883,21 @@ static bool parse_ipv6(const char *str, size_t str_len,
 			return false;
 		}
 
-		net_sin6(addr)->sin6_port = htons(port);
+		net_sin6(addr)->sin6_port = net_htons(port);
 
 		NET_DBG("IPv6 host %s port %d",
-			net_addr_ntop(AF_INET6, addr6, ipaddr, sizeof(ipaddr) - 1),
+			net_addr_ntop(NET_AF_INET6, addr6, ipaddr, sizeof(ipaddr) - 1),
 			port);
 	} else {
 		NET_DBG("IPv6 host %s",
-			net_addr_ntop(AF_INET6, addr6, ipaddr, sizeof(ipaddr) - 1));
+			net_addr_ntop(NET_AF_INET6, addr6, ipaddr, sizeof(ipaddr) - 1));
 	}
 
 	return true;
 }
 #else
 static inline bool parse_ipv6(const char *str, size_t str_len,
-			      struct sockaddr *addr, bool has_port)
+			      struct net_sockaddr *addr, bool has_port)
 {
 	return false;
 }
@@ -868,11 +905,11 @@ static inline bool parse_ipv6(const char *str, size_t str_len,
 
 #if defined(CONFIG_NET_IPV4)
 static bool parse_ipv4(const char *str, size_t str_len,
-		       struct sockaddr *addr, bool has_port)
+		       struct net_sockaddr *addr, bool has_port)
 {
 	char *ptr = NULL;
 	char ipaddr[NET_IPV4_ADDR_LEN + 1];
-	struct in_addr *addr4;
+	struct net_in_addr *addr4;
 	int end, len, ret, i;
 	uint16_t port;
 
@@ -902,12 +939,12 @@ static bool parse_ipv4(const char *str, size_t str_len,
 
 	addr4 = &net_sin(addr)->sin_addr;
 
-	ret = net_addr_pton(AF_INET, ipaddr, addr4);
+	ret = net_addr_pton(NET_AF_INET, ipaddr, addr4);
 	if (ret < 0) {
 		return false;
 	}
 
-	net_sin(addr)->sin_family = AF_INET;
+	net_sin(addr)->sin_family = NET_AF_INET;
 
 	if (!has_port) {
 		return true;
@@ -921,22 +958,22 @@ static bool parse_ipv4(const char *str, size_t str_len,
 		return false;
 	}
 
-	net_sin(addr)->sin_port = htons(port);
+	net_sin(addr)->sin_port = net_htons(port);
 
 	NET_DBG("IPv4 host %s port %d",
-		net_addr_ntop(AF_INET, addr4, ipaddr, sizeof(ipaddr) - 1),
+		net_addr_ntop(NET_AF_INET, addr4, ipaddr, sizeof(ipaddr) - 1),
 		port);
 	return true;
 }
 #else
 static inline bool parse_ipv4(const char *str, size_t str_len,
-			      struct sockaddr *addr, bool has_port)
+			      struct net_sockaddr *addr, bool has_port)
 {
 	return false;
 }
 #endif /* CONFIG_NET_IPV4 */
 
-bool net_ipaddr_parse(const char *str, size_t str_len, struct sockaddr *addr)
+bool net_ipaddr_parse(const char *str, size_t str_len, struct net_sockaddr *addr)
 {
 	int i, count;
 
@@ -982,7 +1019,7 @@ bool net_ipaddr_parse(const char *str, size_t str_len, struct sockaddr *addr)
 }
 
 const char *net_ipaddr_parse_mask(const char *str, size_t str_len,
-				  struct sockaddr *addr, uint8_t *mask_len)
+				  struct net_sockaddr *addr, uint8_t *mask_len)
 {
 	const char *next = NULL, *mask_ptr = NULL;
 	int parsed_mask_len = -1;
@@ -1039,9 +1076,9 @@ const char *net_ipaddr_parse_mask(const char *str, size_t str_len,
 	}
 
 	if (parsed_mask_len < 0) {
-		if (addr->sa_family == AF_INET) {
+		if (addr->sa_family == NET_AF_INET) {
 			*mask_len = 32;
-		} else if (addr->sa_family == AF_INET6) {
+		} else if (addr->sa_family == NET_AF_INET6) {
 			*mask_len = 128;
 		}
 	}
@@ -1053,34 +1090,34 @@ const char *net_ipaddr_parse_mask(const char *str, size_t str_len,
 	return "";
 }
 
-int net_mask_len_to_netmask(sa_family_t family, uint8_t mask_len, struct sockaddr *mask)
+int net_mask_len_to_netmask(net_sa_family_t family, uint8_t mask_len, struct net_sockaddr *mask)
 {
-	if (family == AF_INET) {
-		struct in_addr *addr4 = &net_sin(mask)->sin_addr;
-		struct sockaddr_in *mask4 = (struct sockaddr_in *)mask;
+	if (family == NET_AF_INET) {
+		struct net_in_addr *addr4 = &net_sin(mask)->sin_addr;
+		struct net_sockaddr_in *mask4 = (struct net_sockaddr_in *)mask;
 
 		if (mask_len > 32) {
 			return -ERANGE;
 		}
 
-		memset(mask4, 0, sizeof(struct sockaddr_in));
+		memset(mask4, 0, sizeof(struct net_sockaddr_in));
 
-		mask4->sin_family = AF_INET;
+		mask4->sin_family = NET_AF_INET;
 		mask4->sin_port = 0;
-		addr4->s_addr = htonl(UINT32_MAX << (32 - mask_len));
+		addr4->s_addr = net_htonl(UINT32_MAX << (32 - mask_len));
 
-	} else if (family == AF_INET6) {
-		struct in6_addr *addr6 = &net_sin6(mask)->sin6_addr;
-		struct sockaddr_in6 *mask6 = (struct sockaddr_in6 *)mask;
+	} else if (family == NET_AF_INET6) {
+		struct net_in6_addr *addr6 = &net_sin6(mask)->sin6_addr;
+		struct net_sockaddr_in6 *mask6 = (struct net_sockaddr_in6 *)mask;
 		uint32_t mask_val[4] = { 0 };
 
 		if (mask_len > 128) {
 			return -ERANGE;
 		}
 
-		memset(mask6, 0, sizeof(struct sockaddr_in6));
+		memset(mask6, 0, sizeof(struct net_sockaddr_in6));
 
-		mask6->sin6_family = AF_INET6;
+		mask6->sin6_family = NET_AF_INET6;
 		mask6->sin6_port = 0;
 
 		for (int i = 0; i < 4; i++) {
@@ -1089,7 +1126,7 @@ int net_mask_len_to_netmask(sa_family_t family, uint8_t mask_len, struct sockadd
 			if (bits >= 32) {
 				mask_val[i] = UINT32_MAX;
 			} else if (bits > 0) {
-				mask_val[i] = htonl(UINT32_MAX << (32 - bits));
+				mask_val[i] = net_htonl(UINT32_MAX << (32 - bits));
 			}
 		}
 
@@ -1101,7 +1138,7 @@ int net_mask_len_to_netmask(sa_family_t family, uint8_t mask_len, struct sockadd
 	return 0;
 }
 
-int net_netmask_to_mask_len(sa_family_t family, struct sockaddr *mask, uint8_t *mask_len)
+int net_netmask_to_mask_len(net_sa_family_t family, struct net_sockaddr *mask, uint8_t *mask_len)
 {
 	int zerobits = 0;
 	int maxlen;
@@ -1111,12 +1148,12 @@ int net_netmask_to_mask_len(sa_family_t family, struct sockaddr *mask, uint8_t *
 		return -EINVAL;
 	}
 
-	if (family != AF_INET && family != AF_INET6) {
+	if (family != NET_AF_INET && family != NET_AF_INET6) {
 		return -EINVAL;
 	}
 
-	maxlen = family == AF_INET ? sizeof(struct in_addr) :
-				     sizeof(struct in6_addr);
+	maxlen = family == NET_AF_INET ? sizeof(struct net_in_addr) :
+				     sizeof(struct net_in6_addr);
 
 	for (int i = maxlen - 1; i >= 0; i--) {
 		n = net_sin6(mask)->sin6_addr.s6_addr[i];
@@ -1137,16 +1174,16 @@ int net_netmask_to_mask_len(sa_family_t family, struct sockaddr *mask, uint8_t *
 	return 0;
 }
 
-int net_port_set_default(struct sockaddr *addr, uint16_t default_port)
+int net_port_set_default(struct net_sockaddr *addr, uint16_t default_port)
 {
-	if (IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == AF_INET &&
+	if (IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == NET_AF_INET &&
 	    net_sin(addr)->sin_port == 0) {
-		net_sin(addr)->sin_port = htons(default_port);
-	} else if (IS_ENABLED(CONFIG_NET_IPV6) && addr->sa_family == AF_INET6 &&
+		net_sin(addr)->sin_port = net_htons(default_port);
+	} else if (IS_ENABLED(CONFIG_NET_IPV6) && addr->sa_family == NET_AF_INET6 &&
 		   net_sin6(addr)->sin6_port == 0) {
-		net_sin6(addr)->sin6_port = htons(default_port);
-	} else if ((IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == AF_INET) ||
-		   (IS_ENABLED(CONFIG_NET_IPV6) && addr->sa_family == AF_INET6)) {
+		net_sin6(addr)->sin6_port = net_htons(default_port);
+	} else if ((IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == NET_AF_INET) ||
+		   (IS_ENABLED(CONFIG_NET_IPV6) && addr->sa_family == NET_AF_INET6)) {
 		; /* Port is already set */
 	} else {
 		LOG_ERR("Unknown address family");
@@ -1179,43 +1216,43 @@ int net_bytes_from_str(uint8_t *buf, int buf_len, const char *src)
 	return 0;
 }
 
-const char *net_family2str(sa_family_t family)
+const char *net_family2str(net_sa_family_t family)
 {
 	switch (family) {
-	case AF_UNSPEC:
+	case NET_AF_UNSPEC:
 		return "AF_UNSPEC";
-	case AF_INET:
+	case NET_AF_INET:
 		return "AF_INET";
-	case AF_INET6:
+	case NET_AF_INET6:
 		return "AF_INET6";
-	case AF_PACKET:
+	case NET_AF_PACKET:
 		return "AF_PACKET";
-	case AF_CAN:
+	case NET_AF_CAN:
 		return "AF_CAN";
 	}
 
 	return NULL;
 }
 
-const struct in_addr *net_ipv4_unspecified_address(void)
+const struct net_in_addr *net_ipv4_unspecified_address(void)
 {
-	static const struct in_addr addr;
+	static const struct net_in_addr addr;
 
 	return &addr;
 }
 
-const struct in_addr *net_ipv4_broadcast_address(void)
+const struct net_in_addr *net_ipv4_broadcast_address(void)
 {
-	static const struct in_addr addr = { { { 255, 255, 255, 255 } } };
+	static const struct net_in_addr addr = { { { 255, 255, 255, 255 } } };
 
 	return &addr;
 }
 
 /* IPv6 wildcard and loopback address defined by RFC2553 */
-const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
-const struct in6_addr in6addr_loopback = IN6ADDR_LOOPBACK_INIT;
+const struct net_in6_addr net_in6addr_any = NET_IN6ADDR_ANY_INIT;
+const struct net_in6_addr net_in6addr_loopback = NET_IN6ADDR_LOOPBACK_INIT;
 
-const struct in6_addr *net_ipv6_unspecified_address(void)
+const struct net_in6_addr *net_ipv6_unspecified_address(void)
 {
-	return &in6addr_any;
+	return &net_in6addr_any;
 }

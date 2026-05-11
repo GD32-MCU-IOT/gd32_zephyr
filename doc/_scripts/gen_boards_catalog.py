@@ -15,7 +15,9 @@ import list_hardware
 import list_shields
 import yaml
 import zephyr_module
+from dts_binding_types import get_binding_type_from_path
 from gen_devicetree_rest import VndLookup
+from get_maintainer import Maintainers
 from runners.core import ZephyrBinaryRunner
 
 ZEPHYR_BASE = Path(__file__).parents[2]
@@ -30,6 +32,31 @@ RUNNERS_YAML_PATHS = (
 )
 
 logger = logging.getLogger(__name__)
+
+# Initialize the Maintainers object for looking up board maintenance status
+MAINTAINERS = Maintainers(filename=ZEPHYR_BASE / "MAINTAINERS.yml")
+
+
+def is_board_maintained(board_doc_path: Path) -> bool:
+    """Determine if a board is actively maintained based on whether it is covered by an area with
+    status 'maintained' in the MAINTAINERS.yml file.
+
+    Args:
+        board_doc_path: A board doc path relative to ZEPHYR_BASE.
+
+    Returns:
+        True if the board is covered by an area with status 'maintained', False otherwise.
+    """
+
+    # path2areas needs os.getcwd() to be set to ZEPHYR_BASE
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(ZEPHYR_BASE)
+        areas = MAINTAINERS.path2areas(board_doc_path)
+    finally:
+        os.chdir(original_cwd)
+
+    return any(area.status == "maintained" for area in areas)
 
 
 class DeviceTreeUtils:
@@ -96,6 +123,7 @@ def guess_image(board_or_shield):
         prefix_matches.append(f"**/{partial_name}.{{ext}}")
 
     patterns = (
+        "**/{name}.{ext}",
         *prefix_matches,
         "**/*{name}*.{ext}",
         "**/*.{ext}",
@@ -207,6 +235,7 @@ def run_twister_cmake_only(outdir, vendor_filter):
         *[arg for path in EDT_PICKLE_PATHS for arg in ('--keep-artifacts', path)],
         *[arg for path in RUNNERS_YAML_PATHS for arg in ('--keep-artifacts', path)],
         "--cmake-only",
+        "-v",
         "--outdir",
         str(outdir),
     ]
@@ -303,10 +332,8 @@ def get_catalog(generate_hw_features=False, hw_features_vendor_filter=None):
 
                     binding_path = Path(node.binding_path)
                     is_custom_binding = False
-                    if binding_path.is_relative_to(ZEPHYR_BINDINGS):
-                        binding_type = binding_path.relative_to(ZEPHYR_BINDINGS).parts[0]
-                    else:
-                        binding_type = "misc"
+                    binding_type = get_binding_type_from_path(binding_path)
+                    if binding_type == "misc" and not binding_path.is_relative_to(ZEPHYR_BINDINGS):
                         is_custom_binding = True
 
                     if node.matching_compat is None:
@@ -398,6 +425,7 @@ def get_catalog(generate_hw_features=False, hw_features_vendor_filter=None):
             "supported_features": supported_features,
             "compatibles": compatibles,
             "image": guess_image(board),
+            "maintained": is_board_maintained(doc_page_path) if doc_page_path else False,
             # runners
             "supported_runners": board_runner_info.get("runners", []),
             "flash_runner": board_runner_info.get("flash-runner", ""),

@@ -64,8 +64,8 @@ static int frame_rpc_call_req(char *rpcbuf, int len, int pdu,
 
 	/* Encode OCPP Call Request msg: [2,"<UID>","<Action>",<Payload>] */
 	ret = snprintk(rpcbuf, len,
-		       "[2,\"%s\",\"%s\",%s]",
-		       uid, action, pdumsg);
+		       "[%c,\"%s\",\"%s\",%s]",
+		       OCPP_WAMP_RPC_REQ, uid, action, pdumsg);
 
 	if (ret < 0 || ret >= len) {
 		return -ENOMEM;
@@ -80,7 +80,9 @@ static int frame_rpc_call_res(char *rpcbuf, int len,
 	int ret;
 
 	/* Encode OCPP Call Result msg: [3,"<UID>",<Payload>] */
-	ret = snprintk(rpcbuf, len, "[3,\"%s\",%s]", uid, pdumsg);
+	ret = snprintk(rpcbuf, len,
+		       "[%c,\"%s\",%s]",
+		       OCPP_WAMP_RPC_RESP, uid, pdumsg);
 
 	if (ret < 0 || ret >= len) {
 		return -ENOMEM;
@@ -410,7 +412,7 @@ static int frame_getconfig_msg(char *buf, int len, char *key, char *val,
 		JSON_OBJ_DESCR_PRIM_NAMED(struct json_ocpp_key_val, "key",
 					  key, JSON_TOK_STRING),
 		JSON_OBJ_DESCR_PRIM_NAMED(struct json_ocpp_key_val, "readonly",
-					  readonly, JSON_TOK_NUMBER),
+					  readonly, JSON_TOK_TRUE),
 		JSON_OBJ_DESCR_PRIM_NAMED(struct json_ocpp_key_val, "value",
 					  value, JSON_TOK_STRING),
 	};

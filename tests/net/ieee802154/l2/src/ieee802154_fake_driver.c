@@ -11,13 +11,14 @@ LOG_MODULE_REGISTER(net_ieee802154_fake_driver, LOG_LEVEL_DBG);
 
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/net/net_pkt.h>
 
 /** FAKE ieee802.15.4 driver **/
 #include <zephyr/net/ieee802154_radio.h>
 
 #include "net_private.h"
-#include <ieee802154_frame.h>
+#include <zephyr/net/ieee802154_frame.h>
 
 struct net_pkt *current_pkt;
 K_SEM_DEFINE(driver_lock, 0, UINT_MAX);
@@ -83,8 +84,8 @@ static int fake_tx(const struct device *dev,
 
 		struct net_pkt *ack_pkt;
 
-		ack_pkt = net_pkt_rx_alloc_with_buffer(iface, IEEE802154_ACK_PKT_LENGTH, AF_UNSPEC,
-						       0, K_FOREVER);
+		ack_pkt = net_pkt_rx_alloc_with_buffer(iface, IEEE802154_ACK_PKT_LENGTH,
+						       NET_AF_UNSPEC, 0, K_FOREVER);
 		if (!ack_pkt) {
 			NET_ERR("*** Could not allocate ack pkt.");
 			return -ENOMEM;

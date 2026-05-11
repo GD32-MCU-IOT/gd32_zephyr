@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/lc3.h>
 #include <zephyr/bluetooth/byteorder.h>
 #include <zephyr/bluetooth/iso.h>
@@ -19,6 +20,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
@@ -81,6 +83,8 @@ static void test_ase_state_transition_invalid_before(void *f)
 static void test_ase_state_transition_invalid_after(void *f)
 {
 	int err;
+
+	ARG_UNUSED(f);
 
 	err = bt_bap_unicast_server_unregister_cb(&mock_bap_unicast_server_cb);
 	zassert_equal(err, 0, "unexpected err response %d", err);
@@ -375,7 +379,8 @@ static void expect_ase_state_releasing(struct bt_conn *conn, const struct bt_gat
 	zexpect_not_null(ase);
 
 	ret = ase->read(conn, ase, &hdr, sizeof(hdr), 0);
-	zassert_false(ret < 0, "attr->read returned unexpected (err 0x%02x)", BT_GATT_ERR(ret));
+	zassert_false(ret < 0, "attr->read returned unexpected (err 0x%02x)",
+		      (uint8_t)BT_GATT_ERR(ret));
 	zassert_equal(BT_BAP_EP_STATE_RELEASING, hdr.ase_state,
 		      "unexpected ASE_State 0x%02x", hdr.ase_state);
 }

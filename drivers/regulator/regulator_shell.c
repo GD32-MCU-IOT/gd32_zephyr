@@ -164,7 +164,7 @@ static int cmd_vlist(const struct shell *sh, size_t argc, char **argv)
 	volt_cnt = regulator_count_voltages(dev);
 
 	for (unsigned int i = 0U; i < volt_cnt; i++) {
-		int32_t volt_uv;
+		int32_t volt_uv = 0;
 
 		(void)regulator_list_voltage(dev, i, &volt_uv);
 
@@ -245,7 +245,7 @@ static int cmd_clist(const struct shell *sh, size_t argc, char **argv)
 {
 	const struct device *dev;
 	unsigned int current_cnt;
-	int32_t last_current_ua;
+	int32_t last_current_ua = 0;
 
 	ARG_UNUSED(argc);
 
@@ -258,7 +258,7 @@ static int cmd_clist(const struct shell *sh, size_t argc, char **argv)
 	current_cnt = regulator_count_current_limits(dev);
 
 	for (unsigned int i = 0U; i < current_cnt; i++) {
-		int32_t current_ua;
+		int32_t current_ua = 0;
 
 		(void)regulator_list_current_limit(dev, i, &current_ua);
 
@@ -588,11 +588,11 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_modeset, 3, 0),
 	SHELL_CMD_ARG(modeget, &dsub_device_name,
 		      SHELL_HELP("Get the mode of the regulator", "<device>"), cmd_modeget, 2, 0),
-	SHELL_CMD_ARG(adset, NULL,
+	SHELL_CMD_ARG(adset, &dsub_device_name,
 		      SHELL_HELP("Set active discharge status", "<device> <enable|disable>"),
 		      cmd_adset, 3, 0),
-	SHELL_CMD_ARG(adget, NULL, SHELL_HELP("Get active discharge status", "<device>"), cmd_adget,
-		      2, 0),
+	SHELL_CMD_ARG(adget, &dsub_device_name,
+		      SHELL_HELP("Get active discharge status", "<device>"), cmd_adget, 2, 0),
 	SHELL_CMD_ARG(errors, &dsub_device_name, SHELL_HELP("Get active errors", "<device>"),
 		      cmd_errors, 2, 0),
 	SHELL_CMD_ARG(dvsset, &dsub_device_name_parent,

@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_k66.dtsi>
+#include <nxp/kinetis/nxp_k66.dtsi>
 
 #include "ip_k66f-pinctrl.dtsi"
 
@@ -105,10 +105,14 @@
 	};
 };
 
-&enet_mac {
+&enet {
 	status = "okay";
 	pinctrl-0 = <&enet_default>;
 	pinctrl-names = "default";
+};
+
+&enet_mac {
+	status = "okay";
 	zephyr,random-mac-address;
 	phy-connection-type = "rmii";
 	phy-handle = <&phy>;
@@ -120,10 +124,10 @@
 	pinctrl-names = "default";
 
 	phy: phy@0 {
-		compatible = "ethernet-phy";
+		compatible = "ethernet-phy-fixed-link";
 		reg = <0>;
 		status = "okay";
-		fixed-link = "100BASE-T Full-Duplex";
+		default-speeds = "100BASE Full-Duplex";
 	};
 };
 
@@ -134,25 +138,6 @@
 
 	clock-frequency = <44000000>;
 	cs-gpios = <&gpioe 4 GPIO_ACTIVE_LOW>;
-
-	ksz8794: dsa@0 {
-		compatible = "microchip,ksz8794";
-		reg = <0>;
-
-		spi-max-frequency = <44000000>;
-		reset-gpios = <&gpiob 22 GPIO_ACTIVE_LOW>;
-
-		spi-cpol;
-		spi-cpha;
-		dsa-master-port = <&enet_mac>;
-		dsa-slave-ports = <3>;
-
-		lan3: lan_3 {};
-
-		lan2: lan_2 {};
-
-		lan1: lan_1 {};
-	};
 };
 
 &gpioa {

@@ -1,6 +1,9 @@
 /** @file
  * @brief Network packet buffer descriptor API
  *
+ * @note This structure is not thread-safe. Single-thread access is expected
+ * for a given net_pkt instance at any one time (Exclusive Ownership model).
+ *
  * Network data is passed between different parts of the stack via
  * net_buf struct.
  */
@@ -32,6 +35,7 @@
 #include <zephyr/net/net_time.h>
 #include <zephyr/net/ethernet_vlan.h>
 #include <zephyr/net/ptp_time.h>
+#include <zephyr/logging/log_core.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -213,13 +217,13 @@ struct net_pkt {
 	uint8_t ipv4_acd_arp_msg : 1;  /* Is this pkt IPv4 conflict detection ARP
 					* message.
 					* Note: family needs to be
-					* AF_INET.
+					* NET_AF_INET.
 					*/
 #endif
 #if defined(CONFIG_NET_LLDP)
 	uint8_t lldp_pkt : 1; /* Is this pkt an LLDP message.
 			       * Note: family needs to be
-			       * AF_UNSPEC.
+			       * NET_AF_UNSPEC.
 			       */
 #endif
 	uint8_t ppp_msg : 1; /* This is a PPP message */
@@ -341,13 +345,13 @@ struct net_pkt {
 	 * have network tunneling in use.
 	 */
 	union {
-		struct sockaddr remote;
+		struct net_sockaddr remote;
 
 		/* This will make sure that there is enough storage to store
 		 * the address struct. The access to value is via remote
 		 * address.
 		 */
-		struct sockaddr_storage remote_storage;
+		struct net_sockaddr_storage remote_storage;
 	};
 #endif /* CONFIG_NET_OFFLOAD */
 
@@ -1287,7 +1291,7 @@ static ALWAYS_INLINE void net_pkt_set_stats_tick(struct net_pkt *pkt,
 						 uint32_t tick)
 {
 	if (pkt->detail.count >= NET_PKT_DETAIL_STATS_COUNT) {
-		NET_ERR("Detail stats count overflow (%d >= %d)",
+		printk("ERROR: Detail stats count overflow (%d >= %d)",
 			pkt->detail.count, NET_PKT_DETAIL_STATS_COUNT);
 		return;
 	}
@@ -1484,7 +1488,7 @@ static inline void net_pkt_set_src_ipv6_addr(struct net_pkt *pkt)
 {
 	net_if_ipv6_select_src_addr(net_context_get_iface(
 					    net_pkt_context(pkt)),
-				    (struct in6_addr *)NET_IPV6_HDR(pkt)->src);
+				    (struct net_in6_addr *)NET_IPV6_HDR(pkt)->src);
 }
 
 static inline void net_pkt_set_overwrite(struct net_pkt *pkt, bool overwrite)
@@ -1552,14 +1556,14 @@ static inline bool net_pkt_filter_local_in_recv_ok(struct net_pkt *pkt)
 #endif /* CONFIG_NET_PKT_FILTER && CONFIG_NET_PKT_FILTER_LOCAL_IN_HOOK */
 
 #if defined(CONFIG_NET_OFFLOAD) || defined(CONFIG_NET_L2_IPIP)
-static inline struct sockaddr *net_pkt_remote_address(struct net_pkt *pkt)
+static inline struct net_sockaddr *net_pkt_remote_address(struct net_pkt *pkt)
 {
 	return &pkt->remote;
 }
 
 static inline void net_pkt_set_remote_address(struct net_pkt *pkt,
-					      struct sockaddr *address,
-					      socklen_t len)
+					      struct net_sockaddr *address,
+					      net_socklen_t len)
 {
 	memcpy(&pkt->remote, address, len);
 }
@@ -1581,7 +1585,7 @@ static inline void net_pkt_set_remote_address(struct net_pkt *pkt,
  * @param count Number of net_pkt in this slab.
  */
 #define NET_PKT_SLAB_DEFINE(name, count)				\
-	K_MEM_SLAB_DEFINE(name, sizeof(struct net_pkt), count, 4);      \
+	K_MEM_SLAB_DEFINE_TYPE(name, struct net_pkt, count);		\
 	NET_PKT_ALLOC_STATS_DEFINE(pkt_alloc_stats_##name, name)
 
 /** @cond INTERNAL_HIDDEN */
@@ -1957,7 +1961,7 @@ int net_pkt_alloc_buffer_raw_debug(struct net_pkt *pkt, size_t size,
 
 struct net_pkt *net_pkt_alloc_with_buffer_debug(struct net_if *iface,
 						size_t size,
-						sa_family_t family,
+						net_sa_family_t family,
 						enum net_ip_protocol proto,
 						k_timeout_t timeout,
 						const char *caller,
@@ -1970,7 +1974,7 @@ struct net_pkt *net_pkt_alloc_with_buffer_debug(struct net_if *iface,
 
 struct net_pkt *net_pkt_rx_alloc_with_buffer_debug(struct net_if *iface,
 						   size_t size,
-						   sa_family_t family,
+						   net_sa_family_t family,
 						   enum net_ip_protocol proto,
 						   k_timeout_t timeout,
 						   const char *caller,
@@ -2142,7 +2146,7 @@ int net_pkt_alloc_buffer_raw(struct net_pkt *pkt, size_t size,
  */
 struct net_pkt *net_pkt_alloc_with_buffer(struct net_if *iface,
 					  size_t size,
-					  sa_family_t family,
+					  net_sa_family_t family,
 					  enum net_ip_protocol proto,
 					  k_timeout_t timeout);
 
@@ -2151,7 +2155,7 @@ struct net_pkt *net_pkt_alloc_with_buffer(struct net_if *iface,
 /* Same as above but specifically for RX packet */
 struct net_pkt *net_pkt_rx_alloc_with_buffer(struct net_if *iface,
 					     size_t size,
-					     sa_family_t family,
+					     net_sa_family_t family,
 					     enum net_ip_protocol proto,
 					     k_timeout_t timeout);
 
@@ -2273,16 +2277,13 @@ static inline void *net_pkt_cursor_get_pos(struct net_pkt *pkt)
 /**
  * @brief Skip some data from a net_pkt
  *
- * @details net_pkt's cursor should be properly initialized
- *          Cursor position will be updated after the operation.
- *          Depending on the value of pkt->overwrite bit, this function
- *          will affect the buffer length or not. If it's true, it will
- *          advance the cursor to the requested length. If it's false,
- *          it will do the same but if the cursor was already also at the
- *          end of existing data, it will increment the buffer length.
- *          So in this case, its behavior is just like net_pkt_write or
- *          net_pkt_memset, difference being that it will not affect the
- *          buffer content itself (which may be just garbage then).
+ * @details net_pkt's cursor should be properly initialized. This function will
+ *          advance the cursor by the requested length. The value of
+ *          pkt->overwrite affects the behavior of this function. If false, the
+ *          packet will be lengthened by @a length bytes. In this case, its
+ *          behavior is just like net_pkt_write or net_pkt_memset, difference
+ *          being that it will not affect the buffer content itself (which may
+ *          be just garbage then).
  *
  * @param pkt    The net_pkt whose cursor will be updated to skip given
  *               amount of data from the buffer.
@@ -2433,6 +2434,48 @@ int net_pkt_read_le16(struct net_pkt *pkt, uint16_t *data);
 int net_pkt_read_be32(struct net_pkt *pkt, uint32_t *data);
 
 /**
+ * @brief Read uint32_t little endian data from a net_pkt
+ *
+ * @details net_pkt's cursor should be properly initialized and,
+ *          if needed, positioned using net_pkt_skip.
+ *          Cursor position will be updated after the operation.
+ *
+ * @param pkt  The network packet from where to read
+ * @param data The destination uint32_t where to copy the data
+ *
+ * @return 0 on success, negative errno code otherwise.
+ */
+int net_pkt_read_le32(struct net_pkt *pkt, uint32_t *data);
+
+/**
+ * @brief Read uint64_t big endian data from a net_pkt
+ *
+ * @details net_pkt's cursor should be properly initialized and,
+ *          if needed, positioned using net_pkt_skip.
+ *          Cursor position will be updated after the operation.
+ *
+ * @param pkt  The network packet from where to read
+ * @param data The destination uint64_t where to copy the data
+ *
+ * @return 0 on success, negative errno code otherwise.
+ */
+int net_pkt_read_be64(struct net_pkt *pkt, uint64_t *data);
+
+/**
+ * @brief Read uint64_t little endian data from a net_pkt
+ *
+ * @details net_pkt's cursor should be properly initialized and,
+ *          if needed, positioned using net_pkt_skip.
+ *          Cursor position will be updated after the operation.
+ *
+ * @param pkt  The network packet from where to read
+ * @param data The destination uint64_t where to copy the data
+ *
+ * @return 0 on success, negative errno code otherwise.
+ */
+int net_pkt_read_le64(struct net_pkt *pkt, uint64_t *data);
+
+/**
  * @brief Write data into a net_pkt
  *
  * @details net_pkt's cursor should be properly initialized and,
@@ -2478,7 +2521,7 @@ static inline int net_pkt_write_u8(struct net_pkt *pkt, uint8_t data)
  */
 static inline int net_pkt_write_be16(struct net_pkt *pkt, uint16_t data)
 {
-	uint16_t data_be16 = htons(data);
+	uint16_t data_be16 = net_htons(data);
 
 	return net_pkt_write(pkt, &data_be16, sizeof(uint16_t));
 }
@@ -2497,7 +2540,7 @@ static inline int net_pkt_write_be16(struct net_pkt *pkt, uint16_t data)
  */
 static inline int net_pkt_write_be32(struct net_pkt *pkt, uint32_t data)
 {
-	uint32_t data_be32 = htonl(data);
+	uint32_t data_be32 = net_htonl(data);
 
 	return net_pkt_write(pkt, &data_be32, sizeof(uint32_t));
 }

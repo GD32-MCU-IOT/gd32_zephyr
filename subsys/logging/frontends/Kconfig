@@ -32,7 +32,9 @@ endif
 
 config LOG_FRONTEND_STMESP
 	bool "Coresight STM frontend"
+	depends on DT_HAS_ARM_STMESP_ENABLED
 	imply ARM_ON_ENTER_CPU_IDLE_HOOK if LOG_FRONTEND_STMESP_FLUSH_COUNT > 0
+	imply CBPRINTF_RV32E_USE_DEFAULT_ALIGNMENT if RISCV
 
 if LOG_FRONTEND_STMESP
 
@@ -58,6 +60,7 @@ config LOG_FRONTEND_STMESP_FLUSH_COUNT
 
 config LOG_FRONTEND_STMESP_EARLY_BUF_SIZE
 	int "Buffer size to store early messages"
+	default 1024 if DEBUG_NRF_ETR
 	default 0
 	help
 	  Frontend cannot write to STM if it is used with ETR buffer unless ETR is

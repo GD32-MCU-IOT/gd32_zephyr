@@ -513,7 +513,7 @@ static inline void kw41z_rx(struct kw41z_context *kw41z, uint8_t len)
 #endif
 
 	pkt = net_pkt_rx_alloc_with_buffer(kw41z->iface, pkt_len,
-					   AF_UNSPEC, 0, K_NO_WAIT);
+					   NET_AF_UNSPEC, 0, K_NO_WAIT);
 	if (!pkt) {
 		LOG_ERR("No buf available");
 		goto out;
@@ -581,7 +581,7 @@ static void handle_ack(struct kw41z_context *kw41z, uint8_t seq_number)
 	uint8_t ack_psdu[ACK_FRAME_LEN];
 
 	ack_pkt = net_pkt_rx_alloc_with_buffer(kw41z->iface, ACK_FRAME_LEN,
-					       AF_UNSPEC, 0, K_NO_WAIT);
+					       NET_AF_UNSPEC, 0, K_NO_WAIT);
 	if (!ack_pkt) {
 		LOG_ERR("No free packet available.");
 		return;
@@ -622,7 +622,7 @@ static int kw41z_tx(const struct device *dev, enum ieee802154_tx_mode mode,
 	unsigned int key;
 
 	if (mode != IEEE802154_TX_MODE_DIRECT) {
-		NET_ERR("TX mode %d not supported", mode);
+		LOG_ERR("TX mode %d not supported", mode);
 		return -ENOTSUP;
 	}
 

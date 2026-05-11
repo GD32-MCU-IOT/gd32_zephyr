@@ -125,7 +125,6 @@ def add_parser_common(command, parser_adder=None, parser=None):
         parser = parser_adder.add_parser(
             command.name,
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            help=command.help,
             description=command.description)
 
     # Remember to update west-completion.bash if you add or remove
@@ -705,6 +704,16 @@ def get_runner_config(build_dir, yaml_path, runners_yaml, args=None):
         # OTHER and let the runner deal with it
         return FileType.OTHER
 
+    file_path = config('file')
+    file_type_arg = getattr(args, 'file_type', None)
+    if file_type_arg and not file_path:
+        file_path = output_file(file_type_arg.lower())
+        if file_path:
+            log.inf(f'Using {file_path}')
+        else:
+            log.die(f'--file-type {file_type_arg} specified but no '
+                    f'{file_type_arg} build artifact found')
+
     return RunnerConfig(build_dir,
                         yaml_config['board_dir'],
                         output_file('elf'),
@@ -713,7 +722,7 @@ def get_runner_config(build_dir, yaml_path, runners_yaml, args=None):
                         output_file('bin'),
                         output_file('uf2'),
                         output_file('mot'),
-                        config('file'),
+                        file_path,
                         filetype('file_type'),
                         config('gdb'),
                         config('openocd'),

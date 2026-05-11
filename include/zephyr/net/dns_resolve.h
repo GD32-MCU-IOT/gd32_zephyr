@@ -48,8 +48,32 @@ enum dns_query_type {
 	/** IPv6 query */
 	DNS_QUERY_TYPE_AAAA = 28,
 	/** Service location query */
-	DNS_QUERY_TYPE_SRV = 33
+	DNS_QUERY_TYPE_SRV = 33,
+	/** Request all record types query */
+	DNS_QUERY_TYPE_ANY = 255,
+	/** Reserved query type value */
+	DNS_QUERY_TYPE_RESERVED = 65535,
 };
+
+
+/** Private RR type range start (RFC 6895) */
+#define DNS_RR_TYPE_PRIVATE_START_VALUE 65280
+/** Private RR type range end (RFC 6895) */
+#define DNS_RR_TYPE_PRIVATE_END_VALUE 65534
+
+/**
+ * @brief Check if query type is a private RR (RFC 6895: 65280-65534)
+ *
+ * @param type Query type to check
+ * @return true if type is in private RR range, false otherwise
+ */
+static inline bool dns_query_type_is_private(enum dns_query_type type)
+{
+	unsigned int val = (unsigned int)type;
+
+	return (val >= DNS_RR_TYPE_PRIVATE_START_VALUE &&
+		val <= DNS_RR_TYPE_PRIVATE_END_VALUE);
+}
 
 /**
  * Entity that added the DNS server.
@@ -82,6 +106,13 @@ enum dns_server_source {
 #else
 #define DNS_MAX_TEXT_SIZE 64
 #endif /* CONFIG_DNS_RESOLVER_MAX_TEXT_LEN */
+
+/** Max size of private RR data. */
+#if defined(CONFIG_DNS_RESOLVER_MAX_PRIVATE_DATA_LEN)
+#define DNS_MAX_PRIVATE_DATA_SIZE CONFIG_DNS_RESOLVER_MAX_PRIVATE_DATA_LEN
+#else
+#define DNS_MAX_PRIVATE_DATA_SIZE 128
+#endif /* CONFIG_DNS_RESOLVER_MAX_PRIVATE_DATA_LEN */
 
 /** @cond INTERNAL_HIDDEN */
 
@@ -214,7 +245,7 @@ struct dns_socket_dispatcher;
  * @return 0 if ok, <0 if error
  */
 typedef int (*dns_socket_dispatcher_cb)(struct dns_socket_dispatcher *ctx, int sock,
-					struct sockaddr *addr, size_t addrlen,
+					struct net_sockaddr *addr, size_t addrlen,
 					struct net_buf *buf, size_t data_len);
 
 /** @brief DNS socket dispatcher context. */
@@ -235,7 +266,7 @@ struct dns_socket_dispatcher {
 	/** Type of the socket (resolver / responder) */
 	enum dns_socket_type type;
 	/** Local endpoint address (used when binding the socket) */
-	struct sockaddr local_addr;
+	struct net_sockaddr local_addr;
 	/** DNS socket dispatcher callback is called for incoming traffic */
 	dns_socket_dispatcher_cb cb;
 	/** Socket descriptors to poll */
@@ -284,22 +315,42 @@ int dns_dispatcher_unregister(struct dns_socket_dispatcher *ctx);
  * Enumerate the extensions that are available in the address info
  */
 enum dns_resolve_extension {
-	DNS_RESOLVE_NONE = 0,
-	DNS_RESOLVE_TXT,
-	DNS_RESOLVE_SRV,
+	DNS_RESOLVE_NONE = 0, /**< No extension in use   */
+	DNS_RESOLVE_TXT,      /**< TXT field is returned */
+	DNS_RESOLVE_SRV,      /**< SRV field is returned */
+	DNS_RESOLVE_PRIVATE,  /**< Private RR is returned */
 };
 
+/** TXT record information */
 struct dns_resolve_txt {
+	/** Length of the text field */
 	size_t textlen;
+	/** Text field (NULL terminated)*/
 	char   text[DNS_MAX_TEXT_SIZE + 1];
 };
 
+/** SRV record information */
 struct dns_resolve_srv {
+	/** Priority of the server order, lower value means higher priority */
 	uint16_t priority;
+	/** Weight of the server for load balancing */
 	uint16_t weight;
+	/** Port number of the service */
 	uint16_t port;
+	/** Length of the target field */
 	size_t   targetlen;
+	/** Target field (NULL terminated) */
 	char     target[DNS_MAX_NAME_SIZE + 1];
+};
+
+/** Private RR record information */
+struct dns_resolve_private {
+	/** RR type value (in private use range 65280-65534) */
+	uint16_t type;
+	/** Length of the data field */
+	size_t datalen;
+	/** Raw data from the private RR */
+	uint8_t data[DNS_MAX_PRIVATE_DATA_SIZE];
 };
 
 /**
@@ -310,24 +361,32 @@ struct dns_addrinfo {
 	uint8_t ai_family;
 
 	union {
+		/** A or AAAA records */
 		struct {
 			/** Length of the ai_addr field or ai_canonname */
-			socklen_t ai_addrlen;
+			net_socklen_t ai_addrlen;
 
-			/* AF_INET or AF_INET6 address info */
-			struct sockaddr ai_addr;
+			/** NET_AF_INET or NET_AF_INET6 address info */
+			struct net_sockaddr ai_addr;
 
-			/** AF_LOCAL Canonical name of the address */
+			/** NET_AF_LOCAL Canonical name of the address */
 			char ai_canonname[DNS_MAX_NAME_SIZE + 1];
 		};
 
-		/* AF_UNSPEC extensions */
+		/** SRV or TXT records (NET_AF_UNSPEC extension) */
 		struct {
+			/** What kind of extension is returned */
 			enum dns_resolve_extension ai_extension;
 
 			union {
+				/** TXT record info */
 				struct dns_resolve_txt ai_txt;
+				/** SRV record info */
 				struct dns_resolve_srv ai_srv;
+#if defined(CONFIG_DNS_RESOLVER_PRIVATE_RR_SUPPORT) || defined(__DOXYGEN__)
+				/** Private RR info */
+				struct dns_resolve_private ai_private;
+#endif /* CONFIG_DNS_RESOLVER_PRIVATE_RR_SUPPORT */
 			};
 		};
 	};
@@ -337,7 +396,7 @@ struct dns_addrinfo {
  * Status values for the callback.
  */
 enum dns_resolve_status {
-	/** Invalid value for `ai_flags' field */
+	/** Invalid value for `ai_flags` field */
 	DNS_EAI_BADFLAGS    = -1,
 	/** NAME or SERVICE is unknown */
 	DNS_EAI_NONAME      = -2,
@@ -347,17 +406,17 @@ enum dns_resolve_status {
 	DNS_EAI_FAIL        = -4,
 	/** No address associated with NAME */
 	DNS_EAI_NODATA      = -5,
-	/** `ai_family' not supported */
+	/** `ai_family` not supported */
 	DNS_EAI_FAMILY      = -6,
-	/** `ai_socktype' not supported */
+	/** `ai_socktype` not supported */
 	DNS_EAI_SOCKTYPE    = -7,
-	/** SRV not supported for `ai_socktype' */
+	/** SRV not supported for `ai_socktype` */
 	DNS_EAI_SERVICE     = -8,
 	/** Address family for NAME not supported */
 	DNS_EAI_ADDRFAMILY  = -9,
 	/** Memory allocation failure */
 	DNS_EAI_MEMORY      = -10,
-	/** System error returned in `errno' */
+	/** System error returned in `errno` */
 	DNS_EAI_SYSTEM      = -11,
 	/** Argument buffer overflow */
 	DNS_EAI_OVERFLOW    = -12,
@@ -427,7 +486,7 @@ struct dns_resolve_context {
 	/** List of configured DNS servers */
 	struct dns_server {
 		/** DNS server information */
-		struct sockaddr dns_server;
+		struct net_sockaddr dns_server;
 
 		/** Connection to the DNS server */
 		int sock;
@@ -516,6 +575,14 @@ struct dns_resolve_context {
 		 * cannot be used to find correct pending query.
 		 */
 		uint16_t query_hash;
+
+		/* Number of additional queries sent to resolve CNAME record
+		 * name aliases.
+		 */
+		uint8_t additional_queries;
+
+		/** Flag to indicate that the callback has been called at least once. */
+		bool cb_called;
 	} queries[DNS_NUM_CONCUR_QUERIES];
 
 	/** Is this context in use */
@@ -525,6 +592,11 @@ struct dns_resolve_context {
 	/** DNS packet forwarding callback. */
 	dns_resolve_pkt_fw_cb_t pkt_fw_cb;
 #endif /* CONFIG_DNS_RESOLVER_PACKET_FORWARDING */
+
+/** @cond INTERNAL_HIDDEN */
+	/** How many times the DNS context init been called. */
+	int init_called;
+/** @endcond */
 };
 
 /** @cond INTERNAL_HIDDEN */
@@ -536,7 +608,7 @@ struct mdns_probe_user_data {
 };
 
 struct mdns_responder_context {
-	struct sockaddr server_addr;
+	struct net_sockaddr server_addr;
 	struct dns_socket_dispatcher dispatcher;
 	struct zsock_pollfd fds[1];
 	int sock;
@@ -555,7 +627,7 @@ struct mdns_responder_context {
  *
  * @details This function sets the DNS server address and initializes the
  * DNS context that is used by the actual resolver. DNS server addresses
- * can be specified either in textual form, or as struct sockaddr (or both).
+ * can be specified either in textual form, or as struct net_sockaddr (or both).
  * Note that the recommended way to resolve DNS names is to use
  * the dns_get_addr_info() API. In that case user does not need to
  * call dns_resolve_init() as the DNS servers are already setup by the system.
@@ -571,15 +643,15 @@ struct mdns_responder_context {
  *    IPv4 + port : 10.0.9.1:5353
  *    IPv6        : 2001:db8::22:42
  *    IPv6 + port : [2001:db8::22:42]:5353
- * @param dns_servers_sa DNS server addresses as struct sockaddr. The array
- * is NULL terminated. Port numbers are optional in struct sockaddr, the
+ * @param dns_servers_sa DNS server addresses as struct net_sockaddr. The array
+ * is NULL terminated. Port numbers are optional in struct net_sockaddr, the
  * default will be used if set to 0.
  *
  * @return 0 if ok, <0 if error.
  */
 int dns_resolve_init(struct dns_resolve_context *ctx,
 		     const char *dns_servers_str[],
-		     const struct sockaddr *dns_servers_sa[]);
+		     const struct net_sockaddr *dns_servers_sa[]);
 
 /**
  * @brief Init DNS resolving context with default Kconfig options.
@@ -615,8 +687,8 @@ int dns_resolve_close(struct dns_resolve_context *ctx);
  *    IPv4 + port : 10.0.9.1:5353
  *    IPv6        : 2001:db8::22:42
  *    IPv6 + port : [2001:db8::22:42]:5353
- * @param servers_sa DNS server addresses as struct sockaddr. The array
- * is NULL terminated. Port numbers are optional in struct sockaddr, the
+ * @param servers_sa DNS server addresses as struct net_sockaddr. The array
+ * is NULL terminated. Port numbers are optional in struct net_sockaddr, the
  * default will be used if set to 0.
  * @param source Source of the DNS servers, e.g., manual, DHCPv4/6, etc.
  *
@@ -624,7 +696,7 @@ int dns_resolve_close(struct dns_resolve_context *ctx);
  */
 int dns_resolve_reconfigure(struct dns_resolve_context *ctx,
 			    const char *servers_str[],
-			    const struct sockaddr *servers_sa[],
+			    const struct net_sockaddr *servers_sa[],
 			    enum dns_server_source source);
 
 /**
@@ -639,8 +711,8 @@ int dns_resolve_reconfigure(struct dns_resolve_context *ctx,
  *           IPv4 + port : 10.0.9.1:5353
  *           IPv6        : 2001:db8::22:42
  *           IPv6 + port : [2001:db8::22:42]:5353
- * @param servers_sa DNS server addresses as struct sockaddr. The array
- *        is NULL terminated. Port numbers are optional in struct sockaddr, the
+ * @param servers_sa DNS server addresses as struct net_sockaddr. The array
+ *        is NULL terminated. Port numbers are optional in struct net_sockaddr, the
  *        default will be used if set to 0.
  * @param interfaces Network interfaces to which the DNS servers are bound.
  *        This is an array of network interface indices. The array must be
@@ -651,7 +723,7 @@ int dns_resolve_reconfigure(struct dns_resolve_context *ctx,
  */
 int dns_resolve_reconfigure_with_interfaces(struct dns_resolve_context *ctx,
 					    const char *servers_str[],
-					    const struct sockaddr *servers_sa[],
+					    const struct net_sockaddr *servers_sa[],
 					    int interfaces[],
 					    enum dns_server_source source);
 
@@ -682,8 +754,8 @@ int dns_resolve_remove_source(struct dns_resolve_context *ctx, int if_index,
  * @brief Remove servers from the DNS resolving context that have a specific IP address.
  *
  * @param ctx DNS context
- * @param servers_sa DNS server addresses as struct sockaddr. The array
- *        is NULL terminated. Port numbers are optional in struct sockaddr, the
+ * @param servers_sa DNS server addresses as struct net_sockaddr. The array
+ *        is NULL terminated. Port numbers are optional in struct net_sockaddr, the
  *        default will be used if set to 0.
  * @param interfaces Network interfaces to which the DNS servers are bound.
  *        This is an array of network interface indices. The array must be
@@ -692,7 +764,7 @@ int dns_resolve_remove_source(struct dns_resolve_context *ctx, int if_index,
  * @return 0 if ok, <0 if error.
  */
 int dns_resolve_remove_server_addresses(struct dns_resolve_context *ctx,
-					const struct sockaddr *servers_sa[],
+					const struct net_sockaddr *servers_sa[],
 					int interfaces[]);
 
 /**
@@ -768,9 +840,8 @@ int dns_resolve_name(struct dns_resolve_context *ctx,
  * Note that this is an asynchronous call, the function will return immediately
  * and the system will call the callback after resolving has finished or a timeout
  * has occurred.
- * We might send the query to multiple servers (if there are more than one
- * server configured), but we only use the result of the first received
- * response.
+ * The callback is called for each response received. The query needs to be either cancelled
+ * manually, or by the timeout.
  *
  * @param ctx DNS context
  * @param query What the caller wants to resolve.
@@ -884,6 +955,27 @@ static inline int dns_get_addr_info(const char *query,
 static inline int dns_cancel_addr_info(uint16_t dns_id)
 {
 	return dns_resolve_cancel(dns_resolve_get_default(), dns_id);
+}
+
+/**
+ * @brief Cancel a pending DNS query using id, name and type.
+ *
+ * @details This releases DNS resources used by a pending query.
+ *
+ * @param query_name Name of the resource we are trying to query (hostname)
+ * @param query_type Type of the query (A or AAAA)
+ * @param dns_id DNS id of the pending query
+ *
+ * @return 0 if ok, <0 if error.
+ */
+static inline int dns_cancel_addr_info_with_name(const char *query_name,
+					enum dns_query_type query_type,
+					uint16_t dns_id)
+{
+	return dns_resolve_cancel_with_name(dns_resolve_get_default(),
+				dns_id,
+				query_name,
+				query_type);
 }
 
 /**

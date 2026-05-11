@@ -30,11 +30,12 @@
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/byteorder.h>
-#include <zephyr/sys/check.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/time_units.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/sys_clock.h>
+#include <zephyr/toolchain.h>
 
 #include "audio_internal.h"
 #include "vcp_internal.h"
@@ -75,6 +76,8 @@ static struct bt_vcp_vol_rend vol_rend;
 static void volume_state_cfg_changed(const struct bt_gatt_attr *attr,
 				     uint16_t value)
 {
+	ARG_UNUSED(attr);
+
 	LOG_DBG("value 0x%04x", value);
 }
 
@@ -161,6 +164,8 @@ static ssize_t write_vcs_control(struct bt_conn *conn,
 	bool notify = false;
 	bool volume_change = false;
 	uint8_t opcode;
+
+	ARG_UNUSED(attr);
 
 	if (offset > 0) {
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
@@ -290,6 +295,8 @@ static ssize_t write_vcs_control(struct bt_conn *conn,
 #if defined(CONFIG_BT_VCP_VOL_REND_VOL_FLAGS_NOTIFIABLE)
 static void flags_cfg_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
+	ARG_UNUSED(attr);
+
 	LOG_DBG("value 0x%04x", value);
 }
 #endif /* CONFIG_BT_VCP_VOL_REND_VOL_FLAGS_NOTIFIABLE */
@@ -437,17 +444,17 @@ int bt_vcp_vol_rend_register(struct bt_vcp_vol_rend_register_param *param)
 	static bool registered;
 	int err;
 
-	CHECKIF(param == NULL) {
+	if (param == NULL) {
 		LOG_DBG("param is NULL");
 		return -EINVAL;
 	}
 
-	CHECKIF(param->mute > BT_VCP_STATE_MUTED) {
+	if (param->mute > BT_VCP_STATE_MUTED) {
 		LOG_DBG("Invalid mute value: %u", param->mute);
 		return -EINVAL;
 	}
 
-	CHECKIF(param->step == 0) {
+	if (param->step == 0) {
 		LOG_DBG("Invalid step value: %u", param->step);
 		return -EINVAL;
 	}

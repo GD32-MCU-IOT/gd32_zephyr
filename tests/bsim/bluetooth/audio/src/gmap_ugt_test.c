@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/bap_lc3_preset.h>
@@ -25,6 +26,7 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 #include "bap_stream_rx.h"
 #include "bap_stream_tx.h"
@@ -90,6 +92,7 @@ static void unicast_stream_started_cb(struct bt_bap_stream *stream)
 	test_stream->valid_rx_cnt = 0U;
 	test_stream->seq_num = 0U;
 	test_stream->tx_cnt = 0U;
+	UNSET_FLAG(test_stream->flag_audio_received);
 
 	printk("Started stream %p\n", stream);
 
@@ -177,6 +180,8 @@ static int unicast_server_reconfig(struct bt_bap_stream *stream, enum bt_audio_d
 				   struct bt_bap_qos_cfg_pref *const pref,
 				   struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(dir);
+
 	printk("ASE Codec Reconfig: stream %p\n", stream);
 
 	print_codec_cfg(codec_cfg);
@@ -192,6 +197,8 @@ static int unicast_server_reconfig(struct bt_bap_stream *stream, enum bt_audio_d
 static int unicast_server_qos(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg *qos,
 			      struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("QoS: stream %p qos %p\n", stream, qos);
 
 	print_qos(qos);
@@ -223,6 +230,8 @@ static int unicast_server_enable(struct bt_bap_stream *stream, const uint8_t met
 
 static int unicast_server_start(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Start: stream %p\n", stream);
 
 	return 0;
@@ -238,6 +247,8 @@ static int unicast_server_metadata(struct bt_bap_stream *stream, const uint8_t m
 
 static int unicast_server_disable(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Disable: stream %p\n", stream);
 
 	return 0;
@@ -245,6 +256,8 @@ static int unicast_server_disable(struct bt_bap_stream *stream, struct bt_bap_as
 
 static int unicast_server_stop(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Stop: stream %p\n", stream);
 
 	return 0;
@@ -252,6 +265,8 @@ static int unicast_server_stop(struct bt_bap_stream *stream, struct bt_bap_ascs_
 
 static int unicast_server_release(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Release: stream %p\n", stream);
 
 	return 0;
@@ -395,11 +410,16 @@ static void discover_gmas(struct bt_conn *conn)
 
 static void wait_for_data(void)
 {
-	if (expect_rx) {
-		printk("Waiting for data\n");
-		WAIT_FOR_FLAG(flag_audio_received);
-		printk("Data received\n");
+	printk("Waiting for data\n");
+
+	ARRAY_FOR_EACH_PTR(unicast_streams, test_stream) {
+		if (bap_stream_rx_can_recv(&test_stream->stream.bap_stream) &&
+		    audio_test_stream_is_streaming(test_stream)) {
+			WAIT_FOR_FLAG(test_stream->flag_audio_received);
+		}
 	}
+
+	printk("Data received\n");
 	/* let initiator know we have received what we wanted */
 	backchannel_sync_send(GMAP_UGG_DEV_ID);
 }
@@ -444,7 +464,7 @@ static void test_main(void)
 	bap_stream_tx_init();
 
 	err = bt_pacs_register(&pacs_param);
-	if (err) {
+	if (err != 0) {
 		FAIL("Could not register PACS (err %d)\n", err);
 		return;
 	}

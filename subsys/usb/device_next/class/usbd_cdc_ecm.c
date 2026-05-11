@@ -184,14 +184,14 @@ static size_t ecm_eth_size(void *const ecm_pkt, const size_t len)
 		return 0;
 	}
 
-	switch (ntohs(hdr->type)) {
+	switch (net_ntohs(hdr->type)) {
 	case NET_ETH_PTYPE_IP:
 		__fallthrough;
 	case NET_ETH_PTYPE_ARP:
-		ip_len = ntohs(((struct net_ipv4_hdr *)ip_data)->len);
+		ip_len = net_ntohs(((struct net_ipv4_hdr *)ip_data)->len);
 		break;
 	case NET_ETH_PTYPE_IPV6:
-		ip_len = ntohs(((struct net_ipv6_hdr *)ip_data)->len);
+		ip_len = net_ntohs(((struct net_ipv6_hdr *)ip_data)->len);
 		break;
 	default:
 		LOG_DBG("Unknown hdr type 0x%04x", hdr->type);
@@ -257,7 +257,7 @@ static int cdc_ecm_acl_out_cb(struct usbd_class_data *const c_data,
 	}
 
 	pkt = net_pkt_rx_alloc_with_buffer(data->iface, buf->len,
-					   AF_UNSPEC, 0, K_FOREVER);
+					   NET_AF_UNSPEC, 0, K_FOREVER);
 	if (!pkt) {
 		LOG_ERR("No memory for net_pkt");
 		goto restart_out_transfer;
@@ -543,38 +543,41 @@ static int cdc_ecm_send(const struct device *dev, struct net_pkt *const pkt)
 }
 
 static int cdc_ecm_set_config(const struct device *dev,
+			      struct net_if *iface __unused,
 			      const enum ethernet_config_type type,
 			      const struct ethernet_config *config)
 {
 	struct cdc_ecm_eth_data *data = dev->data;
 
-	if (type == ETHERNET_CONFIG_TYPE_MAC_ADDRESS) {
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
 		memcpy(data->mac_addr, config->mac_address.addr,
 		       sizeof(data->mac_addr));
-
 		return 0;
+	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
+		/* nothing to do */
+		return 0;
+	default:
+		return -ENOTSUP;
 	}
-
-	return -ENOTSUP;
 }
 
-static enum ethernet_hw_caps cdc_ecm_get_capabilities(const struct device *dev)
+static enum ethernet_hw_caps cdc_ecm_get_capabilities(const struct device *dev __unused,
+						      struct net_if *iface __unused)
 {
-	ARG_UNUSED(dev);
-
-	return ETHERNET_LINK_10BASE;
+	return ETHERNET_LINK_10BASE | ETHERNET_PROMISC_MODE;
 }
 
-static int cdc_ecm_iface_start(const struct device *dev)
+static int cdc_ecm_iface_start(const struct device *dev, struct net_if *iface)
 {
 	struct cdc_ecm_eth_data *data = dev->data;
 
-	LOG_DBG("Start interface %p", data->iface);
+	LOG_DBG("Start interface %p", iface);
 
 	atomic_set_bit(&data->state, CDC_ECM_IFACE_UP);
 
 	if (atomic_test_bit(&data->state, CDC_ECM_DATA_IFACE_ENABLED)) {
-		net_if_carrier_on(data->iface);
+		net_if_carrier_on(iface);
 		if (cdc_ecm_send_notification(dev, true)) {
 			LOG_ERR("Failed to send connected notification");
 		}
@@ -583,11 +586,11 @@ static int cdc_ecm_iface_start(const struct device *dev)
 	return 0;
 }
 
-static int cdc_ecm_iface_stop(const struct device *dev)
+static int cdc_ecm_iface_stop(const struct device *dev, struct net_if *iface)
 {
 	struct cdc_ecm_eth_data *data = dev->data;
 
-	LOG_DBG("Stop interface %p", data->iface);
+	LOG_DBG("Stop interface %p", iface);
 
 	atomic_clear_bit(&data->state, CDC_ECM_IFACE_UP);
 
@@ -739,7 +742,7 @@ static struct usbd_cdc_ecm_desc cdc_ecm_desc_##n = {				\
 		.bAlternateSetting = 1,						\
 		.bNumEndpoints = 2,						\
 		.bInterfaceClass = USB_BCC_CDC_DATA,				\
-		.bInterfaceSubClass = ECM_SUBCLASS,				\
+		.bInterfaceSubClass = 0,					\
 		.bInterfaceProtocol = 0,					\
 		.iInterface = 0,						\
 	},									\

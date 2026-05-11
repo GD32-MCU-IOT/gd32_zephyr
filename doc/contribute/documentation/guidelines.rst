@@ -30,6 +30,9 @@ This document provides a quick reference for commonly used reST and
 Sphinx-defined directives and roles used to create the documentation
 you're reading.
 
+For instructions regarding writing good C API documentation, see
+:ref:`doxygen_style`.
+
 Content Structure
 *****************
 
@@ -420,18 +423,14 @@ This would render as:
 Non-ASCII Characters
 ====================
 
-You can insert non-ASCII characters such as a Trademark symbol (|trade|),
-by using the notation ``|trade|``.
-Available replacement names are defined in an include file used during the Sphinx processing
-of the reST files.  The names of these replacement characters are the same as used in HTML
-entities used to insert characters in HTML, e.g., ``\&trade;`` and are defined in the
-file :zephyr_file:`doc/substitutions.txt` as listed below:
+Prefer plain ASCII unless a specific symbol is required for correctness or conventional typography
+(for example units like µ, or well-known marks like ™).
 
-.. literalinclude:: ../../substitutions.txt
-   :language: rst
+Avoid adding non-ASCII characters purely for aesthetic purposes.
 
-We've kept the substitutions list small but others can be added as
-needed by submitting a change to the :zephyr_file:`doc/substitutions.txt` file.
+The file :zephyr_file:`doc/substitutions.txt` contains some basic HTML substitution definitions for
+special formatting needs (e.g. to force line breaks), but Unicode characters can and should be used
+directly in the documentation source files.
 
 Code Blocks and Command Examples
 ================================
@@ -691,7 +690,7 @@ Cross-referencing C documentation
    They are rendered in the HTML output as links to the corresponding Doxygen documentation for the
    item. For example::
 
-      Check out :c:function:`gpio_pin_configure` for more information.
+      Check out :c:func:`gpio_pin_configure` for more information.
 
    Will render as:
 
@@ -753,6 +752,7 @@ charts, and other types of diagrams that can be expressed as a graph.
 To include a Graphviz diagram in a document, use the :rst:dir:`graphviz` directive. For example::
 
    .. graphviz::
+      :caption: An example graph using Graphviz
 
       digraph G {
          rankdir=LR;
@@ -764,6 +764,7 @@ To include a Graphviz diagram in a document, use the :rst:dir:`graphviz` directi
 Would render as:
 
    .. graphviz::
+      :caption: An example graph using Graphviz
 
       digraph G {
          rankdir=LR;
@@ -778,6 +779,75 @@ Graphviz's DOT language.
 .. _Graphviz: https://graphviz.org
 .. _Graphviz documentation: https://graphviz.org/documentation
 
+Mermaid
+=======
+
+`Mermaid`_ is a tool for creating diagrams and visualizations using a simple text-based syntax. It
+is particularly well-suited for creating flowcharts, sequence diagrams, class diagrams, and
+state transition diagrams.
+
+To include a mermaid diagram in a document, use the :rst:dir:`mermaid` directive. For example::
+
+   .. mermaid::
+      :caption: State transition diagram for a GPIO debounce
+      :alt: GPIO debounce state diagram showing transitions between inactive and active states
+            through maybe_active and maybe_inactive intermediate states before each state becomes
+            stable.
+
+      stateDiagram-v2
+
+          State inactive {
+              [*] --> stable_inactive
+              stable_inactive --> maybe_active : edge to active
+              maybe_active --> stable_inactive : edge to inactive
+          }
+
+          State active {
+              [*] --> stable_active
+              stable_active --> maybe_inactive : edge to inactive
+              maybe_inactive --> stable_active : edge to active
+          }
+
+          [*] --> inactive
+
+          maybe_active --> active : After(x ms)
+          maybe_inactive --> inactive : After(x ms)
+
+
+Would render as:
+
+.. mermaid::
+   :caption: State transition diagram for a GPIO debounce
+   :alt: GPIO debounce state diagram showing transitions between inactive and active states
+         through maybe_active and maybe_inactive intermediate states before each state becomes
+         stable.
+
+   stateDiagram-v2
+
+       State inactive {
+           [*] --> stable_inactive
+           stable_inactive --> maybe_active : edge to active
+           maybe_active --> stable_inactive : edge to inactive
+       }
+
+       State active {
+           [*] --> stable_active
+           stable_active --> maybe_inactive : edge to inactive
+           maybe_inactive --> stable_active : edge to active
+       }
+
+       [*] --> inactive
+
+       maybe_active --> active : After(x ms)
+       maybe_inactive --> inactive : After(x ms)
+
+
+For references about supported diagrams, syntax, and samples; please refer to the `Mermaid documentation`_.
+For fast iteration when creating or updating diagrams, you can use the `Mermaid live editor`_.
+
+.. _Mermaid: https://mermaid.js.org/
+.. _Mermaid documentation: https://mermaid.js.org/intro/
+.. _Mermaid live editor: https://mermaid.live/
 
 Custom Sphinx Roles and Directives
 **********************************

@@ -219,6 +219,116 @@ For more information about the Keyestudio CAN-BUS shield:
 - `MCP2515 Datasheet`_
 - `MCP2551 Datasheet`_
 
+ElecFreaks CAN-BUS Shield (EF02037)
+***********************************
+
+Overview
+--------
+
+The ElecFreaks CAN BUS shield supports the Microchip MCP2515 stand-alone CAN
+controller and MCP2551 high speed CAN transceiver. The shield has an Arduino
+Uno R3 compatible hardware interface.
+
+.. figure:: elecfreaks_can_bus_ef02037.jpg
+   :align: center
+   :alt: ElecFreaks CAN-BUS Shield (EF02037)
+
+   ElecFreaks CAN-BUS Shield (EF02037) (Credit: ElecFreaks)
+
+The ElecFreaks CAN-BUS Shield can also be found as `CAN-BUS Shield v1.2 by DiyMore`_.
+Both shields are pin and function compatible. Furthermore, the wiring of the MCP2515
+is also compatible with the `CAN-BUS Shield v1.5 by Elecrow`_. On the Elecrow shield,
+three missing 0 Ohm bridges must be manually soldered to ensure that the SPI signals
+are also connected to the Arduino Uno R3 pin header. Although the Elecrow shield has
+a microSD socket, the slot can only be used in systems with a 5V signal level on SPI.
+
+Hardware
+--------
+
+- MCP2515
+
+        - Stand-Alone CAN 2.0B Controller
+        - Up to 1Mb/s baud rate
+        - Standard and extended data and remote frames
+        - 3x Tx Buffers
+        - 2x Rx Buffers
+        - 6x 29-bit Filters
+        - 2x 29-bit Masks
+        - Interrupt output
+        - One shot mode
+        - High speed SPI interface (10 MHz)
+
+- MCP2551
+
+        - Fully compatible with the “ISO 11898” standard
+        - High speed (up to 1 Mbaud)
+
+- Connectivity
+
+        - Industrial standard DB9 terminal (CAN)
+        - Screw terminal block - 2-pin 5.0mm (CAN)
+        - Arduino Uno R3 compatible (SPI)
+
++-------+-----------------------+---------------------------+
+| Name  | Function              | Usage                     |
++=======+=======================+===========================+
+| A0    | I2C-SDA               | Ext. header only          |
++-------+-----------------------+---------------------------+
+| A1    | I2C-SCL               | Ext. header only          |
++-------+-----------------------+---------------------------+
+| A2    | None                  |                           |
++-------+-----------------------+---------------------------+
+| A3    | None                  |                           |
++-------+-----------------------+---------------------------+
+| A4    | None                  |                           |
++-------+-----------------------+---------------------------+
+| A5    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D0    | RX                    | Ext. header only          |
++-------+-----------------------+---------------------------+
+| D1    | TX                    | Ext. header only          |
++-------+-----------------------+---------------------------+
+| D2    | GPIO_ACTIVE_LOW       | MCP2515 - INT             |
++-------+-----------------------+---------------------------+
+| D3    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D4    | SPI-CS                | (MicroSD)                 |
++-------+-----------------------+---------------------------+
+| D5    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D6    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D7    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D8    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D9    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D10   | SPI-CS                | MCP2515                   |
++-------+-----------------------+---------------------------+
+| D11   | SPI-MOSI              | MCP2515 / (MicroSD)       |
++-------+-----------------------+---------------------------+
+| D12   | SPI-MISO              | MCP2515 / (MicroSD)       |
++-------+-----------------------+---------------------------+
+| D13   | SPI-CLK               | MCP2515 / (MicroSD)       |
++-------+-----------------------+---------------------------+
+| D14   | None                  |                           |
++-------+-----------------------+---------------------------+
+| D15   | None                  |                           |
++-------+-----------------------+---------------------------+
+
+
+- Power Supply
+
+        - 5.0VDC
+
+For more information about the ElecFreaks CAN-BUS shield:
+
+- `ElecFreaks Website`_
+- `ElecFreaks Wiki`_
+- `MCP2515 Datasheet`_
+- `MCP2551 Datasheet`_
+
 Adafruit PiCowbell CAN Bus Shield for Pico
 ******************************************
 
@@ -336,12 +446,104 @@ For more information about the Adafruit PiCowbell CAN Bus shield:
 - `MCP2515 Datasheet`_
 - `TJA1051 Datasheet`_
 
+Seeed Studio XIAO CAN Bus Shield
+********************************
+
+Overview
+--------
+
+The Seeed Studio XIAO CAN Bus Shield is specifically designed to work with
+`Seeed Studio XIAO series`_ development boards. It uses the Microchip MCP2515
+CAN controller with an SN65HVD230 high speed CAN transceiver. The shield has
+an Seeed Studio XIAO compatible hardware interface.
+
+.. figure:: seeed_xiao_can.jpg
+   :align: center
+   :alt: Seeed Studio XIAO CAN Bus Shield
+
+   Seeed Studio XIAO CAN Bus Shield
+
+Hardware
+--------
+
+The Seeed Studio XIAO CAN Bus Shield requires the SPI chip-select and interrupt
+line on Seeed Studio XIAO header pins that are not standardized for Zephyr.
+They conflict with the standardized use of the first UART on pin D6 (TX) and
+D7 (RX). The shield resolves this conflict by disabling the UART.
+
+This means that the Zephyr console can no longer be accessed via the serial
+interface, an alternative such as the USB CDC/ACM class must be used instead,
+e.g. with ``--snippet cdc-acm-console`` when you invoke ``west build``.
+
+- MCP2515
+
+        - Stand-Alone CAN 2.0B Controller
+        - Up to 1Mb/s baud rate
+        - Standard and extended data and remote frames
+        - 3x Tx Buffers
+        - 2x Rx Buffers
+        - 6x 29-bit Filters
+        - 2x 29-bit Masks
+        - Interrupt output
+        - One shot mode
+        - High speed SPI interface (10 MHz)
+
+- SN65HVD230
+
+        - Fully compatible with the “ISO 11898” standard
+        - High speed (up to 1 Mbaud)
+
+- Connectivity
+
+        - Screw terminal block - 3-pin 3.5mm (CAN)
+        - Solder pad for CAN bus termination
+        - Seeed Studio XIAO compatible (SPI)
+
++-------+-----------------------+---------------------------+
+| Name  | Function (original)   | Usage                     |
++=======+=======================+===========================+
+| D0    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D1    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D2    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D3    | None                  |                           |
++-------+-----------------------+---------------------------+
+| D4    | None (I2C-SDA)        |                           |
++-------+-----------------------+---------------------------+
+| D5    | None (I2C-SCL)        |                           |
++-------+-----------------------+---------------------------+
+| D6    | GPIO_ACTIVE_LOW (TX)  | MCP2515 - INT             |
++-------+-----------------------+---------------------------+
+| D7    | SPI-CS (RX)           | MCP2515                   |
++-------+-----------------------+---------------------------+
+| D8    | SPI-CLK               | MCP2515                   |
++-------+-----------------------+---------------------------+
+| D9    | SPI-MOSI              | MCP2515                   |
++-------+-----------------------+---------------------------+
+| D10   | SPI-MISO              | MCP2515                   |
++-------+-----------------------+---------------------------+
+
+
+- Power Supply
+
+        - 3.3V ~ 5V
+
+For more information about the Seeed Studio XIAO CAN Bus shield:
+
+- `Seeed Studio Website`_
+- `Seeed Studio Wiki`_
+- `MCP2515 Datasheet`_
+- `SN65HVD230 Datasheet`_
+
 Programming
 ***********
 
 Set ``--shield dfrobot_can_bus_v2_0`` or ``--shield keyestudio_can_bus_ks0411``
-or ``--shield adafruit_can_picowbell`` when you invoke ``west build`` or ``cmake`` in your Zephyr application. For
-example:
+or ``--shield adafruit_can_picowbell`` or ``--shield seeed_xiao_can``
+when you invoke ``west build`` or ``cmake`` in your Zephyr application.
+For example:
 
 .. zephyr-app-commands::
    :zephyr-app: samples/drivers/can/counter
@@ -364,6 +566,14 @@ example:
    :shield: adafruit_can_picowbell
    :goals: build
 
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/can/counter
+   :tool: all
+   :board: xiao_rp2040
+   :shield: seeed_xiao_can
+   :snippets: cdc-acm-console
+   :goals: build
+
 .. _DFRobot Website:
    https://www.dfrobot.com/product-1444.html
 
@@ -379,6 +589,18 @@ example:
 .. _Keyestudio Wiki:
    https://wiki.keyestudio.com/KS0411_keyestudio_CAN-BUS_Shield
 
+.. _ElecFreaks Website:
+   https://web.archive.org/web/20140716155137/http://www.elecfreaks.com/store/canbus-shield-p-746.html
+
+.. _ElecFreaks Wiki:
+   https://web.archive.org/web/20160331032426/http://www.elecfreaks.com/wiki/index.php?title=CAN-BUS_Shield
+
+.. _CAN-BUS Shield v1.2 by DiyMore:
+   https://www.diymore.cc/products/mcp2515-ef02037-can-bus-shield-controller-board-communication-speed-high-can-v2-0b-module-for-arduino-for-freaduino-diy-kit
+
+.. _CAN-BUS Shield v1.5 by Elecrow:
+   https://www.elecrow.com/canbus-shield-p-1133.html
+
 .. _MCP2515 Datasheet:
    http://ww1.microchip.com/downloads/en/DeviceDoc/MCP2515-Stand-Alone-CAN-Controller-with-SPI-20001801J.pdf
 
@@ -393,3 +615,15 @@ example:
 
 .. _TJA1051 Datasheet:
    https://www.nxp.com/docs/en/data-sheet/TJA1051.pdf
+
+.. _Seeed Studio XIAO series:
+   https://wiki.seeedstudio.com/SeeedStudio_XIAO_Series_Introduction
+
+.. _Seeed Studio Website:
+   https://www.seeedstudio.com/Seeed-Studio-CAN-Bus-Breakout-Board-for-XIAO-and-QT-Py-p-5702.html
+
+.. _Seeed Studio Wiki:
+   https://wiki.seeedstudio.com/xiao-can-bus-expansion
+
+.. _SN65HVD230 Datasheet:
+   https://www.ti.com/lit/ds/symlink/sn65hvd230.pdf

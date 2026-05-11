@@ -4,12 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/ {
-	chosen {
-		zephyr,flash-controller = &flc1;
-		zephyr,flash = &flash1;
-	};
-};
+/delete-node/ &storage_partition;
 
 &flash1 {
 	status = "okay";

@@ -49,6 +49,12 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_OPENTHREAD_PLATFORM_LOG_LEVEL);
 #include <stdalign.h>
 #include <common/new.hpp>
 
+#if defined(CONFIG_OPENTHREAD_NAT64_TRANSLATOR)
+#include <openthread/nat64.h>
+#endif /* CONFIG_OPENTHREAD_NAT64_TRANSLATOR */
+
+#define PKT_IS_IPv4(_p) ((NET_IPV6_HDR(_p)->vtc & 0xf0) == 0x40)
+
 enum pending_events {
 	PENDING_EVENT_FRAME_TO_SEND, /* There is a tx frame to send  */
 	PENDING_EVENT_COUNT          /* Keep last */
@@ -94,28 +100,48 @@ static void openthread_handle_frame_to_send(otInstance *instance, struct net_pkt
 	struct net_buf *buf;
 	otMessage *message;
 	otMessageSettings settings;
+	bool is_ip4 = PKT_IS_IPv4(pkt);
 
-	NET_DBG("Sending Ip6 packet to ot stack");
+	LOG_DBG("Sending %s packet to ot stack", is_ip4 ? "IPv4" : "IPv6");
 
 	settings.mPriority = OT_MESSAGE_PRIORITY_NORMAL;
 	settings.mLinkSecurityEnabled = true;
-	message = otIp6NewMessage(instance, &settings);
+#if defined(CONFIG_OPENTHREAD_NAT64_TRANSLATOR)
+	if (is_ip4) {
+		message = otIp4NewMessage(instance, &settings);
+	} else {
+#endif /* CONFIG_OPENTHREAD_NAT64_TRANSLATOR*/
+		message = otIp6NewMessage(instance, &settings);
+#if defined(CONFIG_OPENTHREAD_NAT64_TRANSLATOR)
+	}
+#endif /* CONFIG_OPENTHREAD_NAT64_TRANSLATOR */
 	if (message == NULL) {
 		goto exit;
 	}
 
 	for (buf = pkt->buffer; buf; buf = buf->frags) {
 		if (otMessageAppend(message, buf->data, buf->len) != OT_ERROR_NONE) {
-			NET_ERR("Error while appending to otMessage");
+			LOG_ERR("Error while appending to otMessage");
 			otMessageFree(message);
 			goto exit;
 		}
 	}
+#if defined(CONFIG_OPENTHREAD_NAT64_TRANSLATOR)
+	if (is_ip4) {
+		if (otNat64Send(instance, message) != OT_ERROR_NONE) {
+			LOG_ERR("Error while calling otNat64Send");
+			goto exit;
+		}
+	} else {
+#endif /* CONFIG_OPENTHREAD_NAT64_TRANSLATOR*/
 
-	if (otIp6Send(instance, message) != OT_ERROR_NONE) {
-		NET_ERR("Error while calling otIp6Send");
-		goto exit;
+		if (otIp6Send(instance, message) != OT_ERROR_NONE) {
+			LOG_ERR("Error while calling otIp6Send");
+			goto exit;
+		}
+#if defined(CONFIG_OPENTHREAD_NAT64_TRANSLATOR)
 	}
+#endif /* CONFIG_OPENTHREAD_NAT64_TRANSLATOR */
 
 exit:
 	net_pkt_unref(pkt);
@@ -544,10 +570,7 @@ extern "C" void platformRadioInit(void)
 						iidList, OT_ARRAY_LENGTH(iidList)));
 
 	memset(&callbacks, 0, sizeof(callbacks));
-#if OPENTHREAD_CONFIG_DIAG_ENABLE
-	callbacks.mDiagReceiveDone = otPlatDiagRadioReceiveDone;
-	callbacks.mDiagTransmitDone = otPlatDiagRadioTransmitDone;
-#endif /* OPENTHREAD_CONFIG_DIAG_ENABLE */
+
 	callbacks.mEnergyScanDone = otPlatRadioEnergyScanDone;
 	callbacks.mReceiveDone = otPlatRadioReceiveDone;
 	callbacks.mTransmitDone = otPlatRadioTxDone;
@@ -601,4 +624,9 @@ extern "C" void platformRadioProcess(otInstance *aInstance)
 
 	psSpinelDriver->Process(aInstance);
 	psRadioSpinel->Process(aInstance);
+}
+
+extern "C" void *platformGetRadioSpinel(void)
+{
+    return psRadioSpinel;
 }

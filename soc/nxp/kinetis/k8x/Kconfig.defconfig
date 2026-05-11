@@ -1,10 +1,10 @@
 # Kinetis K8x series configuration options
 
 # Copyright (c) 2019 SEAL AG
-# Copyright 2024 NXP
+# Copyright 2024, 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-if SOC_SERIES_KINETIS_K8X
+if SOC_SERIES_K8X
 
 config NUM_IRQS
 	# must be >= the highest interrupt number used
@@ -23,4 +23,12 @@ config KINETIS_FLASH_CONFIG_FOPT
 config GPIO
 	default y
 
-endif # SOC_SERIES_KINETIS_K8X
+# Enable cache management features
+configdefault CACHE_MANAGEMENT
+	default y
+
+choice CACHE_TYPE
+	default EXTERNAL_CACHE
+endchoice
+
+endif # SOC_SERIES_K8X

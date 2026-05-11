@@ -1,12 +1,12 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /dts-v1/;
 
-#include <nxp/nxp_mcxc444.dtsi>
+#include <nxp/mcx/nxp_mcxc444.dtsi>
 #include "frdm_mcxc444-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
@@ -35,6 +35,7 @@
 		zephyr,flash = &flash0;
 		zephyr,console = &lpuart0;
 		zephyr,shell-uart = &lpuart0;
+		zephyr,code-partition = &slot0_partition;
 	};
 
 	leds {
@@ -96,6 +97,10 @@
 &sim {
 	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
 	er32k-select = <KINETIS_SIM_ER32KSEL_OSC32KCLK>;
+};
+
+&cop {
+	status = "okay";
 };
 
 &cpu0 {
@@ -184,10 +189,47 @@ i2c0: &i2c0 {
 	status = "okay";
 	pinctrl-0 = <&pinmux_tpm0>;
 	pinctrl-names = "default";
-	clocks = <&sim KINETIS_SIM_MCGPCLK 0x103C 24>;
+	clocks = <&sim KINETIS_SIM_CLOCK(KINETIS_SIM_MCGPCLK, 0x103c, 24)>;
 };
 
 zephyr_udc0: &usb {
 	status = "okay";
 	num-bidir-endpoints = <8>;
+};
+
+&dma {
+	status = "okay";
+};
+
+&dac {
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(64)>;
+			read-only;
+		};
+
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x00010000 DT_SIZE_K(80)>;
+		};
+
+		slot1_partition: partition@24000 {
+			label = "image-1";
+			reg = <0x00024000 DT_SIZE_K(80)>;
+		};
+
+		storage_partition: partition@38000 {
+			label = "storage";
+			reg = <0x00038000 DT_SIZE_K(32)>;
+		};
+	};
 };

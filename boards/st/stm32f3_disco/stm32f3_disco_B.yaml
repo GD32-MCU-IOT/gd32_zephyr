@@ -6,19 +6,22 @@ toolchain:
   - zephyr
   - gnuarmemb
 ram: 40
+flash: 256
 supported:
-  - gpio
-  - i2c
-  - counter
-  - spi
-  - watchdog
-  - usb_device
-  - lsm303dlhc
-  - nvs
-  - can
-  - pwm
   - adc
+  - can
+  - counter
+  - crc
   - dac
   - dma
+  - gpio
+  - i2c
+  - lsm303dlhc
+  - nvs
+  - pwm
   - rtc
+  - spi
+  - usb_device
+  - usbd
+  - watchdog
 vendor: st

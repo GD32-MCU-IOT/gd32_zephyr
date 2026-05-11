@@ -12,7 +12,7 @@
 / {
 	clocks {
 		pllsai: pllsai {
-			compatible = "st,stm32fx-pllsai-clock";
+			compatible = "st,stm32fx-pll-clock";
 			#clock-cells = <0>;
 			status = "disabled";
 		};
@@ -26,7 +26,7 @@
 		};
 
 		pinctrl: pin-controller@40020000 {
-			reg = <0x40020000 0x2C00>;
+			reg = <0x40020000 0x2c00>;
 
 			gpioj: gpio@40022400 {
 				compatible = "st,stm32-gpio";
@@ -69,7 +69,8 @@
 			#size-cells = <0>;
 			reg = <0x40013400 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB2, 13)>;
-			interrupts = <84 5>;
+			interrupts = <84 0>;
+			st,spi-data-width = "limited-8-16-bit";
 			status = "disabled";
 		};
 
@@ -82,7 +83,8 @@
 			#size-cells = <0>;
 			reg = <0x40015000 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB2, 20)>;
-			interrupts = <85 5>;
+			interrupts = <85 0>;
+			st,spi-data-width = "limited-8-16-bit";
 			status = "disabled";
 		};
 
@@ -95,7 +97,8 @@
 			#size-cells = <0>;
 			reg = <0x40015400 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB2, 21)>;
-			interrupts = <86 5>;
+			interrupts = <86 0>;
+			st,spi-data-width = "limited-8-16-bit";
 			status = "disabled";
 		};
 

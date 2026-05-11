@@ -107,7 +107,7 @@ static int llext_load_elf_data(struct llext_loader *ldr, struct llext *ext)
 
 	size_t sect_map_sz = ext->sect_cnt * sizeof(ldr->sect_map[0]);
 
-	ldr->sect_map = llext_alloc_data(sect_map_sz);
+	ldr->sect_map = llext_alloc_metadata(sect_map_sz);
 	if (!ldr->sect_map) {
 		LOG_ERR("Failed to allocate section map, size %zu", sect_map_sz);
 		return -ENOMEM;
@@ -125,7 +125,7 @@ static int llext_load_elf_data(struct llext_loader *ldr, struct llext *ext)
 		size_t sect_hdrs_sz = ext->sect_cnt * sizeof(ext->sect_hdrs[0]);
 
 		ext->sect_hdrs_on_heap = true;
-		ext->sect_hdrs = llext_alloc_data(sect_hdrs_sz);
+		ext->sect_hdrs = llext_alloc_metadata(sect_hdrs_sz);
 		if (!ext->sect_hdrs) {
 			LOG_ERR("Failed to allocate section headers, size %zu", sect_hdrs_sz);
 			return -ENOMEM;
@@ -177,24 +177,24 @@ static int llext_find_tables(struct llext_loader *ldr, struct llext *ext)
 
 		if (shdr->sh_type == SHT_SYMTAB && ldr->hdr.e_type == ET_REL) {
 			LOG_DBG("symtab at %d", i);
-			ldr->sects[LLEXT_MEM_SYMTAB] = *shdr;
+			memcpy(&ldr->sects[LLEXT_MEM_SYMTAB], shdr, sizeof(*shdr));
 			ldr->sect_map[i].mem_idx = LLEXT_MEM_SYMTAB;
 			strtab_ndx = shdr->sh_link;
 			table_cnt++;
 		} else if (shdr->sh_type == SHT_DYNSYM && ldr->hdr.e_type == ET_DYN) {
 			LOG_DBG("dynsym at %d", i);
-			ldr->sects[LLEXT_MEM_SYMTAB] = *shdr;
+			memcpy(&ldr->sects[LLEXT_MEM_SYMTAB], shdr, sizeof(*shdr));
 			ldr->sect_map[i].mem_idx = LLEXT_MEM_SYMTAB;
 			strtab_ndx = shdr->sh_link;
 			table_cnt++;
 		} else if (shdr->sh_type == SHT_STRTAB && i == shstrtab_ndx) {
 			LOG_DBG("shstrtab at %d", i);
-			ldr->sects[LLEXT_MEM_SHSTRTAB] = *shdr;
+			memcpy(&ldr->sects[LLEXT_MEM_SHSTRTAB], shdr, sizeof(*shdr));
 			ldr->sect_map[i].mem_idx = LLEXT_MEM_SHSTRTAB;
 			table_cnt++;
 		} else if (shdr->sh_type == SHT_STRTAB && i == strtab_ndx) {
 			LOG_DBG("strtab at %d", i);
-			ldr->sects[LLEXT_MEM_STRTAB] = *shdr;
+			memcpy(&ldr->sects[LLEXT_MEM_STRTAB], shdr, sizeof(*shdr));
 			ldr->sect_map[i].mem_idx = LLEXT_MEM_STRTAB;
 			table_cnt++;
 		}
@@ -262,6 +262,10 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext,
 				mem_idx = LLEXT_MEM_TEXT;
 			} else if (shdr->sh_flags & SHF_WRITE) {
 				mem_idx = LLEXT_MEM_DATA;
+#ifdef CONFIG_LLEXT_RODATA_NO_RELOC
+			} else if (strcmp(name, LLEXT_SECTION_RODATA_NO_RELOC) == 0) {
+				mem_idx = LLEXT_MEM_RODATA_NO_RELOC;
+#endif
 			} else {
 				mem_idx = LLEXT_MEM_RODATA;
 			}
@@ -534,6 +538,13 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext,
 		}
 	}
 
+#ifdef CONFIG_LLEXT_RODATA_NO_RELOC
+	if (ldr->sects[LLEXT_MEM_RODATA_NO_RELOC].sh_flags & SHF_LLEXT_HAS_RELOCS) {
+		LOG_ERR("%s has relocations", LLEXT_SECTION_RODATA_NO_RELOC);
+		return -ENOEXEC;
+	}
+#endif
+
 	return 0;
 }
 
@@ -600,7 +611,7 @@ static int llext_allocate_symtab(struct llext_loader *ldr, struct llext *ext)
 	struct llext_symtable *sym_tab = &ext->sym_tab;
 	size_t syms_size = sym_tab->sym_cnt * sizeof(struct llext_symbol);
 
-	sym_tab->syms = llext_alloc_data(syms_size);
+	sym_tab->syms = llext_alloc_metadata(syms_size);
 	if (!sym_tab->syms) {
 		return -ENOMEM;
 	}
@@ -633,7 +644,7 @@ static int llext_export_symbols(struct llext_loader *ldr, struct llext *ext,
 		return 0;
 	}
 
-	exp_tab->syms = llext_alloc_data(exp_tab->sym_cnt * sizeof(struct llext_symbol));
+	exp_tab->syms = llext_alloc_metadata(exp_tab->sym_cnt * sizeof(struct llext_symbol));
 	if (!exp_tab->syms) {
 		return -ENOMEM;
 	}
@@ -884,7 +895,7 @@ out:
 	 * is enabled and no error is detected.
 	 */
 	if (!(IS_ENABLED(CONFIG_LLEXT_LOG_LEVEL_DBG) && ret == 0)) {
-		llext_free(ext->sym_tab.syms);
+		llext_free_metadata(ext->sym_tab.syms);
 		ext->sym_tab.sym_cnt = 0;
 		ext->sym_tab.syms = NULL;
 	}
@@ -897,7 +908,7 @@ out:
 		 * such as regions and exported symbols.
 		 */
 		llext_free_regions(ext);
-		llext_free(ext->exp_tab.syms);
+		llext_free_metadata(ext->exp_tab.syms);
 		ext->exp_tab.sym_cnt = 0;
 		ext->exp_tab.syms = NULL;
 	} else {
@@ -914,7 +925,7 @@ int llext_free_inspection_data(struct llext_loader *ldr, struct llext *ext)
 {
 	if (ldr->sect_map) {
 		ext->alloc_size -= ext->sect_cnt * sizeof(ldr->sect_map[0]);
-		llext_free(ldr->sect_map);
+		llext_free_metadata(ldr->sect_map);
 		ldr->sect_map = NULL;
 	}
 

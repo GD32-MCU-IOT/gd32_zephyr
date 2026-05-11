@@ -390,13 +390,13 @@ struct lcp_options {
 /** IPv4 control protocol options */
 struct ipcp_options {
 	/** IPv4 address */
-	struct in_addr address;
+	struct net_in_addr address;
 
 	/** Primary DNS server address */
-	struct in_addr dns1_address;
+	struct net_in_addr dns1_address;
 
 	/** Secondary DNS server address */
-	struct in_addr dns2_address;
+	struct net_in_addr dns2_address;
 };
 
 /** IPv6 control protocol options */
@@ -597,8 +597,15 @@ struct net_if;
 
 /** @endcond */
 
+/** Default value for the PPP Asynchronous Control Character Map */
+#define NET_PPP_DEFAULT_ASYNC_MAP (0xffffffffU)
+
 /**
  * @brief Retrieve the PPP peers Asynchronous Control Character Map
+ *
+ * Before PPP LCP negotiation is complete, this function will return the default value of
+ * 0xffffffff. After LCP negotiation, this function will return the value that peer has
+ * provided.
  *
  * @param iface PPP network interface.
  *

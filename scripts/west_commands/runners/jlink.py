@@ -5,6 +5,7 @@
 '''Runner for debugging with J-Link.'''
 
 import argparse
+import errno
 import ipaddress
 import logging
 import os
@@ -48,14 +49,16 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
 
     def __init__(self, cfg, device, dev_id=None,
                  commander=DEFAULT_JLINK_EXE,
-                 dt_flash=True, erase=True, reset=False,
-                 iface='swd', speed='auto', flash_script = None,
-                 loader=None, flash_sram=False,
+                 dt_flash=True, erase=True, reset=False, reset_type=None,
+                 iface='swd', speed='auto',
+                 flash_script = None, loader=None, flash_sram=False,
                  gdbserver='JLinkGDBServer',
                  gdb_host='',
                  gdb_port=DEFAULT_JLINK_GDB_PORT,
                  rtt_port=DEFAULT_JLINK_RTT_PORT,
-                 tui=False, tool_opt=None, dev_id_type=None):
+                 rtt_channel=None,
+                 tui=False, tool_opt=None, dev_id_type=None, batch=False,
+                 pre_script_cmds=None):
         super().__init__(cfg)
         self.file = cfg.file
         self.file_type = cfg.file_type
@@ -72,6 +75,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         self.flash_sram = flash_sram
         self.erase = erase
         self.reset = reset
+        self.reset_type = reset_type
         self.gdbserver = gdbserver
         self.iface = iface
         self.speed = speed
@@ -80,7 +84,10 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         self.tui_arg = ['-tui'] if tui else []
         self.loader = loader
         self.rtt_port = rtt_port
+        self.rtt_channel = rtt_channel
         self.dev_id_type = dev_id_type
+        self.is_batch = batch
+        self.pre_script_cmds = pre_script_cmds
 
         self.tool_opt = []
         if tool_opt is not None:
@@ -118,9 +125,9 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
 
     @classmethod
     def capabilities(cls):
-        return RunnerCaps(commands={'flash', 'debug', 'debugserver', 'attach', 'rtt'},
-                          dev_id=True, flash_addr=True, erase=True, reset=True,
-                          tool_opt=True, file=True, rtt=True)
+        return RunnerCaps(commands={'flash', 'debug', 'debugserver', 'attach', 'rtt', 'reset'},
+                          dev_id=True, flash_addr=True, erase=True, reset=True, reset_types=True,
+                          tool_opt=True, file=True, rtt=True, batch_debug=True)
 
     @classmethod
     def dev_id_help(cls) -> str:
@@ -195,12 +202,17 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                             help='RTT client, default is JLinkRTTClient')
         parser.add_argument('--rtt-port', default=DEFAULT_JLINK_RTT_PORT,
                             help=f'jlink rtt port, defaults to {DEFAULT_JLINK_RTT_PORT}')
+        parser.add_argument('--rtt-channel', type=int, default=None,
+                            help='jlink rtt channel, not send by default')
         parser.add_argument('--flash-sram', default=False, action='store_true',
                             help='if given, flashing the image to SRAM and '
                             'modify PC register to be SRAM base address')
         parser.add_argument('--dev-id-type', choices=['auto', 'serialno', 'tty', 'ip', 'tunnel'],
                             default='auto', help='Device type. "auto" (default) auto-detects '
                             'the type, or specify explicitly')
+        parser.add_argument('--pre-script-cmd', action='append', dest='pre_script_cmds',
+                            help='Custom JLink command to prepend to the runner.jlink. Can be '
+                            'given multiple times. ArgParse should preserve their order.')
 
         parser.set_defaults(reset=False)
 
@@ -214,14 +226,18 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                                  erase=args.erase,
                                  reset=args.reset,
                                  iface=args.iface, speed=args.speed,
+                                 reset_type=args.reset_type,
                                  flash_script=args.flash_script,
                                  gdbserver=args.gdbserver,
                                  loader=args.loader,
                                  gdb_host=args.gdb_host,
                                  gdb_port=args.gdb_port,
                                  rtt_port=args.rtt_port,
+                                 rtt_channel=args.rtt_channel,
                                  tui=args.tui, tool_opt=args.tool_opt,
-                                 dev_id_type=args.dev_id_type)
+                                 dev_id_type=args.dev_id_type,
+                                 batch=args.batch,
+                                 pre_script_cmds=args.pre_script_cmds)
 
     def print_gdbserver_message(self):
         if not self.thread_info_enabled:
@@ -373,20 +389,51 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
             server_cmd += ['-nohalt']
             server_proc = self.popen_ignore_int(server_cmd)
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock = None
                 # wait for the port to be open
                 while server_proc.poll() is None:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     try:
                         sock.connect(('localhost', self.rtt_port))
                         break
-                    except ConnectionRefusedError:
-                        time.sleep(0.1)
-                self.run_telnet_client('localhost', self.rtt_port, sock)
-            except Exception as e:
-                self.logger.error(e)
+                    except OSError as e:
+                        sock.close()
+                        # On at least macOS sock.connect() can fail with the
+                        # exception OSError(22, 'Invalid argument'), which
+                        # corresponds to errno EINVAL, by leaving the socket in
+                        # a non-recoverable state, hence let's wait and try
+                        # again.
+                        if e.errno in (errno.ECONNREFUSED, errno.EINVAL):
+                            time.sleep(0.05)
+                        else:
+                            raise e
+
+                if self.rtt_channel is not None:
+                    # The config string has to be sent within 100 ms after
+                    # establishing the connection, otherwise it would be ignored
+                    # and no channel selection would be applied.
+                    rtt_config = f'$$SEGGER_TELNET_ConfigStr=RTTCh;{self.rtt_channel}$$'
+                else:
+                    rtt_config = None
+
+                self.run_telnet_client('localhost', self.rtt_port, sock,
+                                       send_on_connect=rtt_config)
+            except ValueError as e:
+                # ValueError exception is thrown, if PC can't connect to the J-Link and
+                # we still try to open a socket to it.
+                # Silently capture the exception, the prompt from JLinkExe already
+                # contains good message about what happened.
+                self.logger.debug(f'ValueError during RTT connection: {e}')
+            except OSError as e:
+                self.logger.error(
+                    f'Failed to connect to the localhost:{self.rtt_port} socket: {e}',
+                )
             finally:
                 server_proc.terminate()
                 server_proc.wait()
+                # Print a single newline so that terminal prompt appears on a separate
+                # line.
+                print()
         else:
             if self.gdb_cmd is None:
                 raise ValueError('Cannot debug; gdb is missing')
@@ -398,29 +445,48 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                 raise ValueError('Cannot debug; elf is missing')
             else:
                 elf_name = self.elf_name
+
             client_cmd = (self.gdb_cmd +
                           self.tui_arg +
                           [elf_name] +
+                          ['-batch' if self.is_batch else ''] +
                           ['-ex', f'target remote {self.gdb_host}:{self.gdb_port}'])
             if command == 'debug':
                 client_cmd += ['-ex', 'monitor halt',
                                '-ex', 'monitor reset',
                                '-ex', 'load']
-                if self.reset:
+                if self.is_batch:
+                    client_cmd += ['-ex', 'monitor go', '-ex', 'disconnect', '-ex', 'quit']
+                elif self.reset:
                     client_cmd += ['-ex', 'monitor reset']
+            if command == 'reset':
+                client_cmd += [
+                    '-ex', 'monitor halt',
+                    '-ex', 'monitor reset',
+                    '-ex', 'set confirm off',
+                    '-ex', 'monitor go',
+                    '-ex', 'disconnect',
+                    '-ex', 'quit',
+                ]
+
             if not self.gdb_host:
                 self.require(self.gdbserver)
                 self.print_gdbserver_message()
                 self.run_server_and_client(server_cmd, client_cmd)
             else:
-                self.run_client(client_cmd)
+                self.check_call_ignore_sigint(client_cmd)
 
     def get_default_flash_commands(self):
-        lines = [
+        lines = self.pre_script_cmds or [] # Prepend custom script commands
+
+        lines += [
             'ExitOnError 1',  # Treat any command-error as fatal
             'r',  # Reset and halt the target
             'BE' if self.build_conf.getboolean('CONFIG_BIG_ENDIAN') else 'LE'
         ]
+
+        if self.reset_type:
+            lines.insert(0, f"RSetType {self.reset_type}")
 
         if self.erase:
             lines.append('erase') # Erase all flash sectors

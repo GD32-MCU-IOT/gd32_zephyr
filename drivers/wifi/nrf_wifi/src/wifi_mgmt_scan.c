@@ -36,7 +36,9 @@ static enum nrf_wifi_band nrf_wifi_map_zep_band_to_rpu(enum wifi_frequency_bands
 	}
 }
 
-int nrf_wifi_disp_scan_zep(const struct device *dev, struct wifi_scan_params *params,
+int nrf_wifi_disp_scan_zep(const struct device *dev,
+			   struct net_if *iface __unused,
+			   struct wifi_scan_params *params,
 			   scan_result_cb_t cb)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
@@ -290,12 +292,18 @@ static inline enum wifi_security_type drv_to_wifi_mgmt(int drv_security_type)
 		return WIFI_SECURITY_TYPE_PSK;
 	case NRF_WIFI_WPA2_256:
 		return WIFI_SECURITY_TYPE_PSK_SHA256;
-	case NRF_WIFI_WPA3:
+	case NRF_WIFI_WPA3_HNP:
 		return WIFI_SECURITY_TYPE_SAE;
+	case NRF_WIFI_WPA3_H2E:
+		return WIFI_SECURITY_TYPE_SAE_H2E;
 	case NRF_WIFI_WAPI:
 		return WIFI_SECURITY_TYPE_WAPI;
 	case NRF_WIFI_EAP:
 		return WIFI_SECURITY_TYPE_EAP;
+	case NRF_WIFI_WPA3_AUTO:
+		return WIFI_SECURITY_TYPE_SAE_AUTO;
+	case NRF_WIFI_WPA3_FT_SAE:
+		return WIFI_SECURITY_TYPE_FT_SAE;
 	default:
 		return WIFI_SECURITY_TYPE_UNKNOWN;
 	}
@@ -306,14 +314,12 @@ void nrf_wifi_event_proc_disp_scan_res_zep(void *vif_ctx,
 				unsigned int event_len,
 				bool more_res)
 {
-	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
+	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = vif_ctx;
 	struct umac_display_results *r = NULL;
 	struct wifi_scan_result res;
 	uint16_t max_bss_cnt = 0;
 	unsigned int i = 0;
 	scan_result_cb_t cb = NULL;
-
-	vif_ctx_zep = vif_ctx;
 
 	cb = (scan_result_cb_t)vif_ctx_zep->disp_scan_cb;
 
@@ -388,12 +394,9 @@ void nrf_wifi_rx_bcn_prb_resp_frm(void *vif_ctx,
 {
 	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = vif_ctx;
 	struct nrf_wifi_ctx_zep *rpu_ctx_zep = NULL;
-	struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx = NULL;
 	struct wifi_raw_scan_result bcn_prb_resp_info;
 	int frame_length = 0;
 	int val = signal;
-
-	vif_ctx_zep = vif_ctx;
 
 	if (!vif_ctx_zep) {
 		LOG_ERR("%s: vif_ctx_zep is NULL", __func__);
@@ -417,8 +420,6 @@ void nrf_wifi_rx_bcn_prb_resp_frm(void *vif_ctx,
 		LOG_DBG("%s: RPU context not initialized", __func__);
 		goto out;
 	}
-
-	fmac_dev_ctx = rpu_ctx_zep->rpu_ctx;
 
 	frame_length = nrf_wifi_osal_nbuf_data_size(nwb);
 

@@ -117,7 +117,7 @@ config BT_CONN_TX
 
 config BT_LE_LOCAL_MINIMUM_REQUIRED_FEATURE_PAGE
 	int
-	default 1 if BT_FRAME_SPACE_UPDATE
+	default 1 if BT_FRAME_SPACE_UPDATE || BT_SHORTER_CONNECTION_INTERVALS
 	default 0
 	depends on BT_LE_EXTENDED_FEAT_SET
 	help
@@ -154,7 +154,6 @@ config BT_HCI_ACL_FLOW_CONTROL
 	default y if !HAS_BT_CTLR && !BT_STM32_IPM && !BT_ESP32  && !BT_STM32WBA
 	# Enable if building a Controller-only build
 	default y if BT_HCI_RAW
-	select POLL
 	help
 	  Enable support for throttling ACL buffers from the controller
 	  to the host. This is particularly useful when the host and
@@ -259,6 +258,15 @@ config BT_CHANNEL_SOUNDING_REASSEMBLY_BUFFER_CNT
 	  Controls the number of the reassembly buffers for CS subevent
 	  results. Each running CS procedure is allocated one buffer and the
 	  number of concurrent CS procedures is limited by this value.
+
+config BT_SHORTER_CONNECTION_INTERVALS
+	bool "Shorter Connection Intervals"
+	depends on !HAS_BT_CTLR || BT_CTLR_SHORTER_CONNECTION_INTERVALS_SUPPORT
+	depends on BT_LE_EXTENDED_FEAT_SET
+	depends on BT_SUBRATING
+	help
+	  Enable support for the Bluetooth 6.2 Shorter Connection Intervals
+	  feature.
 
 endif # BT_CONN
 
@@ -415,6 +423,8 @@ rsource "Kconfig.logging"
 config BT_SHELL
 	bool "Bluetooth shell"
 	select SHELL
+	select SHELL_GETOPT
+	select GETOPT_LONG
 	select BT_PRIVATE_SHELL
 	select BT_TICKER_NEXT_SLOT_GET if BT_LL_SW_SPLIT
 	help

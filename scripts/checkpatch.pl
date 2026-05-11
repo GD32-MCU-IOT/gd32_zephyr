@@ -863,7 +863,7 @@ our $LvalOrFunc	= qr{((?:[\&\*]\s*)?$Lval)\s*($balanced_parens{0,1})\s*};
 our $FuncArg = qr{$Typecast{0,1}($LvalOrFunc|$Constant|$String)};
 
 our $declaration_macros = qr{(?x:
-	(?:$Storage\s+)?(?:[A-Z_][A-Z0-9]*_){0,2}(?:DEFINE|DECLARE)(?:_[A-Z0-9]+){1,6}\s*\(|
+	(?:$Storage\s+)?(?:[A-Z_][A-Z0-9]*_){0,2}(?:DEFINE|DECLARE)(?:_[A-Z0-9]+){0,6}\s*\(|
 	(?:$Storage\s+)?[HLP]?LIST_HEAD\s*\(|
 	(?:SKCIPHER_REQUEST|SHASH_DESC|AHASH_REQUEST)_ON_STACK\s*\(
 )};
@@ -2573,6 +2573,11 @@ sub process {
 			next;
 		}
 
+		# skip package-lock.json and package.json files specifically
+		if ($realfile =~ /package(-lock)?\.json$/) {
+			next;
+		}
+
 #make up the handle for any error we report on this line
 		if ($showfile) {
 			$prefix = "$realfile:$realline: "
@@ -3562,8 +3567,9 @@ sub process {
 #  2) indented preprocessor commands
 #  3) hanging labels
 #  4) empty lines in multi-line macros
+#  5) lines starting with 4 spaces and 'defined('
 		if ($rawline =~ /^\+ / && $line !~ /^\+ *(?:$;|#|$Ident:)/ &&
-		    $rawline !~ /^\+\s+\\$/) {
+		    $rawline !~ /^\+\s+\\$/ && $rawline !~ /^\+ {4}defined\(/) {
 			my $herevet = "$here\n" . cat_vet($rawline) . "\n";
 			if (WARN("LEADING_SPACE",
 				 "please, no spaces at the start of a line\n" . $herevet) &&
@@ -5029,8 +5035,8 @@ sub process {
 		if ($sline =~ /\breturn(?:\s*\(+\s*|\s+)(E[A-Z]+)(?:\s*\)+\s*|\s*)[;:,]/) {
 			my $name = $1;
 			if ($name ne 'EOF' && $name ne 'ERROR') {
-				# only print this warning if not dealing with 'lib/posix/*.c'
-				if ($realfile =~ /.*\/lib\/posix\/*.c/) {
+				# only print this warning if not dealing with 'subsys/portability/posix/*.c'
+				if ($realfile =~ /.*\/subsys\/portability\/posix\/*.c/) {
 					WARN("USE_NEGATIVE_ERRNO",
 						"return of an errno should typically be negative (ie: return -$1)\n" . $herecurr);
 				}
@@ -5295,7 +5301,7 @@ sub process {
 			#print "LINE<$lines[$ln-1]> len<" . length($lines[$ln-1]) . "\n";
 
 			$has_flow_statement = 1 if ($ctx =~ /\b(goto|return)\b/);
-			$has_arg_concat = 1 if (($ctx =~ /\#\#/ || $ctx =~ /UTIL_CAT/) && $ctx !~ /\#\#\s*(?:__VA_ARGS__|args)\b/);
+			$has_arg_concat = 1 if (($ctx =~ /\#\#/ || $ctx =~ /UTIL_CAT/ || $ctx =~ /CONCAT/) && $ctx !~ /\#\#\s*(?:__VA_ARGS__|args)\b/);
 
 			$dstat =~ s/^.\s*\#\s*define\s+$Ident(\([^\)]*\))?\s*//;
 			my $define_args = $1;
@@ -6185,6 +6191,13 @@ sub process {
 			    $fix) {
 				$fixed[$fixlinenr] =~ s/\bsizeof\s+((?:\*\s*|)$Lval|$Type(?:\s+$Lval|))/"sizeof(" . trim($1) . ")"/ex;
 			}
+		}
+
+# check for sizeof used on character literals
+		if ($line =~ /\bsizeof\s*\(\s*'(?:X+)'\s*\)/) {
+			WARN("SIZEOF_CHAR_LITERAL",
+			     "sizeof() used on a character literal; character literals have type int\n" .
+			     "Suggestion: use sizeof((char)'x') instead, e.g.sizeof((char)'/') \n" . $herecurr);
 		}
 
 # check for struct spinlock declarations

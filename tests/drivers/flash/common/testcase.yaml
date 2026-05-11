@@ -22,12 +22,10 @@ tests:
       - apard32690/max32690/m4
   drivers.flash.common.max32_flash1:
     platform_allow:
-      - apard32690/max32690/m4
       - max32690evkit/max32690/m4
     extra_args:
       - DTC_OVERLAY_FILE=boards/max32690_flash1_storage_partition.overlay
     integration_platforms:
-      - apard32690/max32690/m4
       - max32690evkit/max32690/m4
   drivers.flash.common.nrf_qspi_nor.size_in_bytes:
     platform_allow: nrf52840dk/nrf52840
@@ -36,6 +34,13 @@ tests:
       - DTC_OVERLAY_FILE=boards/nrf52840_size_in_bytes.overlay
     extra_configs:
       - CONFIG_TEST_DRIVER_FLASH_SIZE=8388608
+    integration_platforms:
+      - nrf52840dk/nrf52840
+  drivers.flash.common.nrf_qspi_nor.qer_none:
+    build_only: true
+    platform_allow: nrf52840dk/nrf52840
+    extra_args:
+      - DTC_OVERLAY_FILE=boards/nrf52840dk_qer_none.overlay
     integration_platforms:
       - nrf52840dk/nrf52840
   drivers.flash.common.nrf_qspi_nor_4B_addr:
@@ -60,6 +65,7 @@ tests:
       or dt_label_with_parent_compat_enabled("storage_partition", "nordic,owned-partitions")))
     platform_exclude:
       - nrf54lm20dk/nrf54lm20a/cpuapp
+      - nrf54lm20dk/nrf54lm20b/cpuapp
       - nrf54h20dk/nrf54h20/cpuapp
     integration_platforms:
       - qemu_x86
@@ -71,14 +77,27 @@ tests:
       - nrf54l15dk/nrf54l15/cpuapp
     harness_config:
       fixture: external_flash
+  drivers.flash.common.no_explicit_erase.sfdp_runtime:
+    platform_allow:
+      - nrf54l15dk/nrf54l05/cpuapp
+      - nrf54l15dk/nrf54l10/cpuapp
+      - nrf54l15dk/nrf54l15/cpuapp
+    harness_config:
+      fixture: external_flash
+    extra_configs:
+      - CONFIG_SPI_NOR_SFDP_RUNTIME=y
+    extra_args:
+      - DTC_OVERLAY_FILE=boards/nrf54l15dk_remove_dt_sfdp.overlay
   drivers.flash.common.no_explicit_erase.nrf54h:
     platform_allow:
       - nrf54h20dk/nrf54h20/cpuapp
+      - nrf7120dk/nrf7120/cpuapp
     harness_config:
       fixture: gpio_loopback
   drivers.flash.common.nrf54lm20a:
     platform_allow:
       - nrf54lm20dk/nrf54lm20a/cpuapp
+      - nrf54lm20dk/nrf54lm20b/cpuapp
     harness_config:
       fixture: external_flash
   drivers.flash.common.tfm_ns:
@@ -173,7 +192,18 @@ tests:
     filter: CONFIG_FLASH_HAS_DRIVER_ENABLED
       and dt_label_with_parent_compat_enabled("storage_partition", "fixed-partitions")
     platform_exclude:
-      - beagleconnect_freedom/cc1352p7
+      - beagleconnect_freedom@C5/cc1352p
+      - beagleconnect_freedom@C7/cc1352p7
+      - nrf54lm20dk/nrf54lm20a/cpuapp
+      - nrf54lm20dk/nrf54lm20b/cpuapp
+    extra_args:
+      - CONFIG_TEST_FORCE_STORAGE_PARTITION=y
+  drivers.flash.common.test_storage_partition.nrf54lm20:
+    platform_allow:
+      - nrf54lm20dk/nrf54lm20a/cpuapp
+      - nrf54lm20dk/nrf54lm20b/cpuapp
+    harness_config:
+      fixture: external_flash
     extra_args:
       - CONFIG_TEST_FORCE_STORAGE_PARTITION=y
   drivers.flash.common.ra_ospi_b_nor:
@@ -211,7 +241,7 @@ tests:
     platform_allow:
       - nrf54h20dk/nrf54h20/cpuapp
     extra_args:
-      - EXTRA_DTC_OVERLAY_FILE=boards/mx25uw63_low_freq.overlay
+      - EXTRA_DTC_OVERLAY_FILE=boards/mx25uw63_freq_256k.overlay
     harness_config:
       fixture: gpio_loopback
   drivers.flash.common.it8xxx2_indirect:
@@ -219,12 +249,32 @@ tests:
     platform_allow:
       - it8xxx2_evb
       - it82xx2_evb
-      - it515xx_evb
+      - it51xxx_evb/it51526aw
     extra_args:
       - DTC_OVERLAY_FILE="./boards/it8xxx2_indirect.overlay"
-  drivers.flash.common.it515xx_m1k:
+  drivers.flash.common.it51xxx_m1k:
     build_only: true
     platform_allow:
-      - it515xx_evb
+      - it51xxx_evb/it51526aw
     extra_args:
-      - DTC_OVERLAY_FILE="./boards/it515xx_m1k.overlay"
+      - DTC_OVERLAY_FILE="./boards/it51xxx_m1k.overlay"
+  drivers.flash.common.mspi_single_io_low_frequency:
+    platform_allow:
+      - nrf54h20dk/nrf54h20/cpuapp
+    extra_args:
+      - EXTRA_DTC_OVERLAY_FILE="boards/mx25uw63_single_io.overlay;boards/mx25uw63_freq_1M.overlay"
+    harness_config:
+      fixture: gpio_loopback
+  drivers.flash.common.spi_nand.mikroe_flash_5_click:
+    harness_config:
+      fixture: mikroe_flash_5_click
+    platform_allow:
+      - frdm_mcxn947/mcxn947/cpu0
+    extra_args:
+      - SHIELD=mikroe_flash_5_click
+      - DTC_OVERLAY_FILE="./boards/mikroe_flash_5_click.overlay"
+      - EXTRA_CONF_FILE="./boards/mikroe_flash_5_click.conf"
+  drivers.flash.common.versalnet:
+    build_only: true
+    platform_allow:
+      - versalnet_rpu/amd_versalnet_rpu

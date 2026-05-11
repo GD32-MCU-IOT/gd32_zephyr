@@ -13,6 +13,17 @@
 		flash: flash-controller@40001000 {
 			flash0: flash@10040000 {
 				reg = <0x10040000 DT_SIZE_K(256)>;
+				ranges = <0 0x10040000 DT_SIZE_K(256)>;
+			};
+
+			flash@10001e00 {
+				nvmem-layout {
+					ts_c85_otp: c85@68 {
+						reg = <0x68 0x4>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+				};
 			};
 		};
 
@@ -35,6 +46,7 @@
 			reg = <0x41002000 DT_SIZE_K(1)>;
 			clocks = <&rcc STM32_CLOCK(APB1, 0)>;
 			interrupts = <5 0>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 		};
 
@@ -45,6 +57,7 @@
 			reg = <0x41003000 DT_SIZE_K(1)>;
 			clocks = <&rcc STM32_CLOCK(APB1, 12)>;
 			interrupts = <6 0>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 		};
 

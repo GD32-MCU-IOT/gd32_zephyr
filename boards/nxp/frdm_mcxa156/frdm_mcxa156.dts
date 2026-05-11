@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_mcxa156.dtsi>
+#include <nxp/mcx/nxp_mcxa156.dtsi>
 #include "frdm_mcxa156-pinctrl.dtsi"
 #include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -38,6 +38,7 @@
 		zephyr,shell-uart = &lpuart0;
 		zephyr,uart-mcumgr = &lpuart0;
 		zephyr,canbus = &flexcan0;
+		zephyr,system-timer-companion = &lptmr0;
 	};
 
 	leds {
@@ -226,12 +227,6 @@ zephyr_mipi_dbi_parallel: &flexio0_lcd {
 &lpadc0 {
 	status = "okay";
 	pinctrl-0 = <&pinmux_lpadc0>;
-	pinctrl-names = "default";
-};
-
-&lpcmp0 {
-	status = "okay";
-	pinctrl-0 = <&pinmux_lpcmp0>;
 	pinctrl-names = "default";
 };
 

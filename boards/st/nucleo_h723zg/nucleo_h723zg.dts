@@ -69,6 +69,7 @@
 		led0 = &green_led;
 		led1 = &yellow_led;
 		led2 = &red_led;
+		rtc = &rtc;
 		pwm-led0 = &red_pwm_led;
 		sw0 = &user_button;
 	};
@@ -121,6 +122,10 @@
 	d2ppre1 = <2>; /* APB2: 137.5 MHz */
 	d2ppre2 = <2>; /* APB3: 137.5 MHz */
 	d3ppre = <2>;  /* APB4: 137.5 MHz */
+};
+
+&pwr {
+	power-supply = "ldo";
 };
 
 &lpuart1 {

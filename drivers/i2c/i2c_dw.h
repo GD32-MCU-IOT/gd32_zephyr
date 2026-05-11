@@ -39,14 +39,14 @@ typedef void (*i2c_isr_cb_t)(const struct device *port);
 #define I2C_DW_CMD_RECV    (1 << 1)
 #define I2C_DW_CMD_ERROR   (1 << 2)
 #define I2C_DW_BUSY        (1 << 3)
-#define I2C_DW_TX_ABRT     (1 << 4)
+#define I2C_DW_USER_ABRT   (1 << 4)
 #define I2C_DW_NACK        (1 << 5)
 #define I2C_DW_SCL_STUCK   (1 << 6)
 #define I2C_DW_SDA_STUCK   (1 << 7)
 
 #define I2C_DW_ERR_MASK (I2C_DW_CMD_ERROR | I2C_DW_SCL_STUCK | I2C_DW_SDA_STUCK | I2C_DW_NACK)
 
-#define I2C_DW_STUCK_ERR_MASK (I2C_DW_SCL_STUCK | I2C_DW_SDA_STUCK)
+#define I2C_DW_STUCK_ERR_MASK (I2C_DW_SCL_STUCK | I2C_DW_SDA_STUCK | I2C_DW_USER_ABRT)
 
 #ifdef CONFIG_I2C_DW_EXTENDED_SUPPORT
 #define DW_ENABLE_TX_INT_I2C_MASTER                                                                \
@@ -78,6 +78,47 @@ typedef void (*i2c_isr_cb_t)(const struct device *port);
 #define I2C_HS_HCNT  ((CONFIG_I2C_DW_CLOCK_SPEED * 6) / 8)
 #define I2C_HS_LCNT  ((CONFIG_I2C_DW_CLOCK_SPEED * 7) / 8)
 
+#ifdef CONFIG_I2C_DW_IC_CLK_FREQ_OPTIMIZATION
+
+/* The below SCL macros calculations are valid
+ * if IC_CLK_FREQ_OPTIMIZATION is on
+ * Refer section 2.14.2 of DW spec
+ */
+
+#define I2C_MIN_SCL_LCNT         6
+#define I2C_MIN_SCL_HCNT         5
+#define I2C_SCL_HCNT_OFFSET      3
+
+/* Min SCL High Time is 5 cycles. High Time = HCNT + spike_len + 3 */
+#define I2C_ENSURE_MIN_SCL_HCNT(x, spk_len)    \
+	((((x) + (spk_len) + I2C_SCL_HCNT_OFFSET) < I2C_MIN_SCL_HCNT) ? \
+	(I2C_MIN_SCL_HCNT - ((spk_len) + I2C_SCL_HCNT_OFFSET)) : (x))
+
+/* Min SCL Low Time is 6 cycles */
+#define I2C_ENSURE_MIN_SCL_LCNT(x, spk_len)    \
+	(((x) < I2C_MIN_SCL_LCNT) ? I2C_MIN_SCL_LCNT : (x))
+
+#else /* CONFIG_I2C_DW_IC_CLK_FREQ_OPTIMIZATION */
+
+/* The below SCL macros calculations are valid
+ * if IC_CLK_FREQ_OPTIMIZATION is off
+ * Refer section 2.14.1 of DW spec
+ */
+#define I2C_MIN_SCL_LCNT(spk)  ((spk) + 8)
+#define I2C_MIN_SCL_HCNT(spk)  ((spk) + 6)
+
+/* Min SCL High Time is spike_len + 6 cycles */
+#define I2C_ENSURE_MIN_SCL_HCNT(x, spk_len)	\
+	(((x) < I2C_MIN_SCL_HCNT(spk_len)) ?	\
+	I2C_MIN_SCL_HCNT(spk_len) : (x))
+
+/* Min SCL Low Time is spike_len + 8 cycles */
+#define I2C_ENSURE_MIN_SCL_LCNT(x, spk_len)	\
+	(((x) < I2C_MIN_SCL_LCNT(spk_len)) ?	\
+	I2C_MIN_SCL_LCNT(spk_len) : (x))
+
+#endif /* CONFIG_I2C_DW_IC_CLK_FREQ_OPTIMIZATION */
+
 /*
  * DesignWare speed values don't directly translate from the Zephyr speed
  * selections in include/i2c.h so here we do a little translation
@@ -94,13 +135,19 @@ typedef void (*i2c_isr_cb_t)(const struct device *port);
 #define I2C_DW_TX_WATERMARK 2
 #define I2C_DW_RX_WATERMARK 7
 
+#define SDA_HOLD_INVALID UINT32_MAX
+
 struct i2c_dw_rom_config {
 	DEVICE_MMIO_ROM;
 	i2c_isr_cb_t config_func;
 	uint32_t bitrate;
+	uint32_t sda_hold_tx;
+	uint32_t sda_hold_rx;
 	uint32_t irqnumber;
 	int16_t lcnt_offset;
 	int16_t hcnt_offset;
+	uint8_t fs_spk_len;
+	uint8_t hs_spk_len;
 
 #if defined(CONFIG_PINCTRL)
 	const struct pinctrl_dev_config *pcfg;

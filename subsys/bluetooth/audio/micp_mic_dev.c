@@ -26,9 +26,9 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/byteorder.h>
-#include <zephyr/sys/check.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 #include "audio_internal.h"
 
@@ -46,6 +46,8 @@ static struct bt_micp_server micp_inst;
 
 static void mute_cfg_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
+	ARG_UNUSED(attr);
+
 	LOG_DBG("value 0x%04x", value);
 }
 
@@ -86,6 +88,9 @@ static ssize_t write_mute(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			  uint8_t flags)
 {
 	const uint8_t *val = buf;
+
+	ARG_UNUSED(attr);
+	ARG_UNUSED(flags);
 
 	if (offset > 0) {
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
@@ -236,7 +241,7 @@ int bt_micp_mic_dev_mute_disable(void)
 
 int bt_micp_mic_dev_included_get(struct bt_micp_included *included)
 {
-	CHECKIF(included == NULL) {
+	if (included == NULL) {
 		LOG_DBG("NULL service pointer");
 		return -EINVAL;
 	}

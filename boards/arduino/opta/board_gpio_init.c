@@ -5,8 +5,8 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/init.h>
-#include <stm32h7xx_ll_bus.h>
-#include <stm32h7xx_ll_gpio.h>
+#include <stm32_ll_bus.h>
+#include <stm32_ll_gpio.h>
 
 static int board_gpio_init(void)
 {
@@ -28,7 +28,7 @@ static int board_gpio_init(void)
 	LL_GPIO_SetOutputPin(GPIOH, LL_GPIO_PIN_1);
 #endif
 
-	/* The ethernet adapter is enabled by settig the GPIOJ15 pin to 1.
+	/* The ethernet adapter is enabled by setting the GPIOJ15 pin to 1.
 	 * This is done only if the network has been explicitly configured
 	 */
 #ifdef CONFIG_NET_L2_ETHERNET

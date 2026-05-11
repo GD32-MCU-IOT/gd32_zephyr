@@ -277,30 +277,19 @@ BUILD_ASSERT(Z_IS_POW2(CBPRINTF_PACKAGE_ALIGNMENT));
  *
  * This function expects two parameters:
  *
- * * @p c a character to output.  The output behavior should be as if
+ * @param c a character to output.  The output behavior should be as if
  *   this was cast to an unsigned char.
- * * @p ctx a pointer to an object that provides context for the
+ * @param ctx a pointer to an object that provides context for the
  *   output operation.
  *
- * The declaration does not specify the parameter types.  This allows a
- * function like @c fputc to be used without requiring all context pointers to
- * be to a @c FILE object.
+ * A function like @c fputc can be used by casting it to @c cbprintf_cb,
+ * e.g. @c (cbprintf_cb)fputc.
  *
  * @return the value of @p c cast to an unsigned char then back to
  * int, or a negative error code that will be returned from
  * cbprintf().
  */
-#ifdef __CHECKER__
 typedef int (*cbprintf_cb)(int c, void *ctx);
-#else
-typedef int (*cbprintf_cb)(/* int c, void *ctx */);
-#endif
-
-/* Create local cbprintf_cb type to make calng-based compilers happy when handles
- * OUTC() macro (see below). With strict rules (Wincompatible-function-pointer-types-strict)
- * it's prohibited to pass arguments with mismatched types.
- */
-typedef int (*cbprintf_cb_local)(int c, void *ctx);
 
 /** @brief Signature for a cbprintf multibyte callback function.
  *
@@ -420,7 +409,7 @@ typedef int (*cbvprintf_external_formatter_func)(cbprintf_cb out, void *ctx,
  * @param ... arguments corresponding to the conversion specifications found
  * within @p format.
  *
- * @retval nonegative the number of bytes successfully stored at @p packaged.
+ * @retval >=0 the number of bytes successfully stored at @p packaged.
  * This will not exceed @p len.
  * @retval -EINVAL if @p format is not acceptable
  * @retval -EFAULT if @p packaged alignment is not acceptable
@@ -462,7 +451,7 @@ int cbprintf_package(void *packaged,
  * @param ap captured stack arguments corresponding to the conversion
  * specifications found within @p format.
  *
- * @retval nonegative the number of bytes successfully stored at @p packaged.
+ * @retval >=0 the number of bytes successfully stored at @p packaged.
  * This will not exceed @p len.
  * @retval -EINVAL if @p format is not acceptable
  * @retval -ENOSPC if @p packaged was not null and the space required to store
@@ -505,7 +494,7 @@ int cbvprintf_package(void *packaged,
  *
  * @param strl_len Number of elements in @p strl array.
  *
- * @retval Positive output package size.
+ * @retval >=0 output package size.
  * @retval -ENOSPC if @p packaged was not null and the space required to store
  * exceed @p len.
  */
@@ -569,7 +558,7 @@ static inline int z_cbprintf_cpy(const void *buf, size_t len, void *ctx)
  *
  * @param strl_len Number of elements in @p strl array.
  *
- * @retval Positive Output package size.
+ * @retval >=0 Output package size.
  * @retval -ENOSPC if @p packaged was not null and the space required to store
  * exceed @p len.
  */
@@ -615,7 +604,7 @@ static inline int cbprintf_package_copy(void *in_packaged,
  * @param len must be set to the number of bytes available at @p packaged. Not
  * used if @p packaged is null.
  *
- * @retval nonegative the number of bytes successfully stored at @p packaged.
+ * @retval >=0 the number of bytes successfully stored at @p packaged.
  * This will not exceed @p len. If @p packaged is null, calculated length.
  * @retval -ENOSPC if @p packaged was not null and the space required to store
  * exceed @p len.

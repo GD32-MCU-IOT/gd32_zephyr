@@ -94,6 +94,26 @@ This ``|`` style prevents YAML parsers from removing the newlines in
 multi-line descriptions. This in turn makes these long strings
 display properly in the :ref:`devicetree_binding_index`.
 
+If using the binding’s properties gets complicated, you can use examples
+to provide a minimal node. e.g.:
+
+.. code-block:: yaml
+
+   description: ...
+
+   properties:
+    ...
+
+   examples:
+     - |
+       leds {
+         compatible = "gpio-leds";
+
+         uled: led {
+         gpios = <&gpioe 12 GPIO_ACTIVE_HIGH>;
+         };
+       };
+
 Naming conventions
 ==================
 
@@ -170,6 +190,10 @@ safely defaulted. Candidates for default values include:
   a USB audio headset)
 - defaults which match the vendor-specified power-on reset value
   (as long as they are independent from other properties)
+
+Default values for ``status``, ``#address-cells`` and ``#size-cells`` cannot be defined in the
+bindings. The default behavior for these properties is already defined in the
+devicetree specification `§2.3.4 <https://devicetree-specification.readthedocs.io/en/latest/chapter2-devicetree-basics.html#status>`_ and `§2.3.5 <https://devicetree-specification.readthedocs.io/en/latest/chapter2-devicetree-basics.html#address-cells-and-size-cells>`_.
 
 Examples of how to write descriptions according to these rules:
 

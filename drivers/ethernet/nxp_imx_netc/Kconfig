@@ -6,6 +6,7 @@ menuconfig ETH_NXP_IMX_NETC
 	default y
 	depends on DT_HAS_NXP_IMX_NETC_PSI_ENABLED
 	select NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
+	select NET_CHECKSUM_OFFLOAD_SUPPORTED if NET_L2_ETHERNET
 	help
 	  Enable Ethernet and Network Controller (NETC) driver for NXP IMX SoCs.
 
@@ -84,6 +85,7 @@ config ETH_NXP_IMX_RX_RING_NUM
 
 config ETH_NXP_IMX_RX_RING_LEN
 	int "RX ring length"
+	default 16 if NET_L2_PTP && PTP_CLOCK_NXP_NETC
 	default 8
 	range 8 256
 	help

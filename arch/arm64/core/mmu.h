@@ -26,8 +26,16 @@
  * +------------+------------+------------+------------+-----------+
  */
 
-/* Only 4K granule is supported */
+/* Determine the page size shift from the configured page size */
+#if defined(CONFIG_ARM64_PAGE_SIZE_64KB)
+#define PAGE_SIZE_SHIFT		16U
+#elif defined(CONFIG_ARM64_PAGE_SIZE_16KB)
+#define PAGE_SIZE_SHIFT		14U
+#elif defined(CONFIG_ARM64_PAGE_SIZE_4KB)
 #define PAGE_SIZE_SHIFT		12U
+#else
+#error Unsupported page size configuration
+#endif
 
 /* 48-bit VA address */
 #define VA_SIZE_SHIFT_MAX	48U
@@ -118,6 +126,7 @@
 #define PTE_BLOCK_DESC_INNER_SHARE	(3ULL << 8)
 #define PTE_BLOCK_DESC_AF		(1ULL << 10)
 #define PTE_BLOCK_DESC_NG		(1ULL << 11)
+#define PTE_BLOCK_DESC_GP		(1ULL << 50)
 #define PTE_BLOCK_DESC_PXN		(1ULL << 53)
 #define PTE_BLOCK_DESC_UXN		(1ULL << 54)
 

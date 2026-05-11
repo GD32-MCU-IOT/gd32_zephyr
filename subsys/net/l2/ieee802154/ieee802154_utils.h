@@ -15,6 +15,7 @@
 #define __IEEE802154_UTILS_H__
 
 #include <zephyr/net/ieee802154_radio.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/sys/util_macro.h>
 
 /**
@@ -245,7 +246,8 @@ static inline void ieee802154_radio_remove_src_short_addr(struct net_if *iface, 
 	const struct ieee802154_radio_api *radio =
 		net_if_get_device(iface)->api;
 
-	if (radio && (radio->get_capabilities(net_if_get_device(iface)) &
+	if (radio && (short_addr != IEEE802154_SHORT_ADDRESS_NOT_ASSOCIATED) &&
+		(radio->get_capabilities(net_if_get_device(iface)) &
 		      IEEE802154_HW_FILTER)) {
 		struct ieee802154_filter filter;
 
@@ -264,7 +266,8 @@ static inline void ieee802154_radio_remove_pan_id(struct net_if *iface, uint16_t
 	const struct ieee802154_radio_api *radio =
 		net_if_get_device(iface)->api;
 
-	if (radio && (radio->get_capabilities(net_if_get_device(iface)) &
+	if (radio && (pan_id != IEEE802154_PAN_ID_NOT_ASSOCIATED) &&
+		(radio->get_capabilities(net_if_get_device(iface)) &
 		      IEEE802154_HW_FILTER)) {
 		struct ieee802154_filter filter;
 

@@ -126,7 +126,7 @@ Drivers that require this behavior can explicitly request it by enabling
 
 For targets with constrained resources that do not need asynchronous
 operations, this functionality can be disabled altogether by
-de-selecting :kconfig:option:`CONFIOG_PM_DEVICE_RUNTIME_ASYNC`, reducing
+de-selecting :kconfig:option:`CONFIG_PM_DEVICE_RUNTIME_ASYNC`, reducing
 memory usage and system complexity.
 
 
@@ -185,7 +185,7 @@ suspended, the init function should call
 
         /* enable device runtime power management */
         ret = pm_device_runtime_enable(dev);
-        if ((ret < 0) && (ret != -ENOSYS)) {
+        if (ret < 0) {
             return ret;
         }
     }

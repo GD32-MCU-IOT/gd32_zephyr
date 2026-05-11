@@ -180,6 +180,14 @@ static inline void trigger_irq(int irq)
 {
 	irq_set_pending(irq);
 }
+#elif defined(CONFIG_RISCV_S_MODE)
+/* In S-mode mip is read-only; set bits via sip (SSIP is writable via sip) */
+static inline void trigger_irq(int irq)
+{
+	uint32_t sip;
+
+	__asm__ volatile("csrrs %0, sip, %1\n" : "=r"(sip) : "r"(1 << irq));
+}
 #else
 static inline void trigger_irq(int irq)
 {
@@ -194,19 +202,19 @@ static inline void trigger_irq(int irq)
 #if XCHAL_NUM_INTERRUPTS > 32
 	switch (irq >> 5) {
 	case 0:
-		z_xt_set_intset(1 << irq);
+		z_xt_set_intset(1 << (irq & 0x1f));
 		break;
 	case 1:
-		z_xt_set_intset1(1 << irq);
+		z_xt_set_intset1(1 << (irq & 0x1f));
 		break;
 #if XCHAL_NUM_INTERRUPTS > 64
 	case 2:
-		z_xt_set_intset2(1 << irq);
+		z_xt_set_intset2(1 << (irq & 0x1f));
 		break;
 #endif
 #if XCHAL_NUM_INTERRUPTS > 96
 	case 3:
-		z_xt_set_intset3(1 << irq);
+		z_xt_set_intset3(1 << (irq & 0x1f));
 		break;
 #endif
 	default:
@@ -233,7 +241,15 @@ static inline void trigger_irq(int irq)
 	z_mips_enter_irq(irq);
 }
 
-#elif defined(CONFIG_CPU_CORTEX_R5) && defined(CONFIG_VIM)
+#elif defined(CONFIG_OPENRISC)
+extern void z_openrisc_enter_irq(int);
+
+static inline void trigger_irq(int irq)
+{
+	z_openrisc_enter_irq(irq);
+}
+
+#elif defined(CONFIG_CPU_CORTEX_R5) && defined(CONFIG_TI_VIM)
 
 extern void z_vim_arm_enter_irq(int);
 

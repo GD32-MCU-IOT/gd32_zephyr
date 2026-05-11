@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/pacs.h>
@@ -25,6 +26,7 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 #include "bap_common.h"
 #include "bap_stream_rx.h"
@@ -74,12 +76,16 @@ static struct bt_le_ext_adv *ext_adv;
 
 CREATE_FLAG(flag_stream_configured);
 CREATE_FLAG(flag_stream_started);
-static void print_ase_info(struct bt_bap_ep *ep, void *user_data)
+static bool print_ase_info(struct bt_bap_ep *ep, void *user_data)
 {
 	struct bt_bap_ep_info info;
 
+	ARG_UNUSED(user_data);
+
 	bt_bap_ep_get_info(ep, &info);
 	printk("ASE info: id %u state %u dir %u\n", info.id, info.state, info.dir);
+
+	return true;
 }
 
 static struct bt_bap_stream *stream_alloc(void)
@@ -99,6 +105,8 @@ static int lc3_config(struct bt_conn *conn, const struct bt_bap_ep *ep, enum bt_
 		      const struct bt_audio_codec_cfg *codec_cfg, struct bt_bap_stream **stream,
 		      struct bt_bap_qos_cfg_pref *const pref, struct bt_bap_ascs_rsp *rsp)
 {
+	int err;
+
 	printk("ASE Codec Config: conn %p ep %p dir %u\n", conn, ep, dir);
 
 	print_codec_cfg(codec_cfg);
@@ -112,9 +120,10 @@ static int lc3_config(struct bt_conn *conn, const struct bt_bap_ep *ep, enum bt_
 
 	printk("ASE Codec Config stream %p\n", *stream);
 
-	bt_bap_unicast_server_foreach_ep(conn, print_ase_info, NULL);
-
-	SET_FLAG(flag_stream_configured);
+	err = bt_bap_unicast_server_foreach_ep(conn, print_ase_info, NULL);
+	if (err != 0) {
+		FAIL("bt_bap_unicast_server_foreach_ep returned %d", err);
+	}
 
 	*pref = qos_pref;
 
@@ -125,6 +134,9 @@ static int lc3_reconfig(struct bt_bap_stream *stream, enum bt_audio_dir dir,
 			const struct bt_audio_codec_cfg *codec_cfg,
 			struct bt_bap_qos_cfg_pref *const pref, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(dir);
+	ARG_UNUSED(pref);
+
 	printk("ASE Codec Reconfig: stream %p\n", stream);
 
 	print_codec_cfg(codec_cfg);
@@ -139,6 +151,8 @@ static int lc3_qos(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg *qo
 {
 	struct audio_test_stream *test_stream = audio_test_stream_from_bap_stream(stream);
 
+	ARG_UNUSED(rsp);
+
 	printk("QoS: stream %p qos %p\n", stream, qos);
 
 	print_qos(qos);
@@ -151,6 +165,9 @@ static int lc3_qos(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg *qo
 static int lc3_enable(struct bt_bap_stream *stream, const uint8_t meta[], size_t meta_len,
 		      struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(meta);
+	ARG_UNUSED(rsp);
+
 	printk("Enable: stream %p meta_len %zu\n", stream, meta_len);
 
 	return 0;
@@ -158,6 +175,8 @@ static int lc3_enable(struct bt_bap_stream *stream, const uint8_t meta[], size_t
 
 static int lc3_start(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Start: stream %p\n", stream);
 
 	return 0;
@@ -186,6 +205,8 @@ static int lc3_metadata(struct bt_bap_stream *stream, const uint8_t meta[], size
 
 static int lc3_disable(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Disable: stream %p\n", stream);
 
 	return 0;
@@ -193,6 +214,8 @@ static int lc3_disable(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp
 
 static int lc3_stop(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Stop: stream %p\n", stream);
 
 	return 0;
@@ -200,6 +223,8 @@ static int lc3_stop(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 
 static int lc3_release(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Release: stream %p\n", stream);
 
 	return 0;
@@ -221,6 +246,25 @@ static const struct bt_bap_unicast_server_cb unicast_server_cb = {
 	.stop = lc3_stop,
 	.release = lc3_release,
 };
+
+static void stream_configured_cb(struct bt_bap_stream *stream,
+				 const struct bt_bap_qos_cfg_pref *pref)
+{
+	struct bt_conn *ep_conn;
+
+	ARG_UNUSED(pref);
+
+	printk("Configured stream %p\n", stream);
+
+	ep_conn = bt_bap_ep_get_conn(stream->ep);
+	if (ep_conn == NULL || stream->conn != ep_conn) {
+		FAIL("Invalid conn from endpoint: %p", ep_conn);
+		return;
+	}
+	bt_conn_unref(ep_conn);
+
+	SET_FLAG(flag_stream_configured);
+}
 
 static void stream_enabled_cb(struct bt_bap_stream *stream)
 {
@@ -279,6 +323,7 @@ static void stream_stopped_cb(struct bt_bap_stream *stream, uint8_t reason)
 }
 
 static struct bt_bap_stream_ops stream_ops = {
+	.configured = stream_configured_cb,
 	.enabled = stream_enabled_cb,
 	.started = stream_started_cb,
 	.stopped = stream_stopped_cb,
@@ -336,8 +381,11 @@ static void transceive_test_streams(void)
 	}
 
 	if (sink_stream != NULL) {
+		struct audio_test_stream *test_stream =
+			audio_test_stream_from_bap_stream(sink_stream);
+
 		printk("Waiting for data\n");
-		WAIT_FOR_FLAG(flag_audio_received);
+		WAIT_FOR_FLAG(test_stream->flag_audio_received);
 	}
 }
 
@@ -365,41 +413,89 @@ static void set_location(void)
 	printk("Location successfully set\n");
 }
 
-static void set_available_contexts(void)
+static void set_contexts(void)
 {
 	int err;
 
-	err = bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SINK,
-					     BT_AUDIO_CONTEXT_TYPE_MEDIA |
-						     BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL);
-	if (IS_ENABLED(CONFIG_BT_PAC_SNK) && err != 0) {
-		FAIL("Failed to set sink supported contexts (err %d)\n", err);
-		return;
+	if (IS_ENABLED(CONFIG_BT_PAC_SNK)) {
+		const enum bt_audio_context sink_ctx =
+			BT_AUDIO_CONTEXT_TYPE_MEDIA | BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL;
+
+		err = bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SINK, sink_ctx);
+		if (IS_ENABLED(CONFIG_BT_PAC_SNK) && err != 0) {
+			FAIL("Failed to set sink supported contexts (err %d)\n", err);
+			return;
+		}
+
+		err = bt_pacs_set_available_contexts(BT_AUDIO_DIR_SINK, sink_ctx);
+		if (IS_ENABLED(CONFIG_BT_PAC_SNK) && err != 0) {
+			FAIL("Failed to set sink available contexts (err %d)\n", err);
+			return;
+		}
 	}
 
-	err = bt_pacs_set_available_contexts(BT_AUDIO_DIR_SINK,
-					     BT_AUDIO_CONTEXT_TYPE_MEDIA |
-						     BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL);
-	if (IS_ENABLED(CONFIG_BT_PAC_SNK) && err != 0) {
-		FAIL("Failed to set sink available contexts (err %d)\n", err);
-		return;
+	if (IS_ENABLED(CONFIG_BT_PAC_SRC)) {
+		const enum bt_audio_context source_ctx = BT_AUDIO_CONTEXT_TYPE_NOTIFICATIONS;
+
+		err = bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SOURCE, source_ctx);
+		if (IS_ENABLED(CONFIG_BT_PAC_SRC) && err != 0) {
+			FAIL("Failed to set source supported contexts (err %d)\n", err);
+			return;
+		}
+
+		err = bt_pacs_set_available_contexts(BT_AUDIO_DIR_SOURCE, source_ctx);
+		if (IS_ENABLED(CONFIG_BT_PAC_SRC) && err != 0) {
+			FAIL("Failed to set source available contexts (err %d)\n", err);
+			return;
+		}
 	}
 
-	err = bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SOURCE,
-					     BT_AUDIO_CONTEXT_TYPE_NOTIFICATIONS);
-	if (IS_ENABLED(CONFIG_BT_PAC_SRC) && err != 0) {
-		FAIL("Failed to set source supported contexts (err %d)\n", err);
-		return;
+	printk("Contexts successfully set\n");
+}
+
+static void update_contexts(void)
+{
+	int err;
+
+	if (IS_ENABLED(CONFIG_BT_PAC_SNK)) {
+		/* Shift contexts by one to ensure a new value */
+		const enum bt_audio_context sink_ctx =
+			(bt_pacs_get_available_contexts(BT_AUDIO_DIR_SINK) << 1U) &
+			BT_AUDIO_CONTEXT_TYPE_ANY;
+
+		err = bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SINK, sink_ctx);
+		if (IS_ENABLED(CONFIG_BT_PAC_SNK) && err != 0) {
+			FAIL("Failed to set sink supported contexts (err %d)\n", err);
+			return;
+		}
+
+		err = bt_pacs_set_available_contexts(BT_AUDIO_DIR_SINK, sink_ctx);
+		if (IS_ENABLED(CONFIG_BT_PAC_SNK) && err != 0) {
+			FAIL("Failed to set sink available contexts (err %d)\n", err);
+			return;
+		}
 	}
 
-	err = bt_pacs_set_available_contexts(BT_AUDIO_DIR_SOURCE,
-					     BT_AUDIO_CONTEXT_TYPE_NOTIFICATIONS);
-	if (IS_ENABLED(CONFIG_BT_PAC_SRC) && err != 0) {
-		FAIL("Failed to set source available contexts (err %d)\n", err);
-		return;
+	if (IS_ENABLED(CONFIG_BT_PAC_SRC)) {
+		/* Shift contexts by one to ensure a new value */
+		const enum bt_audio_context source_ctx =
+			(bt_pacs_get_available_contexts(BT_AUDIO_DIR_SOURCE) << 1U) &
+			BT_AUDIO_CONTEXT_TYPE_ANY;
+
+		err = bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SOURCE, source_ctx);
+		if (err != 0) {
+			FAIL("Failed to set source supported contexts (err %d)\n", err);
+			return;
+		}
+
+		err = bt_pacs_set_available_contexts(BT_AUDIO_DIR_SOURCE, source_ctx);
+		if (err != 0) {
+			FAIL("Failed to set source available contexts (err %d)\n", err);
+			return;
+		}
 	}
 
-	printk("Available contexts successfully set\n");
+	printk("Contexts successfully updated\n");
 }
 
 static void init(void)
@@ -432,7 +528,7 @@ static void init(void)
 	printk("Bluetooth initialized\n");
 
 	err = bt_pacs_register(&pacs_param);
-	if (err) {
+	if (err != 0) {
 		FAIL("Could not register PACS (err %d)\n", err);
 		return;
 	}
@@ -461,7 +557,7 @@ static void init(void)
 	}
 
 	set_location();
-	set_available_contexts();
+	set_contexts();
 
 	for (size_t i = 0; i < ARRAY_SIZE(test_streams); i++) {
 		bt_bap_stream_cb_register(bap_stream_from_audio_test_stream(&test_streams[i]),
@@ -498,11 +594,13 @@ static void test_main(void)
 {
 	init();
 
-	/* TODO: When babblesim supports ISO, wait for audio stream to pass */
-
 	WAIT_FOR_FLAG(flag_connected);
-	WAIT_FOR_FLAG(flag_stream_configured);
 
+	/* Wait for signal to trigger context type changes */
+	backchannel_sync_wait_any();
+	update_contexts();
+
+	WAIT_FOR_FLAG(flag_stream_configured);
 
 	WAIT_FOR_FLAG(flag_stream_started);
 	transceive_test_streams();
@@ -515,6 +613,8 @@ static void test_main(void)
 static void restart_adv_cb(struct k_work *work)
 {
 	int err;
+
+	ARG_UNUSED(work);
 
 	printk("Restarting ext_adv after disconnect\n");
 
@@ -531,6 +631,8 @@ static K_WORK_DEFINE(restart_adv_work, restart_adv_cb);
 
 static void acl_disconnected(struct bt_conn *conn, uint8_t reason)
 {
+	ARG_UNUSED(reason);
+
 	if (conn != default_conn) {
 		return;
 	}

@@ -713,14 +713,14 @@ Given the following example project layout:
 * If this is built normally without ``FILE_SUFFIX`` being defined for ``native_sim`` then
   ``prj.conf`` and ``boards/native_sim.overlay`` will be used.
 
-* If this is build normally without ``FILE_SUFFIX`` being defined for ``qemu_cortex_m3`` then
+* If this is built normally without ``FILE_SUFFIX`` being defined for ``qemu_cortex_m3`` then
   ``prj.conf`` will be used, no application devicetree overlay will be used.
 
 * If this is built with ``FILE_SUFFIX`` set to ``mouse`` for ``native_sim`` then
   ``prj_mouse.conf`` and ``boards/native_sim.overlay`` will be used (there is no
   ``native_sim_mouse.overlay`` file so it falls back to ``native_sim.overlay``).
 
-* If this is build with ``FILE_SUFFIX`` set to ``mouse`` for ``qemu_cortex_m3`` then
+* If this is built with ``FILE_SUFFIX`` set to ``mouse`` for ``qemu_cortex_m3`` then
   ``prj_mouse.conf`` will be used and ``boards/qemu_cortex_m3_mouse.overlay`` will be used.
 
 Application-Specific Code
@@ -974,13 +974,14 @@ support files to make minor adjustments to a board configuration without
 duplicating all the files described in :ref:`create-your-board-directory` for
 each revision.
 
-To build for a particular revision, use ``<board>@<revision>`` instead of plain
-``<board>``. For example:
+To build for a particular revision, use ``<board>@<revision>`` or
+``<board>@<revision>/<qualifiers>`` instead of plain ``<board>`` or
+``<board>/<qualifiers>``. For example:
 
 .. zephyr-app-commands::
    :tool: all
    :cd-into:
-   :board: <board>@<revision>
+   :board: nrf9160dk@0.14.0/nrf9160/ns
    :goals: build
    :compact:
 
@@ -1094,7 +1095,7 @@ again.
 
 .. note::
 
-   If the (Linux only) :ref:`Zephyr SDK <toolchain_zephyr_sdk>` is installed, the ``run``
+   If the :ref:`Zephyr SDK <toolchain_zephyr_sdk>` is installed, the ``run``
    target will use the SDK's QEMU binary by default. To use another version of
    QEMU, :ref:`set the environment variable <env_vars>` ``QEMU_BIN_PATH``
    to the path of the QEMU binary you want to use instead.
@@ -1160,6 +1161,7 @@ will be needed when submitting to Zephyr.
 The contents of ``my_custom_board`` should follow the same guidelines for any
 Zephyr board, and provide the following files::
 
+    board.yml
     my_custom_board_defconfig
     my_custom_board.dts
     my_custom_board.yaml
@@ -1240,7 +1242,7 @@ more SoCs into the menu.
 
 The Kconfig files above may describe the SoC or load additional SoC Kconfig files.
 
-An example of loading ``stm31l0`` specific Kconfig files in this structure:
+An example of loading ``stm32l0`` specific Kconfig files in this structure:
 
 .. code-block:: none
 

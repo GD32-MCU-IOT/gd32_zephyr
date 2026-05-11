@@ -94,6 +94,31 @@ struct gpio_atcgpio100_data {
 	struct k_spinlock lock;
 };
 
+static void gpio_atcgpio100_set_pull(const struct device *port,
+				     uint32_t pin_mask,
+				     gpio_flags_t flags)
+{
+	uint32_t pull_enable = sys_read32(GPIO_PUEN(port));
+
+	if (flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)) {
+		uint32_t pull_type = sys_read32(GPIO_PTYP(port));
+
+		if (flags & GPIO_PULL_UP) {
+			pull_type &= ~pin_mask;
+		} else {
+			pull_type |= pin_mask;
+		}
+
+		sys_write32(pull_type, GPIO_PTYP(port));
+
+		pull_enable |= pin_mask;
+	} else {
+		pull_enable &= ~pin_mask;
+	}
+
+	sys_write32(pull_enable, GPIO_PUEN(port));
+}
+
 static int gpio_atcgpio100_config(const struct device *port,
 				  gpio_pin_t pin,
 				  gpio_flags_t flags)
@@ -123,6 +148,9 @@ static int gpio_atcgpio100_config(const struct device *port,
 
 		key = k_spin_lock(&data->lock);
 
+		/* Set pull-up/pull-down */
+		gpio_atcgpio100_set_pull(port, pin_mask, flags);
+
 		/* Set channel output */
 		port_value = sys_read32(GPIO_DIR(port));
 		sys_write32((port_value | pin_mask), GPIO_DIR(port));
@@ -130,12 +158,10 @@ static int gpio_atcgpio100_config(const struct device *port,
 		k_spin_unlock(&data->lock, key);
 
 	} else if (flags & GPIO_INPUT) {
-
-		if (flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)) {
-			return -ENOTSUP;
-		}
-
 		key = k_spin_lock(&data->lock);
+
+		/* Set pull-up/pull-down */
+		gpio_atcgpio100_set_pull(port, pin_mask, flags);
 
 		/* Set de-bounce */
 		if (flags & ATCGPIO100_GPIO_DEBOUNCE) {
@@ -358,10 +384,7 @@ static int gpio_atcgpio100_init(const struct device *port)
 									\
 	static const struct gpio_atcgpio100_config			\
 		gpio_atcgpio100_config_##n = {				\
-			.common = {					\
-				.port_pin_mask =			\
-				GPIO_PORT_PIN_MASK_FROM_DT_INST(n),	\
-			},						\
+			.common = GPIO_COMMON_CONFIG_FROM_DT_INST(n),	\
 			.base = DT_INST_REG_ADDR(n),			\
 			.irq_num = DT_INST_IRQN(n),			\
 			.cfg_func = gpio_atcgpio100_cfg_func_##n	\

@@ -7,6 +7,7 @@ import io
 from logging import WARNING
 import os
 from pathlib import Path
+import textwrap
 
 import pytest
 
@@ -47,7 +48,7 @@ def test_warnings(caplog):
 
     enums_hpath = hpath('test-bindings/enums.yaml')
     expected_warnings = [
-        f"'oldprop' is marked as deprecated in 'properties:' in {hpath('test-bindings/deprecated.yaml')} for node /test-deprecated.",
+        f"'oldprop' is marked as deprecated in 'properties:' in '{hpath('test-bindings/deprecated.yaml')}' for node /test-deprecated.",
         "unit address and first address in 'reg' (0x1) don't match for /reg-zero-size-cells/node",
         "unit address and first address in 'reg' (0x5) don't match for /reg-ranges/parent/node",
         "unit address and first address in 'reg' (0x30000000200000001) don't match for /reg-nested-ranges/grandparent/parent/node",
@@ -125,10 +126,103 @@ def test_interrupts():
         edtlib.ControllerAndData(node=node, controller=controller_2, data={'one': 0, 'two': 0, 'three': 5}, name=None, basename=None)
     ]
 
-    node = edt.get_node("/interrupt-map-bitops-test/node@70000000E")
+    node = edt.get_node("/interrupt-map-bitops-test/node@70000000e")
     assert node.interrupts == [
         edtlib.ControllerAndData(node=node, controller=edt.get_node('/interrupt-map-bitops-test/controller'), data={'one': 3, 'two': 2}, name=None, basename=None)
     ]
+
+
+def test_maps():
+    '''Tests for the maps property.'''
+    with from_here():
+        edt = edtlib.EDT("test.dts", ["test-bindings"])
+
+    nexus = edt.get_node("/interrupt-map-test/nexus")
+    controller_0 = edt.get_node("/interrupt-map-test/controller-0")
+    controller_1 = edt.get_node("/interrupt-map-test/controller-1")
+    controller_2 = edt.get_node("/interrupt-map-test/controller-2")
+    controller_no_addr = edt.get_node("/interrupt-map-no-address/controller")
+
+    assert len(nexus.maps.keys()) == 1
+    assert "interrupt" in nexus.maps
+
+    entries = nexus.maps["interrupt"]
+    assert len(entries) == 7
+
+    assert entries[0] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 0],
+        child_specifiers=[0, 0],
+        parent=controller_0,
+        parent_addresses=[0],
+        parent_specifiers=[0],
+        basename="interrupt",
+    )
+
+    assert entries[1] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 0],
+        child_specifiers=[0, 1],
+        parent=controller_1,
+        parent_addresses=[0, 0],
+        parent_specifiers=[0, 1],
+        basename="interrupt",
+    )
+
+    assert entries[2] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 0],
+        child_specifiers=[0, 2],
+        parent=controller_2,
+        parent_addresses=[0, 0, 0],
+        parent_specifiers=[0, 0, 2],
+        basename="interrupt",
+    )
+
+    assert entries[3] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 1],
+        child_specifiers=[0, 0],
+        parent=controller_0,
+        parent_addresses=[0],
+        parent_specifiers=[3],
+        basename="interrupt",
+    )
+
+    assert entries[4] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 1],
+        child_specifiers=[0, 1],
+        parent=controller_1,
+        parent_addresses=[0, 0],
+        parent_specifiers=[0, 4],
+        basename="interrupt",
+    )
+
+    assert entries[5] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 1],
+        child_specifiers=[0, 2],
+        parent=controller_2,
+        parent_addresses=[0, 0, 0],
+        parent_specifiers=[0, 0, 5],
+        basename="interrupt",
+    )
+
+    assert entries[6] == edtlib.MapEntry(
+        node=nexus,
+        child_addresses=[0, 1],
+        child_specifiers=[1, 0],
+        parent=controller_no_addr,
+        parent_addresses=[],
+        parent_specifiers=[6],
+        basename="interrupt",
+    )
+
+    empty = edt.get_node("/interrupt-map-test/empty")
+    assert len(empty.maps) == 1
+    assert "interrupt" in empty.maps
+    assert len(empty.maps["interrupt"]) == 0
 
 def test_ranges():
     '''Tests for the ranges property'''
@@ -339,7 +433,7 @@ def test_include_filters():
             binding = edtlib.Binding("test-bindings-include/include-invalid-keys.yaml", fname2path)
     value_str = str(e.value)
     assert value_str.startswith(
-        "'include:' in test-bindings-include/include-invalid-keys.yaml should not have these "
+        "'include:' in 'test-bindings-include/include-invalid-keys.yaml' should not have these "
         "unexpected contents: ")
     assert 'bad-key-1' in value_str
     assert 'bad-key-2' in value_str
@@ -349,7 +443,7 @@ def test_include_filters():
             binding = edtlib.Binding("test-bindings-include/include-invalid-type.yaml", fname2path)
     value_str = str(e.value)
     assert value_str.startswith(
-        "'include:' in test-bindings-include/include-invalid-type.yaml "
+        "'include:' in 'test-bindings-include/include-invalid-type.yaml' "
         "should be a string or list, but has type ")
 
     with pytest.raises(edtlib.EDTError) as e:
@@ -358,7 +452,7 @@ def test_include_filters():
     value_str = str(e.value)
     assert value_str.startswith("'include:' element")
     assert value_str.endswith(
-        "in test-bindings-include/include-no-name.yaml should have a 'name' key")
+        "in 'test-bindings-include/include-no-name.yaml' should have a 'name' key")
 
     with from_here():
         binding = edtlib.Binding("test-bindings-include/allowlist.yaml", fname2path)
@@ -568,10 +662,26 @@ def test_binding_top_key():
     title = binding.title
     description = binding.description
     compatible = binding.compatible
+    examples = binding.examples[0]
 
     assert title == "Test binding"
     assert description == "Property default value test"
     assert compatible == "defaults"
+    assert examples == textwrap.dedent("""\
+    / {
+        leds {
+            compatible = "gpio-leds";
+
+            uled: led {
+                gpios = <&gpioe 12 GPIO_ACTIVE_HIGH>;
+            };
+        };
+
+        aliases {
+            led0 = &uled;
+        };
+    };
+    """)
 
 def test_child_binding():
     '''Test 'child-binding:' in bindings'''
@@ -654,6 +764,10 @@ def test_props():
                               'foo-gpios',
                               [(ctrl_1, {'gpio-one': 1})])
 
+    verify_phandle_array_prop(props_node,
+                              'bar-io-channels',
+                              [(ctrl_2, {'io-channel-one': 2})])
+
 def test_nexus():
     '''Test <prefix>-map via gpio-map (the most common case).'''
     with from_here():
@@ -673,7 +787,9 @@ def test_prop_defaults():
     with from_here():
         edt = edtlib.EDT("test.dts", ["test-bindings"])
 
-    verify_props(edt.get_node("/defaults"),
+    node = edt.get_node("/defaults")
+
+    verify_props(node,
                  ['int',
                   'array', 'uint8-array',
                   'string', 'string-array',
@@ -686,6 +802,13 @@ def test_prop_defaults():
                   [1,2,3], b'\x89\xab\xcd',
                   'hello', ['hello','there'],
                   234])
+
+    # Verify HexInt preservation in PropertySpec.default (raw binding values)
+    # uint8-array default [0x89, 0xAB, 0xCD] should have HexInt elements
+    assert all(isinstance(v, edtlib.HexInt) for v in node.props["uint8-array"].spec.default)
+    # int/array defaults (decimal in binding) should NOT be HexInt
+    assert not isinstance(node.props["int"].spec.default, edtlib.HexInt)
+    assert not any(isinstance(v, edtlib.HexInt) for v in node.props["array"].spec.default)
 
 def test_prop_enums():
     '''test properties with enum: in the binding'''
@@ -772,6 +895,14 @@ def test_binding_inference():
     verify_phandle_array_prop(zephyr_user,
                               'phandle-array-foos',
                               [(edt.get_node('/ctrl-2'), {'one': 1, 'two': 2})])
+
+    verify_phandle_array_prop(zephyr_user,
+                              'foo-gpios',
+                              [(ctrl_1, {'gpio-one': 1})])
+
+    verify_phandle_array_prop(zephyr_user,
+                              'bar-io-channels',
+                              [(ctrl_2, {'io-channel-one': 2})])
 
 def test_multi_bindings():
     '''Test having multiple directories with bindings'''
@@ -897,6 +1028,33 @@ def test_wrong_props():
         value_str = str(e.value)
         assert value_str.startswith("'wrong-phandle-array-name' in 'properties:'")
         assert value_str.endswith("but no 'specifier-space' was provided.")
+
+        with pytest.raises(edtlib.EDTError) as e:
+            edtlib.Binding("test-wrong-bindings/wrong-status-default.yaml", None)
+        value_str = str(e.value)
+        assert value_str.startswith("invalid default value 'okay' specified for property "
+                                    "'status' in binding ")
+        assert "test-wrong-bindings/wrong-status-default.yaml" in value_str
+        assert value_str.endswith("; this property's default behavior is "
+                                  "defined in DT Specification §2.3.4 and a default in a binding is invalid")
+
+        with pytest.raises(edtlib.EDTError) as e:
+            edtlib.Binding("test-wrong-bindings/wrong-address-cells-default.yaml", None)
+        value_str = str(e.value)
+        assert value_str.startswith("invalid default value '2' specified for property "
+                                    "'#address-cells' in binding ")
+        assert "test-wrong-bindings/wrong-address-cells-default.yaml" in value_str
+        assert value_str.endswith("; this property's default behavior is "
+                                  "defined in DT Specification §2.3.5 and a default in a binding is invalid")
+
+        with pytest.raises(edtlib.EDTError) as e:
+            edtlib.Binding("test-wrong-bindings/wrong-size-cells-default.yaml", None)
+        value_str = str(e.value)
+        assert value_str.startswith("invalid default value '1' specified for property "
+                                    "'#size-cells' in binding ")
+        assert "test-wrong-bindings/wrong-size-cells-default.yaml" in value_str
+        assert value_str.endswith("; this property's default behavior is "
+                                  "defined in DT Specification §2.3.5 and a default in a binding is invalid")
 
 
 def test_deepcopy():

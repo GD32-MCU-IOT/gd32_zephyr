@@ -9,8 +9,9 @@
 #include <zephyr/toolchain.h>
 #include <zephyr/drivers/misc/stm32_wkup_pins/stm32_wkup_pins.h>
 
-#include <stm32_ll_cortex.h>
+#include <stm32_common.h>
 #include <stm32_ll_pwr.h>
+#include <stm32_ll_system.h>
 
 void z_sys_poweroff(void)
 {
@@ -24,9 +25,8 @@ void z_sys_poweroff(void)
 	LL_PWR_SetRadioSBRetention(LL_PWR_RADIO_SB_NO_RETENTION);
 	LL_PWR_SetSRAM1SBRetention(LL_PWR_SRAM1_SB_NO_RETENTION);
 	LL_PWR_SetSRAM2SBRetention(LL_PWR_SRAM2_SB_NO_RETENTION);
-	LL_LPM_EnableDeepSleep();
 
-	__WFI();
+	LL_DBGMCU_DisableDBGStandbyMode();
 
-	CODE_UNREACHABLE;
+	stm32_enter_poweroff();
 }

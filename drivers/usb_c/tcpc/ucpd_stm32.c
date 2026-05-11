@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(ucpd_stm32, CONFIG_USBC_LOG_LEVEL);
 
+#include <stm32_bitops.h>
 #include <zephyr/device.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/kernel.h>
@@ -53,8 +54,7 @@ static bool ucpd_msg_is_good_crc(union pd_header header)
 	 * Good CRC is a control message (no data objects) with GOOD_CRC
 	 * message type in the header.
 	 */
-	return (header.number_of_data_objects == 0 &&
-		header.extended == 0 &&
+	return (header.number_of_data_objects == 0 && header.extended == 0 &&
 		header.message_type == PD_CTRL_GOOD_CRC);
 }
 
@@ -85,8 +85,7 @@ static void ucpd_tx_data_byte(const struct device *dev)
 	const struct tcpc_config *const config = dev->config;
 	int index = data->ucpd_tx_active_buffer->msg_index++;
 
-	LL_UCPD_WriteData(config->ucpd_port,
-			  data->ucpd_tx_active_buffer->data.msg[index]);
+	LL_UCPD_WriteData(config->ucpd_port, data->ucpd_tx_active_buffer->data.msg[index]);
 }
 
 /**
@@ -111,15 +110,13 @@ static void ucpd_tx_interrupts_enable(const struct device *dev, bool enable)
 	const struct tcpc_config *const config = dev->config;
 	uint32_t imr;
 
-	imr = LL_UCPD_ReadReg(config->ucpd_port, IMR);
+	imr = stm32_reg_read(&config->ucpd_port->IMR);
 
 	if (enable) {
-		LL_UCPD_WriteReg(config->ucpd_port, ICR, UCPD_ICR_TX_INT_MASK);
-		LL_UCPD_WriteReg(config->ucpd_port, IMR,
-				 imr | UCPD_IMR_TX_INT_MASK);
+		stm32_reg_write(&config->ucpd_port->ICR, UCPD_ICR_TX_INT_MASK);
+		stm32_reg_write(&config->ucpd_port->IMR, imr | UCPD_IMR_TX_INT_MASK);
 	} else {
-		LL_UCPD_WriteReg(config->ucpd_port, IMR,
-				 imr & ~UCPD_IMR_TX_INT_MASK);
+		stm32_reg_write(&config->ucpd_port->IMR, imr & ~UCPD_IMR_TX_INT_MASK);
 	}
 }
 
@@ -161,10 +158,10 @@ static uint32_t ucpd_get_cc_enable_mask(const struct device *dev)
 	 * not being used for Power Delivery messages.
 	 */
 	if (data->ucpd_vconn_enable) {
-		uint32_t cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
+		uint32_t cr = stm32_reg_read(&config->ucpd_port->CR);
 		int pol = (cr & UCPD_CR_PHYCCSEL);
 
-		/* Dissable CC line that's used for VCONN */
+		/* Disable CC line that's used for VCONN */
 		mask &= ~BIT(UCPD_CR_CCENABLE_Pos + !pol);
 	}
 
@@ -177,8 +174,7 @@ static uint32_t ucpd_get_cc_enable_mask(const struct device *dev)
  * @retval 0 on success
  * @retval -EIO on failure
  */
-static int ucpd_get_cc(const struct device *dev,
-		       enum tc_cc_voltage_state *cc1,
+static int ucpd_get_cc(const struct device *dev, enum tc_cc_voltage_state *cc1,
 		       enum tc_cc_voltage_state *cc2)
 {
 	const struct tcpc_config *const config = dev->config;
@@ -207,15 +203,13 @@ static int ucpd_get_cc(const struct device *dev,
 	 */
 
 	/* Get vstate_ccx values and power role */
-	sr = LL_UCPD_ReadReg(config->ucpd_port, SR);
+	sr = stm32_reg_read(&config->ucpd_port->SR);
 
 	/* Get Rp or Rd active */
 	anamode = LL_UCPD_GetRole(config->ucpd_port);
-	vstate_cc1 = (sr & UCPD_SR_TYPEC_VSTATE_CC1_Msk) >>
-		     UCPD_SR_TYPEC_VSTATE_CC1_Pos;
+	vstate_cc1 = (sr & UCPD_SR_TYPEC_VSTATE_CC1_Msk) >> UCPD_SR_TYPEC_VSTATE_CC1_Pos;
 
-	vstate_cc2 = (sr & UCPD_SR_TYPEC_VSTATE_CC2_Msk) >>
-		     UCPD_SR_TYPEC_VSTATE_CC2_Pos;
+	vstate_cc2 = (sr & UCPD_SR_TYPEC_VSTATE_CC2_Msk) >> UCPD_SR_TYPEC_VSTATE_CC2_Pos;
 
 	/* Do circular shift if port == source */
 	if (anamode) {
@@ -275,23 +269,22 @@ static int ucpd_set_vconn(const struct device *dev, bool enable)
 	/* Update VCONN on/off status. Do this before getting cc enable mask */
 	data->ucpd_vconn_enable = enable;
 
-	cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
+	cr = stm32_reg_read(&config->ucpd_port->CR);
 	cr &= ~UCPD_CR_CCENABLE_Msk;
 	cr |= ucpd_get_cc_enable_mask(dev);
 
 	/* Apply cc pull resistor change */
-	LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+	stm32_reg_write(&config->ucpd_port->CR, cr);
 
 #ifdef CONFIG_SOC_SERIES_STM32G0X
 	update_stm32g0x_cc_line(config->ucpd_port);
 #endif
 
 	/* Get CC line that VCONN is active on */
-	data->ucpd_vconn_cc = (cr & UCPD_CR_CCENABLE_0) ?
-				TC_POLARITY_CC2 : TC_POLARITY_CC1;
+	data->ucpd_vconn_cc = (cr & UCPD_CR_CCENABLE_0) ? TC_POLARITY_CC2 : TC_POLARITY_CC1;
 
 	/* Call user supplied callback to set vconn */
-	ret = data->vconn_cb(dev, data->ucpd_vconn_cc, enable);
+	ret = data->vconn_cb(dev, data->usbc_dev, data->ucpd_vconn_cc, enable);
 
 	return ret;
 }
@@ -315,7 +308,7 @@ static int ucpd_vconn_discharge(const struct device *dev, bool enable)
 
 	if (data->vconn_discharge_cb) {
 		/* Use DPM supplied VCONN Discharge */
-		return data->vconn_discharge_cb(dev, data->ucpd_vconn_cc, enable);
+		return data->vconn_discharge_cb(dev, data->usbc_dev, data->ucpd_vconn_cc, enable);
 	}
 
 	/* Use TCPC VCONN Discharge */
@@ -371,7 +364,7 @@ static void dead_battery(const struct device *dev, bool en)
 	const struct tcpc_config *const config = dev->config;
 	uint32_t cr;
 
-	cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
+	cr = stm32_reg_read(&config->ucpd_port->CR);
 
 	if (en) {
 		cr |= UCPD_CR_DBATTEN;
@@ -379,13 +372,13 @@ static void dead_battery(const struct device *dev, bool en)
 		cr &= ~UCPD_CR_DBATTEN;
 	}
 
-	LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+	stm32_reg_write(&config->ucpd_port->CR, cr);
 	update_stm32g0x_cc_line(config->ucpd_port);
 #else
 	if (en) {
-		CLEAR_BIT(PWR->CR3, PWR_CR3_UCPD_DBDIS);
+		stm32_reg_clear_bits(&PWR->CR3, PWR_CR3_UCPD_DBDIS);
 	} else {
-		SET_BIT(PWR->CR3, PWR_CR3_UCPD_DBDIS);
+		stm32_reg_set_bits(&PWR->CR3, PWR_CR3_UCPD_DBDIS);
 	}
 #endif
 	data->dead_battery_active = en;
@@ -397,8 +390,7 @@ static void dead_battery(const struct device *dev, bool en)
  * @retval 0 on success
  * @retval -EIO on failure
  */
-static int ucpd_set_cc(const struct device *dev,
-		       enum tc_cc_pull cc_pull)
+static int ucpd_set_cc(const struct device *dev, enum tc_cc_pull cc_pull)
 {
 	const struct tcpc_config *const config = dev->config;
 	struct tcpc_data *data = dev->data;
@@ -409,7 +401,7 @@ static int ucpd_set_cc(const struct device *dev,
 		dead_battery(dev, false);
 	}
 
-	cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
+	cr = stm32_reg_read(&config->ucpd_port->CR);
 
 	/*
 	 * Always set ANASUBMODE to match desired Rp. TCPM layer has a valid
@@ -431,7 +423,7 @@ static int ucpd_set_cc(const struct device *dev,
 	}
 
 	/* Update pull values */
-	LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+	stm32_reg_write(&config->ucpd_port->CR, cr);
 
 #ifdef CONFIG_SOC_SERIES_STM32G0X
 	update_stm32g0x_cc_line(config->ucpd_port);
@@ -448,13 +440,12 @@ static int ucpd_set_cc(const struct device *dev,
  * @retval -EIO on failure
  * @retval -ENOTSUP if polarity is not supported
  */
-static int ucpd_cc_set_polarity(const struct device *dev,
-				enum tc_cc_polarity polarity)
+static int ucpd_cc_set_polarity(const struct device *dev, enum tc_cc_polarity polarity)
 {
 	const struct tcpc_config *const config = dev->config;
 	uint32_t cr;
 
-	cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
+	cr = stm32_reg_read(&config->ucpd_port->CR);
 
 	/*
 	 * Polarity impacts the PHYCCSEL, CCENABLE, and CCxTCDIS fields. This
@@ -472,7 +463,7 @@ static int ucpd_cc_set_polarity(const struct device *dev,
 	}
 
 	/* Update polarity */
-	LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+	stm32_reg_write(&config->ucpd_port->CR, cr);
 
 	return 0;
 }
@@ -486,11 +477,6 @@ static int ucpd_cc_set_polarity(const struct device *dev,
 static int ucpd_set_rx_enable(const struct device *dev, bool enable)
 {
 	const struct tcpc_config *const config = dev->config;
-	uint32_t imr;
-	uint32_t cr;
-
-	imr = LL_UCPD_ReadReg(config->ucpd_port, IMR);
-	cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
 
 	/*
 	 * USB PD receiver enable is controlled by the bit PHYRXEN in
@@ -498,16 +484,12 @@ static int ucpd_set_rx_enable(const struct device *dev, bool enable)
 	 */
 	if (enable) {
 		/* Clear the RX alerts bits */
-		LL_UCPD_WriteReg(config->ucpd_port, ICR, UCPD_ICR_RX_INT_MASK);
-		imr |= UCPD_IMR_RX_INT_MASK;
-		cr |= UCPD_CR_PHYRXEN;
-		LL_UCPD_WriteReg(config->ucpd_port, IMR, imr);
-		LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+		stm32_reg_write(&config->ucpd_port->ICR, UCPD_ICR_RX_INT_MASK);
+		stm32_reg_set_bits(&config->ucpd_port->IMR, UCPD_IMR_RX_INT_MASK);
+		stm32_reg_set_bits(&config->ucpd_port->CR, UCPD_CR_PHYRXEN);
 	} else {
-		imr &= ~UCPD_IMR_RX_INT_MASK;
-		cr &= ~UCPD_CR_PHYRXEN;
-		LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
-		LL_UCPD_WriteReg(config->ucpd_port, IMR, imr);
+		stm32_reg_clear_bits(&config->ucpd_port->IMR, UCPD_IMR_RX_INT_MASK);
+		stm32_reg_clear_bits(&config->ucpd_port->CR, UCPD_CR_PHYRXEN);
 	}
 
 	return 0;
@@ -519,8 +501,7 @@ static int ucpd_set_rx_enable(const struct device *dev, bool enable)
  * @retval 0 on success
  * @retval -EIO on failure
  */
-static int ucpd_set_roles(const struct device *dev,
-			  enum tc_power_role power_role,
+static int ucpd_set_roles(const struct device *dev, enum tc_power_role power_role,
 			  enum tc_data_role data_role)
 {
 	struct tcpc_data *data = dev->data;
@@ -550,16 +531,11 @@ static int ucpd_sop_prime_enable(const struct device *dev, bool enable)
 /**
  * @brief State transmitting a message
  */
-static void ucpd_start_transmit(const struct device *dev,
-				enum ucpd_tx_msg msg_type)
+static void ucpd_start_transmit(const struct device *dev, enum ucpd_tx_msg msg_type)
 {
 	struct tcpc_data *data = dev->data;
 	const struct tcpc_config *const config = dev->config;
 	enum pd_packet_type type;
-	uint32_t cr;
-	uint32_t imr;
-
-	cr = LL_UCPD_ReadReg(config->ucpd_port, CR);
 
 	/* Select the correct tx descriptor */
 	data->ucpd_tx_active_buffer = &data->ucpd_tx_buffers[msg_type];
@@ -584,16 +560,12 @@ static void ucpd_start_transmit(const struct device *dev,
 		 * register to initiate.
 		 */
 		/* Enable interrupt for Hard Reset sent/discarded */
-		LL_UCPD_WriteReg(config->ucpd_port, ICR,
-				 UCPD_ICR_HRSTDISCCF | UCPD_ICR_HRSTSENTCF);
+		stm32_reg_write(&config->ucpd_port->ICR, UCPD_ICR_HRSTDISCCF | UCPD_ICR_HRSTSENTCF);
 
-		imr = LL_UCPD_ReadReg(config->ucpd_port, IMR);
-		imr |= UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE;
-		LL_UCPD_WriteReg(config->ucpd_port, IMR, imr);
-
+		stm32_reg_set_bits(&config->ucpd_port->IMR,
+				   UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE);
 		/* Initiate Hard Reset */
-		cr |= UCPD_CR_TXHRST;
-		LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+		stm32_reg_set_bits(&config->ucpd_port->CR, UCPD_CR_TXHRST);
 	} else if (type != PD_PACKET_MSG_INVALID) {
 		int msg_len = 0;
 		int mode;
@@ -630,14 +602,11 @@ static void ucpd_start_transmit(const struct device *dev,
 		LL_UCPD_WriteTxPaySize(config->ucpd_port, msg_len);
 
 		/* Set tx mode */
-		cr &= ~UCPD_CR_TXMODE_Msk;
-		cr |= mode;
-		LL_UCPD_WriteReg(config->ucpd_port, CR, cr);
+		stm32_reg_modify_bits(&config->ucpd_port->CR, UCPD_CR_TXMODE_Msk, mode);
 
 		/* Index into ordset enum for start of packet */
 		if (type <= PD_PACKET_CABLE_RESET) {
-			LL_UCPD_WriteTxOrderSet(config->ucpd_port,
-						ucpd_txorderset[type]);
+			LL_UCPD_WriteTxOrderSet(config->ucpd_port, ucpd_txorderset[type]);
 		}
 
 		/* Reset msg byte index */
@@ -715,12 +684,11 @@ static void ucpd_manage_tx(struct alert_info *info)
 				ucpd_set_tx_state(info->dev, STATE_ACTIVE_TCPM);
 				msg_src = TX_MSG_TCPM;
 				/* Save msgID required for GoodCRC check */
-				hdr.raw_value =
-					data->ucpd_tx_buffers[TX_MSG_TCPM].data.header;
+				hdr.raw_value = data->ucpd_tx_buffers[TX_MSG_TCPM].data.header;
 				data->msg_id_match = hdr.message_id;
-				data->tx_retry_max = hdr.specification_revision == PD_REV30 ?
-						     UCPD_N_RETRY_COUNT_REV30 :
-						     UCPD_N_RETRY_COUNT_REV20;
+				data->tx_retry_max = hdr.specification_revision == PD_REV30
+							     ? UCPD_N_RETRY_COUNT_REV30
+							     : UCPD_N_RETRY_COUNT_REV20;
 			}
 		}
 
@@ -745,7 +713,7 @@ static void ucpd_manage_tx(struct alert_info *info)
 			/* Start the GoodCRC RX Timer */
 			k_timer_start(&data->goodcrc_rx_timer, K_USEC(1000), K_NO_WAIT);
 		} else if (atomic_test_and_clear_bit(&info->evt, UCPD_EVT_TX_MSG_DISC) ||
-			  atomic_test_and_clear_bit(&info->evt, UCPD_EVT_TX_MSG_FAIL)) {
+			   atomic_test_and_clear_bit(&info->evt, UCPD_EVT_TX_MSG_FAIL)) {
 			if (data->tx_retry_count < data->tx_retry_max) {
 				if (atomic_test_and_clear_bit(&info->evt, UCPD_EVT_RX_MSG)) {
 					/*
@@ -756,12 +724,10 @@ static void ucpd_manage_tx(struct alert_info *info)
 					 * being active from the message that
 					 * was just received.
 					 */
-					ucpd_set_tx_state(info->dev,
-							  STATE_IDLE);
+					ucpd_set_tx_state(info->dev, STATE_IDLE);
 					ucpd_notify_handler(info,
-							TCPC_ALERT_TRANSMIT_MSG_DISCARDED);
-					ucpd_set_tx_state(info->dev,
-							  STATE_IDLE);
+							    TCPC_ALERT_TRANSMIT_MSG_DISCARDED);
+					ucpd_set_tx_state(info->dev, STATE_IDLE);
 				} else {
 					/*
 					 * Tx attempt failed. Remain in this
@@ -774,9 +740,9 @@ static void ucpd_manage_tx(struct alert_info *info)
 				enum tcpc_alert status;
 
 				status = (atomic_test_and_clear_bit(&info->evt,
-								UCPD_EVT_TX_MSG_FAIL)) ?
-					 TCPC_ALERT_TRANSMIT_MSG_FAILED :
-					 TCPC_ALERT_TRANSMIT_MSG_DISCARDED;
+								    UCPD_EVT_TX_MSG_FAIL))
+						 ? TCPC_ALERT_TRANSMIT_MSG_FAILED
+						 : TCPC_ALERT_TRANSMIT_MSG_DISCARDED;
 				ucpd_set_tx_state(info->dev, STATE_IDLE);
 				ucpd_notify_handler(info, status);
 			}
@@ -785,8 +751,8 @@ static void ucpd_manage_tx(struct alert_info *info)
 
 	case STATE_ACTIVE_CRC:
 		if (atomic_test_bit(&info->evt, UCPD_EVT_TX_MSG_SUCCESS) ||
-				atomic_test_bit(&info->evt, UCPD_EVT_TX_MSG_FAIL) ||
-				atomic_test_bit(&info->evt, UCPD_EVT_TX_MSG_DISC)) {
+		    atomic_test_bit(&info->evt, UCPD_EVT_TX_MSG_FAIL) ||
+		    atomic_test_bit(&info->evt, UCPD_EVT_TX_MSG_DISC)) {
 			atomic_clear_bit(&info->evt, UCPD_EVT_TX_MSG_SUCCESS);
 			atomic_clear_bit(&info->evt, UCPD_EVT_TX_MSG_FAIL);
 			atomic_clear_bit(&info->evt, UCPD_EVT_TX_MSG_DISC);
@@ -917,8 +883,7 @@ static void ucpd_alert_handler(struct k_work *item)
 /**
  * @brief Sends a goodCRC message
  */
-static void ucpd_send_good_crc(const struct device *dev,
-			       union pd_header rx_header)
+static void ucpd_send_good_crc(const struct device *dev, union pd_header rx_header)
 {
 	struct tcpc_data *data = dev->data;
 	const struct tcpc_config *const config = dev->config;
@@ -969,8 +934,7 @@ static void ucpd_send_good_crc(const struct device *dev,
 
 	/* Good CRC is header with no other objects */
 	data->ucpd_tx_buffers[TX_MSG_GOOD_CRC].msg_len = MSG_HEADER_SIZE;
-	data->ucpd_tx_buffers[TX_MSG_GOOD_CRC].data.header =
-		tx_header.raw_value;
+	data->ucpd_tx_buffers[TX_MSG_GOOD_CRC].data.header = tx_header.raw_value;
 	data->ucpd_tx_buffers[TX_MSG_GOOD_CRC].type = tx_type;
 
 	/* Notify ucpd task that a GoodCRC message tx request is pending */
@@ -986,8 +950,7 @@ static void ucpd_send_good_crc(const struct device *dev,
  * @retval 0 on success
  * @retval -EFAULT on failure
  */
-static int ucpd_transmit_data(const struct device *dev,
-			      struct pd_msg *msg)
+static int ucpd_transmit_data(const struct device *dev, struct pd_msg *msg)
 {
 	struct tcpc_data *data = dev->data;
 
@@ -1004,8 +967,7 @@ static int ucpd_transmit_data(const struct device *dev,
 	data->ucpd_tx_buffers[TX_MSG_TCPM].data.header = msg->header.raw_value;
 
 	/* Copy msg objects to ucpd data buffer, after 2 header bytes */
-	memcpy(data->ucpd_tx_buffers[TX_MSG_TCPM].data.msg + 2,
-	       (uint8_t *)msg->data, len - 2);
+	memcpy(data->ucpd_tx_buffers[TX_MSG_TCPM].data.msg + 2, (uint8_t *)msg->data, len - 2);
 
 	/*
 	 * Check for hard reset message here. A different event is used for hard
@@ -1048,9 +1010,7 @@ static int ucpd_get_rx_pending_msg(const struct device *dev, struct pd_msg *msg)
 	msg->type = *(uint16_t *)data->ucpd_rx_buffer;
 	msg->header.raw_value = *((uint16_t *)data->ucpd_rx_buffer + 1);
 	msg->len = PD_CONVERT_PD_HEADER_COUNT_TO_BYTES(msg->header.number_of_data_objects);
-	memcpy(msg->data, (data->ucpd_rx_buffer +
-			   PACKET_TYPE_SIZE +
-			   MSG_HEADER_SIZE), msg->len);
+	memcpy(msg->data, (data->ucpd_rx_buffer + PACKET_TYPE_SIZE + MSG_HEADER_SIZE), msg->len);
 	ret = msg->len + MSG_HEADER_SIZE;
 
 	/* All done. Clear type and header */
@@ -1065,8 +1025,7 @@ static int ucpd_get_rx_pending_msg(const struct device *dev, struct pd_msg *msg)
  * return 0 on success
  * return -EIO on failure
  */
-static int ucpd_set_bist_test_mode(const struct device *dev,
-				   bool enable)
+static int ucpd_set_bist_test_mode(const struct device *dev, bool enable)
 {
 	struct tcpc_data *data = dev->data;
 
@@ -1086,12 +1045,8 @@ static void ucpd_isr(const struct device *dev_inst[])
 	struct tcpc_data *data;
 	uint32_t sr;
 	struct alert_info *info;
-	uint32_t tx_done_mask = UCPD_SR_TXUND |
-				UCPD_SR_TXMSGSENT |
-				UCPD_SR_TXMSGABT |
-				UCPD_SR_TXMSGDISC |
-				UCPD_SR_HRSTSENT |
-				UCPD_SR_HRSTDISC;
+	uint32_t tx_done_mask = UCPD_SR_TXUND | UCPD_SR_TXMSGSENT | UCPD_SR_TXMSGABT |
+				UCPD_SR_TXMSGDISC | UCPD_SR_HRSTSENT | UCPD_SR_HRSTDISC;
 
 #if DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) > 1
 	/*
@@ -1108,10 +1063,8 @@ static void ucpd_isr(const struct device *dev_inst[])
 
 	/* Read UCPD1 and UCPD2 Status Registers */
 
-	sr0 =
-	LL_UCPD_ReadReg(((const struct tcpc_config *)dev_inst[0]->config)->ucpd_port, SR);
-	sr1 =
-	LL_UCPD_ReadReg(((const struct tcpc_config *)dev_inst[1]->config)->ucpd_port, SR);
+	sr0 = stm32_reg_read(&((const struct tcpc_config *)dev_inst[0]->config)->ucpd_port->SR);
+	sr1 = stm32_reg_read(&((const struct tcpc_config *)dev_inst[1]->config)->ucpd_port->SR);
 
 	if (sr0) {
 		dev = dev_inst[0];
@@ -1137,7 +1090,7 @@ static void ucpd_isr(const struct device *dev_inst[])
 	info = &data->alert_info;
 
 	/* Read the status register */
-	sr = LL_UCPD_ReadReg(config->ucpd_port, SR);
+	sr = stm32_reg_read(&config->ucpd_port->SR);
 
 	/* Check for CC events, set event to wake PD task */
 	if (sr & (UCPD_SR_TYPECEVT1 | UCPD_SR_TYPECEVT2)) {
@@ -1178,8 +1131,7 @@ static void ucpd_isr(const struct device *dev_inst[])
 	/* Check first for start of new message */
 	if (sr & UCPD_SR_RXORDDET) {
 		/* Add message type to pd message buffer */
-		*(uint16_t *)data->ucpd_rx_buffer =
-			LL_UCPD_ReadRxOrderSet(config->ucpd_port);
+		*(uint16_t *)data->ucpd_rx_buffer = LL_UCPD_ReadRxOrderSet(config->ucpd_port);
 
 		data->ucpd_rx_byte_count = 2;
 		data->ucpd_rx_msg_active = true;
@@ -1199,8 +1151,7 @@ static void ucpd_isr(const struct device *dev_inst[])
 			int good_crc;
 
 			type = *(uint16_t *)data->ucpd_rx_buffer;
-			rx_header.raw_value =
-				*((uint16_t *)data->ucpd_rx_buffer + 1);
+			rx_header.raw_value = *((uint16_t *)data->ucpd_rx_buffer + 1);
 			good_crc = ucpd_msg_is_good_crc(rx_header);
 
 			/*
@@ -1211,8 +1162,8 @@ static void ucpd_isr(const struct device *dev_inst[])
 			 * hardware orderset detection pattern can't be changed
 			 * without disabling the ucpd peripheral.
 			 */
-			if (!good_crc && (data->ucpd_rx_sop_prime_enabled ||
-					  type == PD_PACKET_SOP)) {
+			if (!good_crc &&
+			    (data->ucpd_rx_sop_prime_enabled || type == PD_PACKET_SOP)) {
 
 				/*
 				 * If BIST test mode is active, then still need
@@ -1240,7 +1191,7 @@ static void ucpd_isr(const struct device *dev_inst[])
 	}
 
 	/* Clear interrupts now that PD events have been set */
-	LL_UCPD_WriteReg(config->ucpd_port, ICR, sr & UCPD_ICR_ALL_INT_MASK);
+	stm32_reg_write(&config->ucpd_port->ICR, sr & UCPD_ICR_ALL_INT_MASK);
 
 	/* Notify application of events */
 	k_work_submit(&info->work);
@@ -1256,12 +1207,12 @@ static int ucpd_dump_std_reg(const struct device *dev)
 {
 	const struct tcpc_config *const config = dev->config;
 
-	LOG_INF("CFGR1: %08x", LL_UCPD_ReadReg(config->ucpd_port, CFG1));
-	LOG_INF("CFGR2: %08x", LL_UCPD_ReadReg(config->ucpd_port, CFG2));
-	LOG_INF("CR:    %08x", LL_UCPD_ReadReg(config->ucpd_port, CR));
-	LOG_INF("IMR:   %08x", LL_UCPD_ReadReg(config->ucpd_port, IMR));
-	LOG_INF("SR:    %08x", LL_UCPD_ReadReg(config->ucpd_port, SR));
-	LOG_INF("ICR:   %08x\n", LL_UCPD_ReadReg(config->ucpd_port, ICR));
+	LOG_INF("CFGR1: %08x", stm32_reg_read(&config->ucpd_port->CFG1));
+	LOG_INF("CFGR2: %08x", stm32_reg_read(&config->ucpd_port->CFG2));
+	LOG_INF("CR:    %08x", stm32_reg_read(&config->ucpd_port->CR));
+	LOG_INF("IMR:   %08x", stm32_reg_read(&config->ucpd_port->IMR));
+	LOG_INF("SR:    %08x", stm32_reg_read(&config->ucpd_port->SR));
+	LOG_INF("ICR:   %08x\n", stm32_reg_read(&config->ucpd_port->ICR));
 
 	return 0;
 }
@@ -1273,8 +1224,8 @@ static int ucpd_dump_std_reg(const struct device *dev)
  * @retval 0 on success
  * @retval -EINVAL on failure
  */
-static int ucpd_set_alert_handler_cb(const struct device *dev,
-				     tcpc_alert_handler_cb_t handler, void *alert_data)
+static int ucpd_set_alert_handler_cb(const struct device *dev, tcpc_alert_handler_cb_t handler,
+				     void *alert_data)
 {
 	struct tcpc_data *data = dev->data;
 
@@ -1290,12 +1241,13 @@ static int ucpd_set_alert_handler_cb(const struct device *dev,
  *        the VCONN control capabilities of the TCPC
  *
  */
-static void ucpd_set_vconn_cb(const struct device *dev,
-			      tcpc_vconn_control_cb_t vconn_cb)
+static void ucpd_set_vconn_cb(const struct device *dev, tcpc_vconn_control_cb_t vconn_cb,
+			      const struct device *usbc_dev)
 {
 	struct tcpc_data *data = dev->data;
 
 	data->vconn_cb = vconn_cb;
+	data->usbc_dev = usbc_dev;
 }
 
 /**
@@ -1304,12 +1256,13 @@ static void ucpd_set_vconn_cb(const struct device *dev,
  *        the VCONN discharge capabilities of the TCPC
  *
  */
-static void ucpd_set_vconn_discharge_cb(const struct device *dev,
-					tcpc_vconn_discharge_cb_t cb)
+static void ucpd_set_vconn_discharge_cb(const struct device *dev, tcpc_vconn_discharge_cb_t cb,
+					const struct device *usbc_dev)
 {
 	struct tcpc_data *data = dev->data;
 
 	data->vconn_discharge_cb = cb;
+	data->usbc_dev = usbc_dev;
 }
 
 /**
@@ -1325,7 +1278,7 @@ static void ucpd_isr_init(const struct device *dev)
 	k_timer_init(&data->goodcrc_rx_timer, NULL, NULL);
 
 	/* Disable all alert bits */
-	LL_UCPD_WriteReg(config->ucpd_port, IMR, 0);
+	stm32_reg_write(&config->ucpd_port->IMR, 0);
 
 	/* Clear all alert handler */
 	ucpd_set_alert_handler_cb(dev, NULL, NULL);
@@ -1337,10 +1290,8 @@ static void ucpd_isr_init(const struct device *dev)
 	k_work_init(&info->work, ucpd_alert_handler);
 
 	/* Configure CC change alerts */
-	LL_UCPD_WriteReg(config->ucpd_port, IMR,
-			 UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE);
-	LL_UCPD_WriteReg(config->ucpd_port, ICR,
-			 UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF);
+	stm32_reg_write(&config->ucpd_port->IMR, UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE);
+	stm32_reg_write(&config->ucpd_port->ICR, UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF);
 
 	/* SOP'/SOP'' must be enabled via TCPCI call */
 	data->ucpd_rx_sop_prime_enabled = false;
@@ -1379,8 +1330,7 @@ static int ucpd_init(const struct device *dev)
 	 *	 clock API. Instead, DTS clock settings and the zephyr
 	 *	 clock API should be used to enable clocks.
 	 */
-	ret = LL_UCPD_Init(config->ucpd_port,
-			   (LL_UCPD_InitTypeDef *)&config->ucpd_params);
+	ret = LL_UCPD_Init(config->ucpd_port, (LL_UCPD_InitTypeDef *)&config->ucpd_params);
 
 	if (ret == SUCCESS) {
 		/* Init Rp to USB */
@@ -1390,10 +1340,10 @@ static int ucpd_init(const struct device *dev)
 		 * Set RXORDSETEN field to control which types of ordered sets the PD
 		 * receiver must receive.
 		 */
-		cfg1 = LL_UCPD_ReadReg(config->ucpd_port, CFG1);
-		cfg1 |= LL_UCPD_ORDERSET_SOP | LL_UCPD_ORDERSET_SOP1 |
-			LL_UCPD_ORDERSET_SOP2 | LL_UCPD_ORDERSET_HARDRST;
-		LL_UCPD_WriteReg(config->ucpd_port, CFG1, cfg1);
+		cfg1 = stm32_reg_read(&config->ucpd_port->CFG1);
+		cfg1 |= LL_UCPD_ORDERSET_SOP | LL_UCPD_ORDERSET_SOP1 | LL_UCPD_ORDERSET_SOP2 |
+			LL_UCPD_ORDERSET_HARDRST;
+		stm32_reg_write(&config->ucpd_port->CFG1, cfg1);
 
 		/* Enable UCPD port */
 		LL_UCPD_Enable(config->ucpd_port);
@@ -1443,43 +1393,33 @@ static DEVICE_API(tcpc, driver_api) = {
 static void config_tcpc_irq(void)
 {
 	static int inst_num;
-	static const struct device
-	*dev_inst[DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT)];
+	static const struct device *dev_inst[DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT)];
 
 	/* Initialize and enable shared irq on last instance */
 	if (++inst_num == DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT)) {
 		DT_INST_FOREACH_STATUS_OKAY(DEV_INST_INIT)
 
-		IRQ_CONNECT(DT_INST_IRQN(0),
-			    DT_INST_IRQ(0, priority),
-			    ucpd_isr, dev_inst, 0);
+		IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), ucpd_isr, dev_inst, 0);
 
 		irq_enable(DT_INST_IRQN(0));
 	}
 }
 
-BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) > 0,
-	     "No compatible STM32 TCPC instance found");
+BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) > 0, "No compatible STM32 TCPC instance found");
 
-#define TCPC_DRIVER_INIT(inst)								\
-	PINCTRL_DT_INST_DEFINE(inst);							\
-	static struct tcpc_data drv_data_##inst;					\
-	static const struct tcpc_config drv_config_##inst = {				\
-		.ucpd_pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),			\
-		.ucpd_port = (UCPD_TypeDef *)DT_INST_REG_ADDR(inst),			\
-		.ucpd_params.psc_ucpdclk = ilog2(DT_INST_PROP(inst, psc_ucpdclk)),	\
-		.ucpd_params.transwin = DT_INST_PROP(inst, transwin) - 1,		\
-		.ucpd_params.IfrGap = DT_INST_PROP(inst, ifrgap) - 1,			\
-		.ucpd_params.HbitClockDiv = DT_INST_PROP(inst, hbitclkdiv) - 1,		\
-		.ucpd_dead_battery = DT_INST_PROP(inst, dead_battery),			\
-	};										\
-	DEVICE_DT_INST_DEFINE(inst,							\
-			      &ucpd_init,						\
-			      NULL,							\
-			      &drv_data_##inst,						\
-			      &drv_config_##inst,					\
-			      POST_KERNEL,						\
-			      CONFIG_USBC_TCPC_INIT_PRIORITY,				\
-			      &driver_api);
+#define TCPC_DRIVER_INIT(inst)                                                                     \
+	PINCTRL_DT_INST_DEFINE(inst);                                                              \
+	static struct tcpc_data drv_data_##inst;                                                   \
+	static const struct tcpc_config drv_config_##inst = {                                      \
+		.ucpd_pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                 \
+		.ucpd_port = (UCPD_TypeDef *)DT_INST_REG_ADDR(inst),                               \
+		.ucpd_params.psc_ucpdclk = ilog2(DT_INST_PROP(inst, psc_ucpdclk)),                 \
+		.ucpd_params.transwin = DT_INST_PROP(inst, transwin) - 1,                          \
+		.ucpd_params.IfrGap = DT_INST_PROP(inst, ifrgap) - 1,                              \
+		.ucpd_params.HbitClockDiv = DT_INST_PROP(inst, hbitclkdiv) - 1,                    \
+		.ucpd_dead_battery = DT_INST_PROP(inst, dead_battery),                             \
+	};                                                                                         \
+	DEVICE_DT_INST_DEFINE(inst, &ucpd_init, NULL, &drv_data_##inst, &drv_config_##inst,        \
+			      POST_KERNEL, CONFIG_USBC_TCPC_INIT_PRIORITY, &driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(TCPC_DRIVER_INIT)

@@ -34,12 +34,12 @@ set(CMAKE_ASM_COMPILER)
 if("${IAR_TOOLCHAIN_VARIANT}" STREQUAL "iccarm")
   find_program(CMAKE_ASM_COMPILER
     arm-zephyr-eabi-gcc
-    PATHS ${ZEPHYR_SDK_INSTALL_DIR}/arm-zephyr-eabi/bin
+    PATHS ${ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin
     NO_DEFAULT_PATH )
 else()
   find_program(CMAKE_ASM_COMPILER
     riscv64-zephyr-elf-gcc
-    PATHS ${ZEPHYR_SDK_INSTALL_DIR}/riscv64-zephyr-elf/bin
+    PATHS ${ZEPHYR_SDK_INSTALL_DIR}/gnu/riscv64-zephyr-elf/bin
     NO_DEFAULT_PATH )
 endif()
 
@@ -160,3 +160,10 @@ endforeach()
 foreach(F ${IAR_ASM_FLAGS})
   list(APPEND TOOLCHAIN_C_FLAGS $<$<COMPILE_LANGUAGE:ASM>:${F}>)
 endforeach()
+
+# --------------------------------------------------------------------
+# Disable GCC-specific runtime library detection for IAR
+# --------------------------------------------------------------------
+function(compiler_set_linker_properties)
+  message(STATUS "Skipping GCC-specific runtime lib detection for IAR toolchain")
+endfunction()

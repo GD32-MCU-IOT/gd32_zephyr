@@ -22,6 +22,7 @@ struct mctp_binding_uart {
 	const struct device *dev;
 
 	/* receive buffers and state */
+	struct k_sem rx_disabled;
 	uint8_t rx_buf[2][256];
 	bool rx_buf_used[2];
 	struct mctp_pktbuf *rx_pkt;
@@ -41,20 +42,41 @@ struct mctp_binding_uart {
 	int rx_res;
 
 	/* staging buffer for tx */
+	struct k_sem tx_done;
 	uint8_t tx_buf[256];
 	int tx_res;
+	bool waiting;
+
+	/* Keep track of all UART bindings */
+	sys_snode_t node;
+
+	uint8_t tx_storage[MCTP_PKTBUF_SIZE(MCTP_PACKET_SIZE(MCTP_BTU))] PKTBUF_STORAGE_ALIGN;
 
 	/** INTERNAL_HIDDEN @endcond */
 };
 
 /**
- * @brief Start the receive of a single mctp message
+ * @brief Start the receive of mctp messages
  *
- * Will read a single mctp message from the uart.
+ * Will read mctp messages from the uart.
  *
  * @param uart MCTP UART binding
  */
 void mctp_uart_start_rx(struct mctp_binding_uart *uart);
+
+/**
+ * @brief Stop the receive of mctp messages
+ *
+ * Will stop reading mctp messages from the uart.
+ *
+ * @param uart MCTP UART binding
+ *
+ * @retval 0 on success
+ * @retval -errno result from `uart_rx_disable` on failure
+ *
+ * @see uart_rx_disable
+ */
+int mctp_uart_stop_rx(struct mctp_binding_uart *uart);
 
 /** @cond INTERNAL_HIDDEN */
 int mctp_uart_start(struct mctp_binding *binding);
@@ -74,6 +96,7 @@ int mctp_uart_tx(struct mctp_binding *binding, struct mctp_pktbuf *pkt);
 				.name = STRINGIFY(_name), .version = 1,                            \
 						  .pkt_size = MCTP_PACKET_SIZE(MCTP_BTU),          \
 						  .pkt_header = 0, .pkt_trailer = 0,               \
+						  .tx_storage = _name.tx_storage,          \
 						  .start = mctp_uart_start, .tx = mctp_uart_tx,    \
 				},                                                                 \
 				.dev = _dev,                                                       \

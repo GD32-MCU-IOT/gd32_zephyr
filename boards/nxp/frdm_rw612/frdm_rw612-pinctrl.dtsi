@@ -53,6 +53,7 @@
 			pinmux = <IO_MUX_FC1_SPI_SS0>;
 			slew-rate = "ultra";
 		};
+
 		group1 {
 			pinmux = <IO_MUX_FC1_SPI_SS1>;
 			slew-rate = "ultra";
@@ -111,6 +112,13 @@
 		group0 {
 			pinmux = <IO_MUX_GPIO44
 				  IO_MUX_GPIO55>;
+			slew-rate = "normal";
+		};
+	};
+
+	pinmux_flexspi_psram: pinmux_flexspi_psram {
+		group0 {
+			pinmux = <IO_MUX_QUAD_SPI_PSRAM>;
 			slew-rate = "normal";
 		};
 	};

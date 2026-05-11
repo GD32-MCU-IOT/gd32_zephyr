@@ -2,7 +2,7 @@
  * Common functions and helpers for BSIM audio tests
  *
  * Copyright (c) 2019 Bose Corporation
- * Copyright (c) 2020-2022 Nordic Semiconductor ASA
+ * Copyright (c) 2020-2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,6 +26,7 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic_types.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/sys_clock.h>
@@ -140,11 +141,12 @@ extern struct bt_conn *default_conn;
 extern atomic_t flag_connected;
 extern atomic_t flag_disconnected;
 extern atomic_t flag_conn_updated;
-extern atomic_t flag_audio_received;
+extern atomic_t flag_security_changed;
 extern volatile bt_security_t security_level;
 extern uint8_t csip_rsi[BT_CSIP_RSI_SIZE];
 
 void disconnected(struct bt_conn *conn, uint8_t reason);
+void update_security(struct bt_conn *conn);
 void setup_connectable_adv(struct bt_le_ext_adv **ext_adv);
 void setup_broadcast_adv(struct bt_le_ext_adv **adv);
 void start_broadcast_adv(struct bt_le_ext_adv *adv);
@@ -170,6 +172,8 @@ struct audio_test_stream {
 	struct bt_iso_recv_info last_info;
 	size_t rx_cnt;
 	size_t valid_rx_cnt;
+	atomic_t flag_audio_received;
+	bool last_rx_failed;
 };
 
 static inline struct bt_cap_stream *cap_stream_from_bap_stream(struct bt_bap_stream *bap_stream)

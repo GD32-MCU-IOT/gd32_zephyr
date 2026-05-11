@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from platform import system as platform_system
 
 from colorama import Fore
 from twisterlib.statuses import TwisterStatus
@@ -57,8 +58,7 @@ class Reporting:
         self.outdir = os.path.abspath(env.options.outdir)
         self.instance_fail_count = plan.instance_fail_count
         self.footprint = None
-        self.coverage_status = None
-
+        self.coverage_status: bool = False
 
     @staticmethod
     def process_log(log_file):
@@ -69,7 +69,6 @@ class Reporting:
                 filtered_string = ''.join(filter(lambda x: x in string.printable, log))
 
         return filtered_string
-
 
     @staticmethod
     def xunit_testcase(
@@ -302,7 +301,7 @@ class Reporting:
             report_options = self.env.non_default_options()
 
         report = {}
-        report["environment"] = {"os": os.name,
+        report["environment"] = {"os": platform_system(),
                                  "zephyr_version": version,
                                  "toolchain": self.env.toolchain,
                                  "commit_date": self.env.commit_date,
@@ -363,8 +362,8 @@ class Reporting:
             if instance.toolchain:
                 suite['toolchain'] = instance.toolchain
 
-            if instance.dut:
-                suite["dut"] = instance.dut
+            if instance.hardware_id:
+                suite["dut"] = instance.hardware_id
             if available_ram:
                 suite["available_ram"] = available_ram
             if available_rom:

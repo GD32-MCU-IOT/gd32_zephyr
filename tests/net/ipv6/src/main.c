@@ -23,6 +23,7 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_IPV6_LOG_LEVEL);
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_stats.h>
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/dummy.h>
 #include <zephyr/net/udp.h>
@@ -46,23 +47,23 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_IPV6_LOG_LEVEL);
 #define TEST_NET_IF net_if_lookup_by_dev(DEVICE_GET(eth_ipv6_net))
 #define TEST_MSG_SIZE 128
 
-static struct in6_addr my_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+static struct net_in6_addr my_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				       0, 0, 0, 0, 0, 0, 0, 0x1 } } };
-static struct in6_addr peer_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+static struct net_in6_addr peer_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					 0, 0, 0, 0, 0, 0, 0, 0x2 } } };
-static struct in6_addr multicast_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+static struct net_in6_addr multicast_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					      0, 0, 0, 0, 0, 0, 0, 0x1 } } };
-static struct in6_addr all_nodes_mcast = { { { 0xff, 0x02, 0, 0, 0, 0, 0, 0,
+static struct net_in6_addr all_nodes_mcast = { { { 0xff, 0x02, 0, 0, 0, 0, 0, 0,
 					       0, 0, 0, 0, 0, 0, 0, 0x1 } } };
 
 /* Below should match prefix/addr distributed in RA message. */
-static struct in6_addr test_router_addr = { { {
+static struct net_in6_addr test_router_addr = { { {
 	0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0x2, 0x60,
 	0x97, 0xff, 0xfe, 0x07, 0x69, 0xea
 } } };
-static struct in6_addr test_ra_prefix = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
+static struct net_in6_addr test_ra_prefix = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
 					      0, 0, 0, 0, 0, 0, 0, 0 } } };
-static struct in6_addr test_ra_autoconf_addr = { { {
+static struct net_in6_addr test_ra_autoconf_addr = { { {
 	0x3f, 0xfe, 0x05, 0x07, 0x00, 0x00, 0x00, 0x01,
 	0x02, 0x00, 0x5e, 0xff, 0xfe, 0x00, 0x53, 0x00
 } } };
@@ -157,7 +158,62 @@ static const unsigned char ipv6_hbho[] = {
 	0x00, 0x00, 0x01, 0x00, 0x00, 0x00,             /* ...... */
 };
 
-static int send_msg(struct in6_addr *src, struct in6_addr *dst);
+/* clang-format off */
+/* Scenario 1: exthdr_len > (pkt_len - offset) */
+static const unsigned char ipv6_ext_hdr_err_1[] = {
+	/* IPv6 header */
+	0x60, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x40,
+	/* Src IP */
+	0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+	/* Dst IP */
+	0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	/* Hop-by-hop option */
+	0x3b, 0x05,
+	/* Padding to reach 48 bytes */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+/* Scenario 2: PADN opt_len too large */
+static const unsigned char ipv6_ext_hdr_err_2[] = {
+	/* IPv6 header */
+	0x60, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x40,
+	/* Src IP */
+	0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+	/* Dst IP */
+	0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	/* Hop-by-hop option */
+	0x3b, 0x00,
+	/* Option PADN */
+	0x01, 0x08,
+	/* Padding to reach 48 bytes */
+	0x00, 0x00, 0x00, 0x00,
+};
+
+/* Scenario 3: Unknown option opt_len too large */
+static const unsigned char ipv6_ext_hdr_err_3[] = {
+	/* IPv6 header */
+	0x60, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x40,
+	/* Src IP */
+	0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+	/* Dst IP */
+	0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	/* Hop-by-hop option */
+	0x3b, 0x00,
+	/* Option Unknown */
+	0x3f, 0x08,
+	/* Padding to reach 48 bytes */
+	0x00, 0x00, 0x00, 0x00,
+};
+
+/* clang-format on */
+
+static int send_msg(struct net_in6_addr *src, struct net_in6_addr *dst);
 
 typedef void (*ns_callback)(struct net_pkt *pkt, void *user_data);
 
@@ -233,12 +289,12 @@ static void prepare_ra_message(struct net_pkt *pkt)
 	pkt->buffer = NULL;
 
 	net_pkt_alloc_buffer(pkt, sizeof(struct net_eth_hdr) +
-			     sizeof(icmpv6_ra), AF_UNSPEC, K_NO_WAIT);
+			     sizeof(icmpv6_ra), NET_AF_UNSPEC, K_NO_WAIT);
 	net_pkt_cursor_init(pkt);
 
-	hdr.type = htons(NET_ETH_PTYPE_IPV6);
+	hdr.type = net_htons(NET_ETH_PTYPE_IPV6);
 	memset(&hdr.src, 0, sizeof(struct net_eth_addr));
-	memcpy(&hdr.dst, net_pkt_iface(pkt)->if_dev->link_addr.addr,
+	memcpy(&hdr.dst, net_if_get_link_addr(net_pkt_iface(pkt))->addr,
 	       sizeof(struct net_eth_addr));
 
 	net_pkt_set_overwrite(pkt, false);
@@ -249,8 +305,8 @@ static void prepare_ra_message(struct net_pkt *pkt)
 	net_pkt_cursor_init(pkt);
 }
 
-static void inject_na_message(struct net_if *iface, struct in6_addr *src,
-			      struct in6_addr *dst, struct in6_addr *target,
+static void inject_na_message(struct net_if *iface, struct net_in6_addr *src,
+			      struct net_in6_addr *dst, struct net_in6_addr *target,
 			      uint8_t flags)
 {
 	struct net_eth_hdr hdr;
@@ -258,15 +314,15 @@ static void inject_na_message(struct net_if *iface, struct in6_addr *src,
 	uint8_t na_flags[] = { flags, 0, 0, 0 };
 	uint8_t na_tlla_opt[] = { 0x02, 0x01, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa };
 
-	pkt = net_pkt_alloc_with_buffer(iface, TEST_MSG_SIZE, AF_INET6,
-					IPPROTO_ICMPV6, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(iface, TEST_MSG_SIZE, NET_AF_INET6,
+					NET_IPPROTO_ICMPV6, K_NO_WAIT);
 	zassert_not_null(pkt, "Failed to allocate packet");
 
 	net_pkt_set_ipv6_hop_limit(pkt, NET_IPV6_ND_HOP_LIMIT);
 
-	hdr.type = htons(NET_ETH_PTYPE_IPV6);
+	hdr.type = net_htons(NET_ETH_PTYPE_IPV6);
 	memset(&hdr.src, 0xaa, sizeof(struct net_eth_addr));
-	memcpy(&hdr.dst, net_pkt_iface(pkt)->if_dev->link_addr.addr,
+	memcpy(&hdr.dst, net_if_get_link_addr(net_pkt_iface(pkt))->addr,
 	       sizeof(struct net_eth_addr));
 
 	/* Reserve space for the L2 header. */
@@ -277,11 +333,11 @@ static void inject_na_message(struct net_if *iface, struct in6_addr *src,
 	zassert_ok(net_ipv6_create(pkt, src, dst));
 	zassert_ok(net_icmpv6_create(pkt, NET_ICMPV6_NA, 0));
 	zassert_ok(net_pkt_write(pkt, na_flags, sizeof(na_flags)));
-	zassert_ok(net_pkt_write(pkt, target, sizeof(struct in6_addr)));
+	zassert_ok(net_pkt_write(pkt, target, sizeof(struct net_in6_addr)));
 	zassert_ok(net_pkt_write(pkt, na_tlla_opt, sizeof(na_tlla_opt)));
 
 	net_pkt_cursor_init(pkt);
-	net_ipv6_finalize(pkt, IPPROTO_ICMPV6);
+	net_ipv6_finalize(pkt, NET_IPPROTO_ICMPV6);
 
 	/* Fill L2 header. */
 	net_buf_push_mem(pkt->frags, &hdr, sizeof(struct net_eth_hdr));
@@ -493,7 +549,7 @@ static void rm_neighbor(void)
  */
 static void add_max_neighbors(void)
 {
-	struct in6_addr dst_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr dst_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					 0, 0, 0, 0, 0, 0, 0, 0x3 } } };
 	struct net_nbr *nbr;
 	struct net_linkaddr lladdr;
@@ -522,7 +578,7 @@ static void add_max_neighbors(void)
 
 static void rm_max_neighbors(void)
 {
-	struct in6_addr dst_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr dst_addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					 0, 0, 0, 0, 0, 0, 0, 0x3 } } };
 	struct net_linkaddr lladdr;
 	uint8_t i;
@@ -599,7 +655,7 @@ static void *ipv6_setup(void)
 		ifaddr = &iface->config.ip.ipv6->unicast[i];
 
 		ifaddr->is_used = true;
-		ifaddr->address.family = AF_INET6;
+		ifaddr->address.family = NET_AF_INET6;
 		ifaddr->addr_type = NET_ADDR_MANUAL;
 		ifaddr->addr_state = NET_ADDR_PREFERRED;
 		ifaddr_record = ifaddr;
@@ -655,9 +711,9 @@ ZTEST(net_ipv6, test_cmp_prefix)
 {
 	bool st;
 
-	struct in6_addr prefix1 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr prefix1 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					0, 0, 0, 0, 0, 0, 0, 0x1 } } };
-	struct in6_addr prefix2 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr prefix2 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					0, 0, 0, 0, 0, 0, 0, 0x2 } } };
 
 	st = net_ipv6_is_prefix((uint8_t *)&prefix1, (uint8_t *)&prefix2, 64);
@@ -705,7 +761,7 @@ ZTEST(net_ipv6, test_send_ns_extra_options)
 	iface = TEST_NET_IF;
 
 	pkt = net_pkt_alloc_with_buffer(iface, sizeof(icmpv6_ns_invalid),
-					AF_UNSPEC, 0, K_FOREVER);
+					NET_AF_UNSPEC, 0, K_FOREVER);
 
 	NET_ASSERT(pkt, "Out of TX packets");
 
@@ -728,7 +784,7 @@ ZTEST(net_ipv6, test_send_ns_no_options)
 	iface = TEST_NET_IF;
 
 	pkt = net_pkt_alloc_with_buffer(iface, sizeof(icmpv6_ns_no_sllao),
-					AF_UNSPEC, 0, K_FOREVER);
+					NET_AF_UNSPEC, 0, K_FOREVER);
 
 	NET_ASSERT(pkt, "Out of TX packets");
 
@@ -739,23 +795,77 @@ ZTEST(net_ipv6, test_send_ns_no_options)
 		      "Data receive for invalid NS failed.");
 }
 
+ZTEST(net_ipv6, test_ipv6_ext_hdr_len_bounds_1)
+{
+	struct net_pkt *pkt;
+	struct net_if *iface;
+
+	iface = TEST_NET_IF;
+
+	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_ext_hdr_err_1), NET_AF_UNSPEC, 0,
+					K_FOREVER);
+
+	NET_ASSERT(pkt, "Out of TX packets");
+
+	net_pkt_write(pkt, ipv6_ext_hdr_err_1, sizeof(ipv6_ext_hdr_err_1));
+	net_pkt_lladdr_clear(pkt);
+
+	zassert_ok(net_recv_data(iface, pkt), "Data receive failed.");
+}
+
+ZTEST(net_ipv6, test_ipv6_ext_hdr_len_bounds_2)
+{
+	struct net_pkt *pkt;
+	struct net_if *iface;
+
+	iface = TEST_NET_IF;
+
+	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_ext_hdr_err_2), NET_AF_UNSPEC, 0,
+					K_FOREVER);
+
+	NET_ASSERT(pkt, "Out of TX packets");
+
+	net_pkt_write(pkt, ipv6_ext_hdr_err_2, sizeof(ipv6_ext_hdr_err_2));
+	net_pkt_lladdr_clear(pkt);
+
+	zassert_ok(net_recv_data(iface, pkt), "Data receive failed.");
+}
+
+ZTEST(net_ipv6, test_ipv6_ext_hdr_len_bounds_3)
+{
+	struct net_pkt *pkt;
+	struct net_if *iface;
+
+	iface = TEST_NET_IF;
+
+	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_ext_hdr_err_3), NET_AF_UNSPEC, 0,
+					K_FOREVER);
+
+	NET_ASSERT(pkt, "Out of TX packets");
+
+	net_pkt_write(pkt, ipv6_ext_hdr_err_3, sizeof(ipv6_ext_hdr_err_3));
+	net_pkt_lladdr_clear(pkt);
+
+	zassert_ok(net_recv_data(iface, pkt), "Data receive failed.");
+}
+
 struct test_nd_context {
 	struct k_sem wait_ns;
-	struct in6_addr *exp_ns_addr;
+	struct net_in6_addr *exp_ns_addr;
 	bool reply;
 };
 
 static void expect_nd_ns(struct net_pkt *pkt, void *user_data)
 {
 	uint32_t res_bytes;
-	struct in6_addr target;
+	struct net_in6_addr target;
 	struct test_nd_context *ctx = user_data;
 
 	skip_headers(pkt);
 
 	zassert_ok(net_pkt_read_be32(pkt, &res_bytes), "Failed to read reserved bytes");
 	zassert_equal(0, res_bytes, "Reserved bytes must be zeroed");
-	zassert_ok(net_pkt_read(pkt, &target, sizeof(struct in6_addr)),
+	zassert_ok(net_pkt_read(pkt, &target, sizeof(struct net_in6_addr)),
 		   "Failed to read target address");
 
 	if (net_ipv6_addr_cmp(ctx->exp_ns_addr, &target)) {
@@ -900,7 +1010,7 @@ ZTEST(net_ipv6, test_send_neighbor_discovery_timeout)
 ZTEST(net_ipv6, test_prefix_timeout)
 {
 	struct net_if_ipv6_prefix *prefix;
-	struct in6_addr addr = { { { 0x20, 1, 0x0d, 0xb8, 42, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 1, 0x0d, 0xb8, 42, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0 } } };
 	uint32_t lifetime = 1U;
 	int len = 64;
@@ -921,7 +1031,7 @@ ZTEST(net_ipv6, test_prefix_timeout)
 ZTEST(net_ipv6, test_prefix_timeout_long)
 {
 	struct net_if_ipv6_prefix *ifprefix;
-	struct in6_addr prefix = { { { 0x20, 1, 0x0d, 0xb8, 43, 0, 0, 0,
+	struct net_in6_addr prefix = { { { 0x20, 1, 0x0d, 0xb8, 43, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0 } } };
 	uint32_t lifetime = 0xfffffffe;
 	int len = 64;
@@ -966,16 +1076,16 @@ static void rs_message(void)
 
 static void ra_message(void)
 {
-	struct in6_addr route_prefix = { { { 0x20, 0x01, 0x0d, 0xb0, 0x0f, 0xff } } };
-	struct sockaddr_in6 dns_addr = {
-		.sin6_family = AF_INET6,
-		.sin6_port = htons(53),
+	struct net_in6_addr route_prefix = { { { 0x20, 0x01, 0x0d, 0xb0, 0x0f, 0xff } } };
+	struct net_sockaddr_in6 dns_addr = {
+		.sin6_family = NET_AF_INET6,
+		.sin6_port = net_htons(53),
 		.sin6_addr = { { {  0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
 				    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 } } },
 	};
 	struct net_route_entry *route;
 	struct dns_resolve_context *ctx;
-	struct sockaddr_in6 *dns_server;
+	struct net_sockaddr_in6 *dns_server;
 	struct net_if_addr *ifaddr;
 
 	/* We received RA message earlier, make sure that the information
@@ -1013,7 +1123,7 @@ static void ra_message(void)
 	/* Check if RDNSS was added correctly. */
 	ctx = dns_resolve_get_default();
 	zassert_equal(ctx->state, DNS_RESOLVE_CONTEXT_ACTIVE);
-	dns_server = (struct sockaddr_in6 *)&ctx->servers[0].dns_server;
+	dns_server = (struct net_sockaddr_in6 *)&ctx->servers[0].dns_server;
 	zassert_equal(dns_server->sin6_family, dns_addr.sin6_family);
 	zassert_equal(dns_server->sin6_port, dns_addr.sin6_port);
 	zassert_mem_equal(&dns_server->sin6_addr, &dns_addr.sin6_addr,
@@ -1031,21 +1141,21 @@ ZTEST(net_ipv6, test_rs_ra_message)
 
 struct test_dad_context {
 	struct k_sem wait_dad;
-	struct in6_addr *exp_dad_addr;
+	struct net_in6_addr *exp_dad_addr;
 	bool reply;
 };
 
 static void expect_dad_ns(struct net_pkt *pkt, void *user_data)
 {
 	uint32_t res_bytes;
-	struct in6_addr target;
+	struct net_in6_addr target;
 	struct test_dad_context *ctx = user_data;
 
 	skip_headers(pkt);
 
 	zassert_ok(net_pkt_read_be32(pkt, &res_bytes), "Failed to read reserved bytes");
 	zassert_equal(0, res_bytes, "Reserved bytes must be zeroed");
-	zassert_ok(net_pkt_read(pkt, &target, sizeof(struct in6_addr)),
+	zassert_ok(net_pkt_read(pkt, &target, sizeof(struct net_in6_addr)),
 		   "Failed to read target address");
 
 	if (net_ipv6_addr_cmp(ctx->exp_dad_addr, &target)) {
@@ -1120,7 +1230,7 @@ ZTEST(net_ipv6, test_hbho_message)
 	iface = TEST_NET_IF;
 
 	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_hbho),
-					AF_UNSPEC, 0, K_FOREVER);
+					NET_AF_UNSPEC, 0, K_FOREVER);
 
 	NET_ASSERT(pkt, "Out of TX packets");
 
@@ -1171,7 +1281,7 @@ ZTEST(net_ipv6, test_hbho_message_1)
 	iface = TEST_NET_IF;
 
 	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_hbho_1),
-					AF_UNSPEC, 0, K_FOREVER);
+					NET_AF_UNSPEC, 0, K_FOREVER);
 
 	NET_ASSERT(pkt, "Out of TX packets");
 
@@ -1231,7 +1341,7 @@ ZTEST(net_ipv6, test_hbho_message_2)
 	iface = TEST_NET_IF;
 
 	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_hbho_2),
-					AF_UNSPEC, 0, K_FOREVER);
+					NET_AF_UNSPEC, 0, K_FOREVER);
 
 	NET_ASSERT(pkt, "Out of TX packets");
 
@@ -1394,7 +1504,7 @@ ZTEST(net_ipv6, test_hbho_message_3)
 	iface = TEST_NET_IF;
 
 	pkt = net_pkt_alloc_with_buffer(iface, sizeof(ipv6_hbho_3),
-					AF_UNSPEC, 0, K_FOREVER);
+					NET_AF_UNSPEC, 0, K_FOREVER);
 
 	NET_ASSERT(pkt, "Out of TX packets");
 
@@ -1416,7 +1526,7 @@ extern void net_address_lifetime_timeout(void);
 
 ZTEST(net_ipv6, test_address_lifetime)
 {
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0x20, 0x1 } } };
 	struct net_if *iface = TEST_NET_IF;
 	uint32_t vlifetime = 0xffff;
@@ -1534,11 +1644,11 @@ ZTEST(net_ipv6, test_change_ll_addr)
 ZTEST(net_ipv6, test_dad_timeout)
 {
 #if defined(CONFIG_NET_IPV6_DAD)
-	struct in6_addr addr1 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr1 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				      0, 0, 0, 0, 0, 0, 0x99, 0x1 } } };
-	struct in6_addr addr2 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr2 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				      0, 0, 0, 0, 0, 0, 0x99, 0x2 } } };
-	struct in6_addr addr3 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr3 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				      0, 0, 0, 0, 0, 0, 0x99, 0x3 } } };
 	struct net_if *iface = TEST_NET_IF;
 
@@ -1616,7 +1726,7 @@ ZTEST(net_ipv6, test_dad_on_static_addr_after_carrier_toggle)
  */
 static void verify_dad_on_ll_addr_on_iface_event(void (*action)(void))
 {
-	static struct in6_addr link_local_addr;
+	static struct net_in6_addr link_local_addr;
 	static struct test_dad_context ctx = {
 		.exp_dad_addr = &link_local_addr
 	};
@@ -1655,7 +1765,7 @@ ZTEST(net_ipv6, test_dad_on_ll_addr_after_carrier_toggle)
 /* Verify that in case of DAD conflict, address is not used on the interface. */
 ZTEST(net_ipv6, test_dad_conflict)
 {
-	static struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	static struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0x99, 0x4 } } };
 	static struct test_dad_context ctx = {
 		.exp_dad_addr = &addr,
@@ -1687,8 +1797,8 @@ ZTEST(net_ipv6, test_dad_conflict)
 #define NET_UDP_HDR(pkt)  ((struct net_udp_hdr *)(net_udp_get_hdr(pkt, NULL)))
 
 static struct net_pkt *setup_ipv6_udp(struct net_if *iface,
-				      struct in6_addr *local_addr,
-				      struct in6_addr *remote_addr,
+				      struct net_in6_addr *local_addr,
+				      struct net_in6_addr *remote_addr,
 				      uint16_t local_port,
 				      uint16_t remote_port)
 {
@@ -1696,7 +1806,7 @@ static struct net_pkt *setup_ipv6_udp(struct net_if *iface,
 	struct net_pkt *pkt;
 
 	pkt = net_pkt_alloc_with_buffer(iface, strlen(payload),
-					AF_INET6, IPPROTO_UDP, K_FOREVER);
+					NET_AF_INET6, NET_IPPROTO_UDP, K_FOREVER);
 	if (!pkt) {
 		return NULL;
 	}
@@ -1706,7 +1816,7 @@ static struct net_pkt *setup_ipv6_udp(struct net_if *iface,
 		zassert_true(0, "exiting");
 	}
 
-	if (net_udp_create(pkt, htons(local_port), htons(remote_port))) {
+	if (net_udp_create(pkt, net_htons(local_port), net_htons(remote_port))) {
 		printk("Cannot create IPv6  pkt %p", pkt);
 		zassert_true(0, "exiting");
 	}
@@ -1717,13 +1827,13 @@ static struct net_pkt *setup_ipv6_udp(struct net_if *iface,
 	}
 
 	net_pkt_cursor_init(pkt);
-	net_ipv6_finalize(pkt, IPPROTO_UDP);
+	net_ipv6_finalize(pkt, NET_IPPROTO_UDP);
 	net_pkt_cursor_init(pkt);
 
 	return pkt;
 }
 
-static enum net_verdict recv_msg(struct in6_addr *src, struct in6_addr *dst)
+static enum net_verdict recv_msg(struct net_in6_addr *src, struct net_in6_addr *dst)
 {
 	struct net_pkt *pkt;
 	struct net_if *iface;
@@ -1738,7 +1848,7 @@ static enum net_verdict recv_msg(struct in6_addr *src, struct in6_addr *dst)
 	return net_ipv6_input(pkt);
 }
 
-static int send_msg(struct in6_addr *src, struct in6_addr *dst)
+static int send_msg(struct net_in6_addr *src, struct net_in6_addr *dst)
 {
 	struct net_pkt *pkt;
 	struct net_if *iface;
@@ -1752,9 +1862,9 @@ static int send_msg(struct in6_addr *src, struct in6_addr *dst)
 
 ZTEST(net_ipv6, test_src_localaddr_recv)
 {
-	struct in6_addr localaddr = { { { 0, 0, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr localaddr = { { { 0, 0, 0, 0, 0, 0, 0, 0,
 					  0, 0, 0, 0, 0, 0, 0, 0x1 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 
@@ -1765,9 +1875,9 @@ ZTEST(net_ipv6, test_src_localaddr_recv)
 
 ZTEST(net_ipv6, test_dst_localaddr_recv)
 {
-	struct in6_addr localaddr = { { { 0, 0, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr localaddr = { { { 0, 0, 0, 0, 0, 0, 0, 0,
 					  0, 0, 0, 0, 0, 0, 0, 0x1 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 
@@ -1778,9 +1888,9 @@ ZTEST(net_ipv6, test_dst_localaddr_recv)
 
 ZTEST(net_ipv6, test_dst_iface_scope_mcast_recv)
 {
-	struct in6_addr mcast_iface = { { { 0xff, 0x01, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr mcast_iface = { { { 0xff, 0x01, 0, 0, 0, 0, 0, 0,
 					    0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 
@@ -1791,9 +1901,9 @@ ZTEST(net_ipv6, test_dst_iface_scope_mcast_recv)
 
 ZTEST(net_ipv6, test_dst_zero_scope_mcast_recv)
 {
-	struct in6_addr mcast_zero = { { { 0xff, 0x00, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr mcast_zero = { { { 0xff, 0x00, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 
@@ -1804,9 +1914,9 @@ ZTEST(net_ipv6, test_dst_zero_scope_mcast_recv)
 
 ZTEST(net_ipv6, test_dst_site_scope_mcast_recv_drop)
 {
-	struct in6_addr mcast_site = { { { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr mcast_site = { { { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 
@@ -1819,24 +1929,24 @@ static void net_ctx_create(struct net_context **ctx)
 {
 	int ret;
 
-	ret = net_context_get(AF_INET6, SOCK_DGRAM, IPPROTO_UDP, ctx);
+	ret = net_context_get(NET_AF_INET6, NET_SOCK_DGRAM, NET_IPPROTO_UDP, ctx);
 	zassert_equal(ret, 0,
 		      "Context create IPv6 UDP test failed");
 }
 
-static void net_ctx_bind_mcast(struct net_context *ctx, struct in6_addr *maddr)
+static void net_ctx_bind_mcast(struct net_context *ctx, struct net_in6_addr *maddr)
 {
-	struct sockaddr_in6 addr = {
-		.sin6_family = AF_INET6,
-		.sin6_port = htons(4321),
+	struct net_sockaddr_in6 addr = {
+		.sin6_family = NET_AF_INET6,
+		.sin6_port = net_htons(4321),
 		.sin6_addr = { { { 0 } } },
 	};
 	int ret;
 
 	net_ipaddr_copy(&addr.sin6_addr, maddr);
 
-	ret = net_context_bind(ctx, (struct sockaddr *)&addr,
-			       sizeof(struct sockaddr_in6));
+	ret = net_context_bind(ctx, (struct net_sockaddr *)&addr,
+			       sizeof(struct net_sockaddr_in6));
 	zassert_equal(ret, 0, "Context bind test failed (%d)", ret);
 }
 
@@ -1875,7 +1985,7 @@ static void net_ctx_recv(struct net_context *ctx)
 	zassert_equal(ret, 0, "Context recv IPv6 UDP failed");
 }
 
-static void join_group(struct in6_addr *mcast_addr)
+static void join_group(struct net_in6_addr *mcast_addr)
 {
 	int ret;
 
@@ -1883,7 +1993,7 @@ static void join_group(struct in6_addr *mcast_addr)
 	zassert_equal(ret, 0, "Cannot join IPv6 multicast group");
 }
 
-static void leave_group(struct in6_addr *mcast_addr)
+static void leave_group(struct net_in6_addr *mcast_addr)
 {
 	int ret;
 
@@ -1893,9 +2003,9 @@ static void leave_group(struct in6_addr *mcast_addr)
 
 ZTEST(net_ipv6, test_dst_site_scope_mcast_recv_ok)
 {
-	struct in6_addr mcast_all_dhcp = { { { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr mcast_all_dhcp = { { { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
 					    0, 0, 0, 0x01, 0, 0, 0, 0x03 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 	struct net_context *ctx;
@@ -1922,9 +2032,9 @@ ZTEST(net_ipv6, test_dst_site_scope_mcast_recv_ok)
 
 ZTEST(net_ipv6, test_dst_org_scope_mcast_recv)
 {
-	struct in6_addr mcast_org = { { { 0xff, 0x08, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr mcast_org = { { { 0xff, 0x08, 0, 0, 0, 0, 0, 0,
 					  0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	enum net_verdict verdict;
 
@@ -1935,9 +2045,9 @@ ZTEST(net_ipv6, test_dst_org_scope_mcast_recv)
 
 ZTEST(net_ipv6, test_dst_iface_scope_mcast_send)
 {
-	struct in6_addr mcast_iface = { { { 0xff, 0x01, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr mcast_iface = { { { 0xff, 0x01, 0, 0, 0, 0, 0, 0,
 					    0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0, 0x10 } } };
 	struct net_if_mcast_addr *maddr;
 	struct net_context *ctx;
@@ -1974,12 +2084,12 @@ ZTEST(net_ipv6, test_dst_iface_scope_mcast_send)
 
 ZTEST(net_ipv6, test_dst_unknown_group_mcast_recv)
 {
-	struct in6_addr mcast_unknown_group = {
+	struct net_in6_addr mcast_unknown_group = {
 		{ { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0x01, 0x02, 0x03, 0x04, 0x05,
 		    0x06, 0x07, 0x08 } }
 	};
-	struct in6_addr in6_addr_any = IN6ADDR_ANY_INIT;
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr in6_addr_any = NET_IN6ADDR_ANY_INIT;
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0x10 } } };
 	struct net_context *ctx;
 	enum net_verdict verdict;
@@ -2004,12 +2114,12 @@ ZTEST(net_ipv6, test_dst_unknown_group_mcast_recv)
 
 ZTEST(net_ipv6, test_y_dst_unjoined_group_mcast_recv)
 {
-	struct in6_addr mcast_unjoined_group = {
+	struct net_in6_addr mcast_unjoined_group = {
 		{ { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0x42, 0x42, 0x42, 0x42, 0x42,
 		    0x42, 0x42, 0x42 } }
 	};
-	struct in6_addr in6_addr_any = IN6ADDR_ANY_INIT;
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr in6_addr_any = NET_IN6ADDR_ANY_INIT;
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0x10 } } };
 	struct net_if_mcast_addr *maddr;
 	struct net_context *ctx;
@@ -2051,11 +2161,11 @@ ZTEST(net_ipv6, test_y_dst_unjoined_group_mcast_recv)
 
 ZTEST(net_ipv6, test_dst_is_other_iface_mcast_recv)
 {
-	struct in6_addr mcast_iface2 = { { { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0x01,
+	struct net_in6_addr mcast_iface2 = { { { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0x01,
 					     0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 					     0x08 } } };
-	struct in6_addr in6_addr_any = IN6ADDR_ANY_INIT;
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0,
+	struct net_in6_addr in6_addr_any = NET_IN6ADDR_ANY_INIT;
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0x10 } } };
 	struct net_if *test_iface = net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY));
 	struct net_if_mcast_addr *maddr;
@@ -2100,7 +2210,7 @@ static void verify_iface_mcast_send_on_iface_event(void (*action)(void))
 {
 	enum net_verdict verdict;
 	struct net_context *ctx;
-	struct in6_addr solicited_node_mcast;
+	struct net_in6_addr solicited_node_mcast;
 
 	action();
 
@@ -2155,7 +2265,7 @@ static void verify_iface_mcast_recv_on_iface_event(void (*action)(void))
 {
 	enum net_verdict verdict;
 	struct net_context *ctx;
-	struct in6_addr solicited_node_mcast;
+	struct net_in6_addr solicited_node_mcast;
 
 	action();
 
@@ -2212,7 +2322,7 @@ ZTEST(net_ipv6, test_iface_mcast_recv_after_carrier_toggle)
 ZTEST(net_ipv6, test_no_nd_flag)
 {
 	bool ret;
-	struct in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+	struct net_in6_addr addr = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 				     0, 0, 0, 0, 0, 0, 0x99, 0x10 } } };
 	struct net_if *iface = TEST_NET_IF;
 	struct net_if_addr *ifaddr;
@@ -2262,7 +2372,7 @@ ZTEST(net_ipv6, test_nd_reachability_hint)
 	zassert_equal(net_ipv6_nbr_data(nbr)->state, NET_IPV6_NBR_STATE_REACHABLE);
 }
 
-static bool is_pe_address_found(struct net_if *iface, struct in6_addr *prefix)
+static bool is_pe_address_found(struct net_if *iface, struct net_in6_addr *prefix)
 {
 	struct net_if_ipv6 *ipv6;
 
@@ -2273,7 +2383,7 @@ static bool is_pe_address_found(struct net_if *iface, struct in6_addr *prefix)
 
 	ARRAY_FOR_EACH(ipv6->unicast, i) {
 		if (!ipv6->unicast[i].is_used ||
-		    ipv6->unicast[i].address.family != AF_INET6 ||
+		    ipv6->unicast[i].address.family != NET_AF_INET6 ||
 		    !ipv6->unicast[i].is_temporary) {
 			continue;
 		}
@@ -2289,10 +2399,10 @@ static bool is_pe_address_found(struct net_if *iface, struct in6_addr *prefix)
 }
 
 static void get_pe_addresses(struct net_if *iface,
-			     struct in6_addr **public_addr,
-			     struct in6_addr **temp_addr)
+			     struct net_in6_addr **public_addr,
+			     struct net_in6_addr **temp_addr)
 {
-	struct in6_addr prefix = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
+	struct net_in6_addr prefix = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
 				       0, 0, 0, 0, 0, 0, 0, 0 } } };
 	struct net_if_ipv6 *ipv6;
 
@@ -2303,7 +2413,7 @@ static void get_pe_addresses(struct net_if *iface,
 
 	ARRAY_FOR_EACH(ipv6->unicast, i) {
 		if (!ipv6->unicast[i].is_used ||
-		    ipv6->unicast[i].address.family != AF_INET6) {
+		    ipv6->unicast[i].address.family != NET_AF_INET6) {
 			continue;
 		}
 
@@ -2326,7 +2436,7 @@ static void get_pe_addresses(struct net_if *iface,
  */
 ZTEST(net_ipv6, test_z_privacy_extension_01)
 {
-	struct in6_addr prefix = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
+	struct net_in6_addr prefix = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
 				       0, 0, 0, 0, 0, 0, 0, 0 } } };
 	struct net_if *iface = net_if_get_default();
 	bool found;
@@ -2356,11 +2466,11 @@ ZTEST(net_ipv6, test_z_privacy_extension_01)
 
 ZTEST(net_ipv6, test_z_privacy_extension_02_filters)
 {
-	struct in6_addr prefix1 = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
+	struct net_in6_addr prefix1 = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
 					0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr prefix2 = { { { 0x3f, 0xfe, 0x04, 0x07, 0, 0, 0, 1,
+	struct net_in6_addr prefix2 = { { { 0x3f, 0xfe, 0x04, 0x07, 0, 0, 0, 1,
 					0, 0, 0, 0, 0, 0, 0, 0 } } };
-	struct in6_addr prefix3 = { { { 0x3f, 0xfe, 0x03, 0x07, 0, 0, 0, 1,
+	struct net_in6_addr prefix3 = { { { 0x3f, 0xfe, 0x03, 0x07, 0, 0, 0, 1,
 					0, 0, 0, 0, 0, 0, 0, 0 } } };
 	struct net_if *iface = net_if_get_default();
 	bool found;
@@ -2440,12 +2550,12 @@ ZTEST(net_ipv6, test_z_privacy_extension_02_filters)
 
 ZTEST(net_ipv6, test_z_privacy_extension_03_get_addr)
 {
-	struct in6_addr dst_addr = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
+	struct net_in6_addr dst_addr = { { { 0x3f, 0xfe, 0x05, 0x07, 0, 0, 0, 1,
 				       0, 0, 2, 3, 4, 5, 6, 7 } } };
 	struct net_if *iface = net_if_get_default();
-	struct in6_addr *public_addr = NULL;
-	struct in6_addr *temp_addr = NULL;
-	const struct in6_addr *src_addr;
+	struct net_in6_addr *public_addr = NULL;
+	struct net_in6_addr *temp_addr = NULL;
+	const struct net_in6_addr *src_addr;
 
 	if (!IS_ENABLED(CONFIG_NET_IPV6_PE)) {
 		return;
@@ -2466,6 +2576,133 @@ ZTEST(net_ipv6, test_z_privacy_extension_03_get_addr)
 		zassert_true(net_ipv6_addr_cmp(src_addr, temp_addr),
 			     "Non temporary address selected");
 	}
+}
+
+static void inject_bad_nd_message(struct net_if *iface, const uint8_t *data, size_t len)
+{
+	struct net_eth_hdr hdr;
+	struct net_pkt *pkt;
+
+	pkt = net_pkt_alloc_with_buffer(iface, sizeof(struct net_eth_addr) + len,
+					NET_AF_INET6, NET_IPPROTO_ICMPV6, K_NO_WAIT);
+	zassert_not_null(pkt, "Failed to allocate packet");
+
+	net_pkt_cursor_init(pkt);
+
+	hdr.type = net_htons(NET_ETH_PTYPE_IPV6);
+	memset(&hdr.src, 0, sizeof(struct net_eth_addr));
+	memcpy(&hdr.dst, net_if_get_link_addr(net_pkt_iface(pkt))->addr,
+	       sizeof(struct net_eth_addr));
+
+	net_pkt_set_overwrite(pkt, false);
+
+	zassert_ok(net_pkt_write(pkt, &hdr, sizeof(struct net_eth_hdr)),
+		   "Failed to write L2 header");
+	zassert_ok(net_pkt_write(pkt, data, len),
+		   "Failed to write ND packet data");
+
+	net_pkt_cursor_init(pkt);
+	zassert_ok((net_recv_data(iface, pkt)), "Data receive for ND packet failed.");
+}
+
+static void test_nd_packet_drop(const uint8_t *data, size_t len)
+{
+	struct net_stats_ipv6_nd ipv6_nd_before = { 0 };
+	struct net_stats_ipv6_nd ipv6_nd_after = { 0 };
+	struct net_if *iface = TEST_NET_IF;
+
+	zassert_ok(net_mgmt(NET_REQUEST_STATS_GET_IPV6_ND, NULL, &ipv6_nd_before,
+			    sizeof(ipv6_nd_before)),
+		   "Failed to retrieve stats");
+
+	inject_bad_nd_message(iface, data, len);
+
+	for (int i = 0; i < 20; i++) {
+		/* Give the packet some time to propagate into the stack. */
+		k_msleep(10);
+
+		zassert_ok(net_mgmt(NET_REQUEST_STATS_GET_IPV6_ND, NULL, &ipv6_nd_after,
+				    sizeof(ipv6_nd_after)),
+			   "Failed to retrieve stats");
+
+		if (ipv6_nd_before.drop < ipv6_nd_after.drop) {
+			break;
+		}
+	}
+
+	zassert_equal(ipv6_nd_before.drop + 1, ipv6_nd_after.drop,
+		      "ND packet drop count did not increase");
+}
+
+/* Minimal ICMPv6 RA with bad hop limit */
+static const unsigned char icmpv6_ra_bad_hop_limit[] = {
+/* IPv6 header starts here */
+	0x60, 0x00, 0x00, 0x00, 0x00, 0x10, 0x3a, /* Invalid IPv6 hop limit */ 0x10,
+	0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x02, 0x60, 0x97, 0xff, 0xfe, 0x07, 0x69, 0xea,
+	0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+/* ICMPv6 RA header starts here */
+	0x86, 0x00, 0x21, 0xd5, 0x40, 0x00, 0x07, 0x08,
+	0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01,
+};
+
+ZTEST(net_ipv6, test_ra_with_bad_hop_limit)
+{
+	/* This injects RA packet with bad hop limit in the IP header,
+	 * which should be dropped.
+	 */
+	test_nd_packet_drop(icmpv6_ra_bad_hop_limit, sizeof(icmpv6_ra_bad_hop_limit));
+}
+
+/* Minimal ICMPv6 NS with bad hop limit */
+static const unsigned char icmpv6_ns_bad_hop_limit[] = {
+/* IPv6 header starts here */
+	0x60, 0x00, 0x00, 0x00, 0x00, 0x20, 0x3A, /* Invalid IPv6 hop limit */ 0x10,
+	0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+/* ICMPv6 NS header starts here */
+	0x87, 0x00, 0x7c, 0x9d, 0x60, 0x00, 0x00, 0x00,
+/* Target Address */
+	0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+/* Source link layer address */
+	0x02, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0xD7,
+};
+
+ZTEST(net_ipv6, test_ns_with_bad_hop_limit)
+{
+	/* This injects NS packet with bad hop limit in the IP header,
+	 * which should be dropped.
+	 */
+	test_nd_packet_drop(icmpv6_ns_bad_hop_limit, sizeof(icmpv6_ns_bad_hop_limit));
+}
+
+/* Minimal ICMPv6 NA with bad hop limit */
+static const unsigned char icmpv6_na_bad_hop_limit[] = {
+/* IPv6 header starts here */
+	0x60, 0x00, 0x00, 0x00, 0x00, 0x20, 0x3A, /* Invalid IPv6 hop limit */ 0x10,
+	0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+/* ICMPv6 NA header starts here */
+	0x88, 0x00, 0xbb, 0x9c, 0x20, 0x00, 0x00, 0x00,
+/* Target Address */
+	0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+/* Target link layer address */
+	0x02, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0xD7,
+};
+
+ZTEST(net_ipv6, test_na_with_bad_hop_limit)
+{
+	/* This injects NA packet with bad hop limit in the IP header,
+	 * which should be dropped.
+	 */
+	test_nd_packet_drop(icmpv6_na_bad_hop_limit, sizeof(icmpv6_na_bad_hop_limit));
 }
 
 ZTEST_SUITE(net_ipv6, NULL, ipv6_setup, ipv6_before, NULL, ipv6_teardown);

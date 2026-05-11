@@ -17,6 +17,7 @@
 build*/
 !doc/build/
 !scripts/build
+!share/sysbuild/build
 !tests/drivers/build_all
 !scripts/pylib/build_helpers
 cscope.*
@@ -76,6 +77,7 @@ target/
 
 # CI output
 compliance.xml
+dts_linter.patch
 _error.types
 
 # Tag files
@@ -88,12 +90,16 @@ tags
 .idea
 
 # from check_compliance.py
-# zephyr-keep-sorted-start
+# zephyr-keep-sorted-start ignorecase
 BinaryFiles.txt
 BoardYml.txt
 Checkpatch.txt
 ClangFormat.txt
+CMakeStyle.txt
+DeviceAPI.txt
+DeviceMmioCheck.txt
 DevicetreeBindings.txt
+DevicetreeLinting.txt
 GitDiffCheck.txt
 Gitlint.txt
 Identity.txt
@@ -118,3 +124,6 @@ TextEncoding.txt
 YAMLLint.txt
 ZephyrModuleFile.txt
 # zephyr-keep-sorted-stop
+
+# Node dependecies
+node_modules

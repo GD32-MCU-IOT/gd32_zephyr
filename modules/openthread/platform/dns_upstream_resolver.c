@@ -45,8 +45,8 @@ struct query_context {
 	int originated_query_id;
 };
 
-K_MEM_SLAB_DEFINE_STATIC(query_slab, sizeof(struct query_context),
-			 CONFIG_DNS_NUM_CONCUR_QUERIES, sizeof(void *));
+K_MEM_SLAB_DEFINE_STATIC_TYPE(query_slab, struct query_context,
+			      CONFIG_DNS_NUM_CONCUR_QUERIES);
 
 void otPlatDnsStartUpstreamQuery(otInstance *aInstance, otPlatDnsUpstreamQuery *aTxn,
 				 const otMessage *aQuery)
@@ -88,6 +88,7 @@ void otPlatDnsStartUpstreamQuery(otInstance *aInstance, otPlatDnsUpstreamQuery *
 	sys_slist_append(&query_list, &ctx->node);
 
 	switch (qtype) {
+	case DNS_RR_TYPE_A:
 	case DNS_RR_TYPE_AAAA:
 		VerifyOrExit(dns_get_addr_info(name, qtype, &ctx->resolve_query_id,
 					       dns_resolve_cb, (void *)ctx, DNS_TIMEOUT) == 0,
@@ -106,12 +107,26 @@ void otPlatDnsStartUpstreamQuery(otInstance *aInstance, otPlatDnsUpstreamQuery *
 			     error = OT_ERROR_FAILED);
 		break;
 	default:
+#if defined(CONFIG_DNS_RESOLVER_PRIVATE_RR_SUPPORT)
+		/* Handle private RR types (65280-65534) */
+		if (qtype >= DNS_RR_TYPE_PRIVATE_START && qtype <= DNS_RR_TYPE_PRIVATE_END) {
+			VerifyOrExit(dns_resolve_name(dns_resolve_get_default(), name,
+						      (enum dns_query_type)qtype,
+						      &ctx->resolve_query_id,
+						      dns_resolve_cb, (void *)ctx,
+						      DNS_TIMEOUT) == 0,
+				     error = OT_ERROR_FAILED);
+			break;
+		}
+#endif
+		error = OT_ERROR_FAILED;
 		break;
 	}
 
-
 exit:
-	net_buf_unref(result);
+	if (result != NULL) {
+		net_buf_unref(result);
+	}
 	if (error != OT_ERROR_NONE && ctx != NULL) {
 		remove_query_ctx(ctx);
 	}
@@ -159,7 +174,7 @@ static void dns_pkt_recv_cb(struct net_buf *dns_data, size_t buf_len, void *user
 			     OT_ERROR_NONE);
 
 		(void)memcpy(req->buffer, dns_data->data, buf_len);
-		UNALIGNED_PUT(htons(ctx->originated_query_id), (uint16_t *)(req->buffer));
+		UNALIGNED_PUT(net_htons(ctx->originated_query_id), (uint16_t *)(req->buffer));
 		req->length = buf_len;
 		req->cb = dns_upstream_resolver_handle_response;
 		req->user_data = user_data;

@@ -18,9 +18,12 @@ set(BLOBS_DIR ${ZEPHYR_HAL_SILABS_MODULE_DIR}/zephyr/blobs/gecko)
 string(TOUPPER ${CONFIG_SOC_SERIES} SILABS_GECKO_DEVICE)
 string(TOUPPER ${CONFIG_SOC} SILABS_GECKO_PART_NUMBER)
 
-# Get SoC series number, i.e. translate e.g. efr32bg22 -> 22
-string(SUBSTRING ${CONFIG_SOC_SERIES} 7 2 GECKO_SERIES_NUMBER)
-
+# Get SoC series number, i.e. translate e.g. efr32bg22 -> 22, efr32fg1p -> 1
+string(SUBSTRING "${CONFIG_SOC_SERIES}" 7 2 GECKO_SERIES_NUMBER)
+# Strip any non-numeric characters from the series number
+string(REGEX REPLACE "[^0-9]" "" GECKO_SERIES_NUMBER "${GECKO_SERIES_NUMBER}")
+# Get major series number for directory mapping
+string(REGEX MATCH "^[0-9]" GECKO_MAJOR_SERIES_NUMBER "${GECKO_SERIES_NUMBER}")
 
 function(add_prebuilt_library lib_name prebuilt_path)
   add_library(${lib_name} STATIC IMPORTED GLOBAL)
@@ -64,7 +67,7 @@ if(${CONFIG_SOC_GECKO_HAS_RADIO})
         ${RADIO_DIR}/rail_lib/plugin/rail_util_callbacks
         ${RADIO_DIR}/rail_lib/plugin/rail_util_callbacks/config
         ${RADIO_DIR}/rail_lib/plugin/rail_util_protocol
-        ${RADIO_DIR}/rail_lib/plugin/rail_util_protocol/config/efr32xg${GECKO_SERIES_NUMBER}/
+        ${RADIO_DIR}/rail_lib/plugin/rail_util_protocol/config/efr32xg${GECKO_MAJOR_SERIES_NUMBER}x/
         ${RADIO_DIR}/rail_lib/protocol/ble
         ${RADIO_DIR}/rail_lib/protocol/ieee802154
         ${RADIO_DIR}/rail_lib/protocol/zwave
@@ -108,6 +111,7 @@ zephyr_library_sources_ifdef(CONFIG_SOC_GECKO_RTCC         ${EMLIB_DIR}/src/em_r
 zephyr_library_sources_ifdef(CONFIG_SOC_GECKO_TIMER        ${EMLIB_DIR}/src/em_timer.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_GECKO_USART        ${EMLIB_DIR}/src/em_usart.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_GECKO_WDOG         ${EMLIB_DIR}/src/em_wdog.c)
+zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFM32TG     ${DEVICE_DIR}/SiliconLabs/EFM32TG/Source/system_efm32tg.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFM32WG     ${DEVICE_DIR}/SiliconLabs/EFM32WG/Source/system_efm32wg.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32BG13P  ${DEVICE_DIR}/SiliconLabs/EFR32BG13P/Source/system_efr32bg13p.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32FG1P   ${DEVICE_DIR}/SiliconLabs/EFR32FG1P/Source/system_efr32fg1p.c)

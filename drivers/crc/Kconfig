@@ -1,8 +1,9 @@
 # Copyright (c) 2024 Brill Power Ltd.
+# Copyright 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 menuconfig CRC_DRIVER
-	bool "CRC device drivers"
+	bool "Cyclic Redundancy Check (CRC) drivers"
 	help
 	  Enable support for CRC device driver.
 
@@ -19,7 +20,13 @@ config CRC_DRIVER_INIT_PRIORITY
 	help
 	  CRC driver device initialization priority.
 
+# zephyr-keep-sorted-start
+source "drivers/crc/Kconfig.nxp"
 source "drivers/crc/Kconfig.renesas_ra"
+source "drivers/crc/Kconfig.sf32lb"
+source "drivers/crc/Kconfig.silabs"
+source "drivers/crc/Kconfig.stm32"
+# zephyr-keep-sorted-stop
 
 config CRC_DRIVER_HAS_CRC4
 	bool

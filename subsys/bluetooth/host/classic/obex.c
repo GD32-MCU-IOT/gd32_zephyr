@@ -1,7 +1,7 @@
-/* obex.c - IrDA Oject Exchange Protocol handling */
+/* obex.c - IrDA Object Exchange Protocol handling */
 
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -76,7 +76,7 @@ static int obex_transport_disconn(struct bt_obex *obex)
 	if (err) {
 		LOG_ERR("Fail to disconnect transport (err %d)", err);
 	}
-	return -EINVAL;
+	return err;
 }
 
 struct bt_obex_has_header {
@@ -97,7 +97,7 @@ static bool bt_obex_has_header_cb(struct bt_obex_hdr *hdr, void *user_data)
 	return true;
 }
 
-static bool bt_obex_has_header(struct net_buf *buf, uint8_t id)
+bool bt_obex_has_header(struct net_buf *buf, uint8_t id)
 {
 	struct bt_obex_has_header data;
 	int err;
@@ -219,8 +219,12 @@ static int obex_server_connect(struct bt_obex_server *server, uint16_t len, stru
 
 	if (mopl > server->obex->tx.mtu) {
 		LOG_WRN("MOPL exceeds MTU (%d > %d)", mopl, server->obex->tx.mtu);
-		rsp_code = BT_OBEX_RSP_CODE_PRECON_FAIL;
-		goto failed;
+		/* In mainstream mobile operating system settings, such as IPhone and Android,
+		 * MOPL is usually greater than the MTU of rfcomm or l2cap.
+		 * Therefore, the smaller value among them is selected as the final MOPL and
+		 * transmitted to the application by callback.
+		 */
+		mopl = server->obex->tx.mtu;
 	}
 
 	server->tx.mopl = mopl;
@@ -351,8 +355,11 @@ static int obex_server_put_common(struct bt_obex_server *server, bool final, uin
 			goto failed;
 		}
 
-		if (opcode != req_code) {
-			atomic_cas(&server->_opcode, opcode, req_code);
+		if ((opcode != req_code) && !atomic_cas(&server->_opcode, opcode, req_code)) {
+			LOG_WRN("OP code mismatch %u != %u", (uint8_t)atomic_get(&server->_opcode),
+				opcode);
+			rsp_code = BT_OBEX_RSP_CODE_INTER_ERROR;
+			goto failed;
 		}
 	}
 
@@ -432,8 +439,11 @@ static int obex_server_get_common(struct bt_obex_server *server, bool final, uin
 			goto failed;
 		}
 
-		if (opcode != req_code) {
-			atomic_cas(&server->_opcode, opcode, req_code);
+		if ((opcode != req_code) && !atomic_cas(&server->_opcode, opcode, req_code)) {
+			LOG_WRN("OP code mismatch %u != %u", (uint8_t)atomic_get(&server->_opcode),
+				opcode);
+			rsp_code = BT_OBEX_RSP_CODE_INTER_ERROR;
+			goto failed;
 		}
 	}
 
@@ -569,8 +579,11 @@ static int obex_server_action_common(struct bt_obex_server *server, bool final, 
 			goto failed;
 		}
 
-		if (opcode != req_code) {
-			atomic_cas(&server->_opcode, opcode, req_code);
+		if ((opcode != req_code) && !atomic_cas(&server->_opcode, opcode, req_code)) {
+			LOG_WRN("OP code mismatch %u != %u", (uint8_t)atomic_get(&server->_opcode),
+				opcode);
+			rsp_code = BT_OBEX_RSP_CODE_INTER_ERROR;
+			goto failed;
 		}
 	}
 
@@ -961,7 +974,12 @@ static int obex_client_connect(struct bt_obex_client *client, uint8_t rsp_code, 
 
 	if (mopl > client->obex->tx.mtu) {
 		LOG_WRN("MOPL exceeds MTU (%d > %d)", mopl, client->obex->tx.mtu);
-		goto failed;
+		/* In mainstream mobile operating system settings, such as IPhone and Android,
+		 * MOPL is usually greater than the MTU of rfcomm or l2cap.
+		 * Therefore, the smaller value among them is selected as the final MOPL and
+		 * transmitted to the application by callback.
+		 */
+		mopl = client->obex->tx.mtu;
 	}
 
 	client->tx.mopl = mopl;
@@ -972,6 +990,9 @@ static int obex_client_connect(struct bt_obex_client *client, uint8_t rsp_code, 
 	if (atomic_get(&client->_state) == BT_OBEX_DISCONNECTED) {
 		sys_slist_find_and_remove(&client->obex->_clients, &client->_node);
 	}
+
+	atomic_set(&client->_pre_opcode, BT_OBEX_OPCODE_CONNECT);
+	atomic_ptr_set(&client->obex->_last_client, client);
 
 	if (client->ops->connect) {
 		client->ops->connect(client, rsp_code, version, mopl, buf);
@@ -1003,6 +1024,9 @@ static int obex_client_disconn(struct bt_obex_client *client, uint8_t rsp_code, 
 		sys_slist_find_and_remove(&client->obex->_clients, &client->_node);
 	}
 
+	atomic_set(&client->_pre_opcode, BT_OBEX_OPCODE_DISCONN);
+	atomic_ptr_set(&client->obex->_last_client, client);
+
 	if (client->ops->disconnect) {
 		client->ops->disconnect(client, rsp_code, buf);
 	}
@@ -1030,6 +1054,8 @@ static int obex_client_put_common(struct bt_obex_client *client, uint8_t rsp_cod
 	}
 
 	if (rsp_code != BT_OBEX_RSP_CODE_CONTINUE) {
+		atomic_set(&client->_pre_opcode, atomic_get(&client->_opcode));
+		atomic_ptr_set(&client->obex->_last_client, client);
 		atomic_clear(&client->_opcode);
 		atomic_ptr_clear(&client->obex->_active_client);
 	}
@@ -1071,6 +1097,8 @@ static int obex_client_get_common(struct bt_obex_client *client, uint8_t rsp_cod
 	}
 
 	if (rsp_code != BT_OBEX_RSP_CODE_CONTINUE) {
+		atomic_set(&client->_pre_opcode, atomic_get(&client->_opcode));
+		atomic_ptr_set(&client->obex->_last_client, client);
 		atomic_clear(&client->_opcode);
 		atomic_ptr_clear(&client->obex->_active_client);
 	}
@@ -1112,6 +1140,8 @@ static int obex_client_setpath(struct bt_obex_client *client, uint8_t rsp_code, 
 	}
 
 	if (rsp_code != BT_OBEX_RSP_CODE_CONTINUE) {
+		atomic_set(&client->_pre_opcode, atomic_get(&client->_opcode));
+		atomic_ptr_set(&client->obex->_last_client, client);
 		atomic_clear(&client->_opcode);
 		atomic_ptr_clear(&client->obex->_active_client);
 	}
@@ -1141,6 +1171,8 @@ static int obex_client_action_common(struct bt_obex_client *client, uint8_t rsp_
 	}
 
 	if (rsp_code != BT_OBEX_RSP_CODE_CONTINUE) {
+		atomic_set(&client->_pre_opcode, atomic_get(&client->_opcode));
+		atomic_ptr_set(&client->obex->_last_client, client);
 		atomic_clear(&client->_opcode);
 		atomic_ptr_clear(&client->obex->_active_client);
 	}
@@ -1189,13 +1221,13 @@ static int obex_client_abort(struct bt_obex_client *client, uint8_t rsp_code, ui
 		int err = -EINVAL;
 
 		handler = obex_client_find_handler(atomic_get(&client->_pre_opcode));
-		if (handler) {
+		if (handler != NULL) {
 			err = handler->handler(client, rsp_code, len, buf);
 			if (err) {
 				LOG_WRN("Handler err %d", err);
 			}
+			return err;
 		}
-		return err;
 	}
 
 	if (client->ops->abort == NULL) {
@@ -1203,6 +1235,8 @@ static int obex_client_abort(struct bt_obex_client *client, uint8_t rsp_code, ui
 		return -ENOTSUP;
 	}
 
+	atomic_clear(&client->_pre_opcode);
+	atomic_ptr_clear(&client->obex->_last_client);
 	atomic_clear(&client->_opcode);
 	atomic_ptr_clear(&client->obex->_active_client);
 
@@ -1248,6 +1282,30 @@ static struct client_handler *obex_client_find_handler(uint8_t opcode)
 	return NULL;
 }
 
+static struct bt_obex_client *obex_get_last_client(struct bt_obex *obex)
+{
+	struct bt_obex_client *client;
+
+	client = atomic_ptr_get(&obex->_last_client);
+	if (client == NULL) {
+		LOG_WRN("Last client not found");
+		return NULL;
+	}
+
+	if (!atomic_cas(&client->_opcode, 0, BT_OBEX_OPCODE_ABORT)) {
+		LOG_WRN("opcode cannot be set");
+		return NULL;
+	}
+
+	if (!atomic_cas(&client->_pre_opcode, BT_OBEX_OPCODE_ABORT, 0)) {
+		LOG_WRN("Last opcode is not ABORT");
+		(void)atomic_cas(&client->_opcode, BT_OBEX_OPCODE_ABORT, 0);
+		return NULL;
+	}
+
+	return client;
+}
+
 static int obex_client_recv(struct bt_obex *obex, struct net_buf *buf)
 {
 	struct client_handler *handler;
@@ -1259,6 +1317,11 @@ static int obex_client_recv(struct bt_obex *obex, struct net_buf *buf)
 	if (buf->len < sizeof(*hdr)) {
 		LOG_WRN("Too small header size (%d < %d)", buf->len, sizeof(*hdr));
 		return -EINVAL;
+	}
+
+	if (client == NULL) {
+		LOG_WRN("No active OBEX client.");
+		client = obex_get_last_client(obex);
 	}
 
 	if (client == NULL) {
@@ -1298,6 +1361,7 @@ int bt_obex_transport_connected(struct bt_obex *obex)
 	}
 
 	atomic_ptr_clear(&obex->_active_client);
+	atomic_ptr_clear(&obex->_last_client);
 
 	return 0;
 }
@@ -1309,6 +1373,7 @@ int bt_obex_transport_disconnected(struct bt_obex *obex)
 
 	obex->_transport_ops = NULL;
 	atomic_ptr_clear(&obex->_active_client);
+	atomic_ptr_clear(&obex->_last_client);
 
 	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&obex->_clients, client, cnext, _node) {
 		atomic_clear(&client->_opcode);
@@ -1818,8 +1883,10 @@ int bt_obex_put(struct bt_obex_client *client, bool final, struct net_buf *buf)
 			return -EBUSY;
 		}
 
-		if (opcode != req_code) {
-			atomic_cas(&client->_opcode, opcode, req_code);
+		if ((opcode != req_code) && !atomic_cas(&client->_opcode, opcode, req_code)) {
+			LOG_WRN("OP code mismatch %u != %u", (uint8_t)atomic_get(&client->_opcode),
+				opcode);
+			return -EINVAL;
 		}
 	}
 
@@ -1953,8 +2020,10 @@ int bt_obex_get(struct bt_obex_client *client, bool final, struct net_buf *buf)
 			return -EBUSY;
 		}
 
-		if (opcode != req_code) {
-			atomic_cas(&client->_opcode, opcode, req_code);
+		if ((opcode != req_code) && !atomic_cas(&client->_opcode, opcode, req_code)) {
+			LOG_WRN("OP code mismatch %u != %u", (uint8_t)atomic_get(&client->_opcode),
+				opcode);
+			return -EINVAL;
 		}
 	}
 
@@ -2077,7 +2146,7 @@ int bt_obex_abort(struct bt_obex_client *client, struct net_buf *buf)
 	}
 
 	active_client = atomic_ptr_get(&client->obex->_active_client);
-	if (active_client != client) {
+	if ((active_client != NULL) && (active_client != client)) {
 		LOG_WRN("One OBEX request is executing");
 		return -EBUSY;
 	}
@@ -2339,8 +2408,10 @@ int bt_obex_action(struct bt_obex_client *client, bool final, struct net_buf *bu
 			return -EBUSY;
 		}
 
-		if (opcode != req_code) {
-			atomic_cas(&client->_opcode, opcode, req_code);
+		if ((opcode != req_code) && !atomic_cas(&client->_opcode, opcode, req_code)) {
+			LOG_WRN("OP code mismatch %u != %u", (uint8_t)atomic_get(&client->_opcode),
+				opcode);
+			return -EINVAL;
 		}
 	}
 
@@ -2479,7 +2550,7 @@ static bool bt_obex_unicode_is_valid(uint16_t len, const uint8_t *str)
 	return true;
 }
 
-static bool bt_obex_string_is_valid(uint8_t id, uint16_t len, const uint8_t *str)
+bool bt_obex_string_is_valid(uint8_t id, uint16_t len, const uint8_t *str)
 {
 	if (BT_OBEX_HEADER_ENCODING(id) == BT_OBEX_HEADER_ENCODING_UNICODE) {
 		return bt_obex_unicode_is_valid(len, str);
@@ -2733,7 +2804,13 @@ int bt_obex_add_header_end_body(struct net_buf *buf, uint16_t len, const uint8_t
 {
 	size_t total;
 
-	if (!buf || !body || !len) {
+	/*
+	 * OBEX Version 1.5, section 2.2.9 Body, End-of-Body
+	 * The `body` could be a NULL, so the `len` of the name could 0.
+	 * In some cases, the object body data is generated on the fly and the end cannot
+	 * be anticipated, so it is legal to send a zero length End-of-Body header.
+	 */
+	if ((buf == NULL) || ((len != 0) && (body == NULL))) {
 		LOG_WRN("Invalid parameter");
 		return -EINVAL;
 	}
@@ -3015,7 +3092,7 @@ int bt_obex_add_header_session_seq_number(struct net_buf *buf, uint32_t session_
 	return 0;
 }
 
-int bt_obex_add_header_action_id(struct net_buf *buf, uint32_t action_id)
+int bt_obex_add_header_action_id(struct net_buf *buf, uint8_t action_id)
 {
 	size_t total;
 
@@ -3030,7 +3107,7 @@ int bt_obex_add_header_action_id(struct net_buf *buf, uint32_t action_id)
 	}
 
 	net_buf_add_u8(buf, BT_OBEX_HEADER_ID_ACTION_ID);
-	net_buf_add_be32(buf, action_id);
+	net_buf_add_u8(buf, action_id);
 	return 0;
 }
 
@@ -3623,6 +3700,47 @@ int bt_obex_get_header_app_param(struct net_buf *buf, uint16_t *len, const uint8
 	return 0;
 }
 
+struct bt_obex_has_app_param {
+	uint8_t id;
+	bool found;
+};
+
+static bool bt_obex_has_app_param_cb(struct bt_obex_tlv *tlv, void *user_data)
+{
+	struct bt_obex_has_app_param *data = user_data;
+
+	if (tlv->type == data->id) {
+		data->found = true;
+		return false;
+	}
+	return true;
+}
+
+bool bt_obex_has_app_param(struct net_buf *buf, uint8_t id)
+{
+	struct bt_obex_has_app_param ap;
+	uint16_t len = 0;
+	const uint8_t *data = NULL;
+	int err;
+
+	if (bt_obex_get_header_app_param(buf, &len, &data) != 0) {
+		return false;
+	}
+	if (len == 0U || data == NULL) {
+		return false;
+	}
+
+	ap.id = id;
+	ap.found = false;
+
+	err = bt_obex_tlv_parse(len, data, bt_obex_has_app_param_cb, &ap);
+	if (err != 0) {
+		return false;
+	}
+
+	return ap.found;
+}
+
 int bt_obex_get_header_auth_challenge(struct net_buf *buf, uint16_t *len, const uint8_t **auth)
 {
 	struct bt_obex_find_header_data data;
@@ -3825,7 +3943,7 @@ int bt_obex_get_header_session_seq_number(struct net_buf *buf, uint32_t *session
 	return 0;
 }
 
-int bt_obex_get_header_action_id(struct net_buf *buf, uint32_t *action_id)
+int bt_obex_get_header_action_id(struct net_buf *buf, uint8_t *action_id)
 {
 	struct bt_obex_find_header_data data;
 	int err;
@@ -3849,7 +3967,7 @@ int bt_obex_get_header_action_id(struct net_buf *buf, uint32_t *action_id)
 		return -ENODATA;
 	}
 
-	*action_id = sys_get_be32(data.hdr.data);
+	*action_id = data.hdr.data[0];
 	return 0;
 }
 

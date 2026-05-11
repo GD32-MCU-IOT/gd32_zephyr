@@ -36,7 +36,7 @@ FS_LITTLEFS_DECLARE_DEFAULT_CONFIG(storage);
 #endif
 
 #define STORAGE_PARTITION		storage_partition
-#define STORAGE_PARTITION_ID		FIXED_PARTITION_ID(STORAGE_PARTITION)
+#define STORAGE_PARTITION_ID		PARTITION_ID(STORAGE_PARTITION)
 
 static struct fs_mount_t fs_mnt;
 
@@ -174,7 +174,7 @@ static void setup_disk(void)
 			printk("End of files\n");
 			break;
 		}
-		printk("  %c %u %s\n",
+		printk("  %c %zu %s\n",
 		       (ent.type == FS_DIR_ENTRY_FILE) ? 'F' : 'D',
 		       ent.size,
 		       ent.name);

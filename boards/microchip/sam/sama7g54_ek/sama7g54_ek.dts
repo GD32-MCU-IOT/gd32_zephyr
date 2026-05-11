@@ -7,13 +7,13 @@
 
 /dts-v1/;
 #include <common/freq.h>
-#include <dt-bindings/mfd/mfd_mchp_sam_flexcom.h>
+#include <zephyr/dt-bindings/mfd/mfd_mchp_sam_flexcom.h>
 #include <dt-bindings/sam/sama7g5/sama7g54/sama7g54-pinctrl.h>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/gpio/microchip-sam-gpio.h>
-#include <dt-bindings/input/input-event-codes.h>
-#include <dt-bindings/pwm/pwm.h>
-#include <microchip/sam/sama7g5.dtsi>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/gpio/microchip-sam-gpio.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include <microchip/sam/sama7/sama7g5/sama7g54.dtsi>
 
 / {
 	model = "SAMA7G54-EK board";
@@ -22,6 +22,7 @@
 	aliases {
 		led0 = &led_green;
 		pwm-led0 = &pwm_led_green;
+		rtc = &rtc;
 		sw0 = &button_user;
 		sdhc0 = &sdmmc0;
 		sdhc1 = &sdmmc1;
@@ -29,6 +30,7 @@
 
 	chosen {
 		zephyr,sram = &ddram;
+		zephyr,canbus = &mcan0;
 		zephyr,console = &usart3;
 		zephyr,entropy = &trng;
 		zephyr,shell-uart = &usart3;
@@ -80,6 +82,42 @@
 		};
 	};
 
+	mikrobus_1_header: mikrobus-connector-1 {
+		compatible = "mikro-bus";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &piod 0 0>, /* AN = PD0 */
+			   <2 0 &piob 6 0>, /* CS = PB6 */
+			   <3 0 &piob 5 0>, /* SCK = PB5 */
+			   <4 0 &piob 4 0>, /* MISO = PB4 */
+			   <5 0 &piob 3 0>, /* MOSI = PB3 */
+			   <6 0 &pioa 13 0>, /* PWM = PA13 */
+			   <7 0 &pioc 21 0>, /* INT = PC21 */
+			   <8 0 &piod 19 0>, /* RX = PD19 */
+			   <9 0 &piod 18 0>, /* TX = PD18 */
+			   <10 0 &pioc 19 0>, /* SCL = PC19 */
+			   <11 0 &pioc 18 0>; /* SDA = PC18 */
+	};
+
+	mikrobus_2_header: mikrobus-connector-2 {
+		compatible = "mikro-bus";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &piod 1 0>, /* AN = PD1 */
+			   <2 0 &piob 7 0>, /* CS = PB7 */
+			   <3 0 &piob 5 0>, /* SCK = PB5 */
+			   <4 0 &piob 4 0>, /* MISO = PB4 */
+			   <5 0 &piob 3 0>, /* MOSI = PB3 */
+			   <6 0 &piod 20 0>, /* PWM = PD20 */
+			   <7 0 &pioc 20 0>, /* INT = PC20 */
+			   <8 0 &pioc 24 0>, /* RX = PC24 */
+			   <9 0 &pioc 23 0>, /* TX = PC23 */
+			   <10 0 &pioc 19 0>, /* SCL = PC19 */
+			   <11 0 &pioc 18 0>; /* SDA = PC18 */
+	};
+
 	pwmleds: pwmleds {
 		compatible = "pwm-leds";
 		status = "disabled"; /* Conflict with leds. */
@@ -92,6 +130,24 @@
 			pwms = <&pwm 3 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
 		};
 	};
+
+	transceiver0: can-phy0 {
+		compatible = "can-transceiver-gpio";
+		standby-gpios = <&pioc 15 GPIO_ACTIVE_HIGH>;
+		max-bitrate = <DT_FREQ_M(8)>;
+		#phy-cells = <0>;
+	};
+
+	transceiver1: can-phy1 {
+		compatible = "can-transceiver-gpio";
+		standby-gpios = <&pioc 16 GPIO_ACTIVE_HIGH>;
+		max-bitrate = <DT_FREQ_M(8)>;
+		#phy-cells = <0>;
+	};
+};
+
+&aes {
+	status = "okay";
 };
 
 &dma0 {
@@ -135,6 +191,17 @@
 			size = <256>;
 			timeout = <5>;
 			status = "okay";
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				eeprom0_eui48: eui48@fa {
+					reg = <0xfa 6>;
+					#nvmem-cell-cells = <0>;
+				};
+			};
 		};
 
 		eeprom1: eeprom1@53 {
@@ -145,7 +212,67 @@
 			size = <256>;
 			timeout = <5>;
 			status = "okay";
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				eeprom1_eui48: eui48@fa {
+					reg = <0xfa 6>;
+					#nvmem-cell-cells = <0>;
+				};
+			};
 		};
+	};
+};
+
+&flx9 {
+	mchp,flexcom-mode = <SAM_FLEXCOM_MODE_TWI>;
+	status = "okay";
+
+	i2c9: i2c9@600 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c9_default>;
+		status = "disabled";
+	};
+};
+
+&flx11 {
+	mchp,flexcom-mode = <SAM_FLEXCOM_MODE_SPI>;
+	status = "okay";
+
+	spi11: spi@400 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_spi11_default>;
+		cs-gpios = <&piob 6 GPIO_ACTIVE_LOW>, <&piob 7 GPIO_ACTIVE_LOW>;
+		status = "disabled";
+	};
+};
+
+&gmac0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gmac0_default>;
+	phy-connection-type = "gmii";
+	phy-handle = <&gmac0_phy>;
+
+	nvmem-cells = <&eeprom0_eui48>;
+	nvmem-cell-names = "mac_address";
+};
+
+&gmac0_mdio {
+	status = "okay";
+
+	pinctrl-0 = <&pinctrl_gmac0_mdio_default>;
+	pinctrl-names = "default";
+
+	gmac0_phy: ethernet-phy@7 {
+		compatible = "microchip,ksz9131";
+		status = "okay";
+		reg = <7>;
+		int-gpios = <&pioa 31 GPIO_ACTIVE_LOW>;
+		microchip,rgmii-delay = "id";
 	};
 };
 
@@ -156,6 +283,9 @@
 	phy-connection-type = "mii";
 	phy-handle = <&gmac1_phy>;
 	ref-clk-source = "external";
+
+	nvmem-cells = <&eeprom1_eui48>;
+	nvmem-cell-names = "mac_address";
 };
 
 &gmac1_mdio {
@@ -173,12 +303,72 @@
 	};
 };
 
+&mcan0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_can0_default>;
+	pinctrl-names = "default";
+	phys = <&transceiver0>;
+};
+
+&mcan1 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_can1_default>;
+	pinctrl-names = "default";
+	phys = <&transceiver1>;
+};
+
 &pinctrl {
+	pinctrl_can0_default: can0_default {
+		group1 {
+			pinmux = <PIN_PD12__CANTX0>,
+				 <PIN_PD13__CANRX0>;
+			bias-disable;
+		};
+	};
+
+	pinctrl_can1_default: can1_default {
+		group1 {
+			pinmux = <PIN_PD14__CANTX1>,
+				 <PIN_PD15__CANRX1>;
+			bias-disable;
+		};
+	};
+
 	pinctrl_flx3_default: flx3_default {
 		group1 {
 			pinmux = <PIN_PD16__FLEXCOM3_IO0>,
 				 <PIN_PD17__FLEXCOM3_IO1>;
 			bias-pull-up;
+		};
+	};
+
+	pinctrl_gmac0_default: gmac0_default {
+		group1 {
+			pinmux = <PIN_PA16__G0_TX0>,
+				 <PIN_PA17__G0_TX1>,
+				 <PIN_PA26__G0_TX2>,
+				 <PIN_PA27__G0_TX3>,
+				 <PIN_PA19__G0_RX0>,
+				 <PIN_PA20__G0_RX1>,
+				 <PIN_PA28__G0_RX2>,
+				 <PIN_PA29__G0_RX3>,
+				 <PIN_PA15__G0_TXEN>,
+				 <PIN_PA30__G0_RXCK>,
+				 <PIN_PA18__G0_RXDV>,
+				 <PIN_PA25__G0_125CK>;
+			bias-disable;
+		};
+
+		gmac0_txck_default {
+			pinmux = <PIN_PA24__G0_TXCK>;
+			bias-pull-up;
+		};
+	};
+
+	pinctrl_gmac0_mdio_default: gmac0_mdio_default {
+		group1 {
+			pinmux = <PIN_PA22__G0_MDC>,
+				 <PIN_PA23__G0_MDIO>;
 		};
 	};
 
@@ -208,6 +398,14 @@
 		group1 {
 			pinmux = <PIN_PC14__FLEXCOM8_IO0>,
 				 <PIN_PC13__FLEXCOM8_IO1>;
+			bias-disable;
+		};
+	};
+
+	pinctrl_i2c9_default: i2c9_default {
+		group1 {
+			pinmux = <PIN_PC18__FLEXCOM9_IO0>,
+				 <PIN_PC19__FLEXCOM9_IO1>;
 			bias-disable;
 		};
 	};
@@ -265,10 +463,24 @@
 		};
 	};
 
+	pinctrl_spi11_default: spi11_default {
+		group1 {
+			pinmux = <PIN_PB3__FLEXCOM11_IO0>, /* MOSI */
+				 <PIN_PB4__FLEXCOM11_IO1>, /* MISO */
+				 <PIN_PB5__FLEXCOM11_IO2>; /* SCK */
+			bias-disable;
+		};
+	};
 };
 
 &pit64b0 {
 	clock-frequency = <DT_FREQ_M(10)>;
+};
+
+&pit64b1 {
+	top-alarm;
+	prescaler-period = <15>;
+	status = "okay";
 };
 
 &pwm {
@@ -309,6 +521,20 @@
 	};
 };
 
+&sha {
+	status = "okay";
+};
+
+&tc0_ch0 {
+	status = "okay";
+};
+
 &trng {
 	status = "okay";
 };
+
+mikrobus_header: &mikrobus_1_header {};
+
+mikrobus_i2c: &i2c9 {};
+
+mikrobus_spi: &spi11 {};

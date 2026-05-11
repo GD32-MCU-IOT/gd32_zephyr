@@ -2,7 +2,7 @@ identifier: w5500_evb_pico2/rp2350a/m33
 name: Wiznet W5500 Evaluation Board with RP2350
 type: mcu
 arch: arm
-flash: 16384
+flash: 2048
 ram: 520
 toolchain:
   - zephyr
@@ -15,6 +15,10 @@ supported:
   - gpio
   - hwinfo
   - i2c
+  - pico_gpio
+  - pico_i2c
+  - pico_serial
+  - pico_spi
   - pwm
   - spi
   - uart

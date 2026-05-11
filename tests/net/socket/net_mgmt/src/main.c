@@ -36,8 +36,8 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_SOCKETS_LOG_LEVEL);
 static struct net_if *default_iface;
 
 static ZTEST_BMEM int fd;
-static ZTEST_BMEM struct in6_addr addr_v6;
-static ZTEST_DMEM struct in_addr addr_v4 = { { { 192, 0, 2, 3 } } };
+static ZTEST_BMEM struct net_in6_addr addr_v6;
+static ZTEST_DMEM struct net_in_addr addr_v4 = { { { 192, 0, 2, 3 } } };
 
 #if defined(CONFIG_NET_SOCKETS_LOG_LEVEL_DBG)
 #define DBG(fmt, ...) printk(fmt, ##__VA_ARGS__)
@@ -124,6 +124,7 @@ static void eth_fake_recalc_qav_idle_slopes(struct eth_fake_context *ctx)
 }
 
 static int eth_fake_set_config(const struct device *dev,
+			       struct net_if *iface __unused,
 			       enum ethernet_config_type type,
 			       const struct ethernet_config *config)
 {
@@ -171,6 +172,7 @@ static int eth_fake_set_config(const struct device *dev,
 }
 
 static int eth_fake_get_config(const struct device *dev,
+			       struct net_if *iface __unused,
 			       enum ethernet_config_type type,
 			       struct ethernet_config *config)
 {
@@ -220,9 +222,9 @@ static int eth_fake_get_config(const struct device *dev,
 	return 0;
 }
 
-static enum ethernet_hw_caps eth_fake_get_capabilities(const struct device *dev)
+static enum ethernet_hw_caps eth_fake_get_capabilities(const struct device *dev __unused,
+						       struct net_if *iface __unused)
 {
-	ARG_UNUSED(dev);
 	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE | ETHERNET_QAV |
 	       ETHERNET_PROMISC_MODE | ETHERNET_PRIORITY_QUEUES;
 }
@@ -331,7 +333,7 @@ K_THREAD_DEFINE(trigger_events_thread_id, STACK_SIZE,
 		trigger_events, NULL, NULL, NULL,
 		THREAD_PRIORITY, 0, -1);
 
-static char *get_ip_addr(char *ipaddr, size_t len, sa_family_t family,
+static char *get_ip_addr(char *ipaddr, size_t len, net_sa_family_t family,
 			 struct net_mgmt_msghdr *hdr)
 {
 	char *buf;
@@ -349,7 +351,7 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	struct net_if **my_iface = user_data;
 
 	if (net_if_l2(iface) == &NET_L2_GET_NAME(ETHERNET)) {
-		if (PART_OF_ARRAY(NET_IF_GET_NAME(eth_fake, 0), iface)) {
+		if (iface == NET_IF_GET(eth_fake, 0)) {
 			*my_iface = iface;
 		}
 	}
@@ -357,13 +359,13 @@ static void iface_cb(struct net_if *iface, void *user_data)
 
 static void test_net_mgmt_setup(void)
 {
-	struct sockaddr_nm sockaddr;
+	struct net_sockaddr_nm sockaddr;
 	int ret;
 
 	net_if_foreach(iface_cb, &default_iface);
 	zassert_not_null(default_iface, "Cannot find test interface");
 
-	fd = zsock_socket(AF_NET_MGMT, SOCK_DGRAM, NET_MGMT_EVENT_PROTO);
+	fd = zsock_socket(NET_AF_NET_MGMT, NET_SOCK_DGRAM, NET_MGMT_EVENT_PROTO);
 	zassert_false(fd < 0, "Cannot create net_mgmt socket (%d)", errno);
 
 #ifdef CONFIG_USERSPACE
@@ -378,14 +380,14 @@ static void test_net_mgmt_setup(void)
 
 	memset(&sockaddr, 0, sizeof(sockaddr));
 
-	sockaddr.nm_family = AF_NET_MGMT;
+	sockaddr.nm_family = NET_AF_NET_MGMT;
 	sockaddr.nm_ifindex = net_if_get_by_iface(default_iface);
 	sockaddr.nm_pid = (uintptr_t)k_current_get();
 	sockaddr.nm_mask = NET_EVENT_IPV6_DAD_SUCCEED |
 			   NET_EVENT_IPV6_ADDR_ADD |
 			   NET_EVENT_IPV6_ADDR_DEL;
 
-	ret = zsock_bind(fd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
+	ret = zsock_bind(fd, (struct net_sockaddr *)&sockaddr, sizeof(sockaddr));
 	zassert_false(ret < 0, "Cannot bind net_mgmt socket (%d)", errno);
 
 	k_thread_start(trigger_events_thread_id);
@@ -393,9 +395,9 @@ static void test_net_mgmt_setup(void)
 
 static void test_net_mgmt_catch_events(void)
 {
-	struct sockaddr_nm event_addr;
-	socklen_t event_addr_len;
-	char ipaddr[INET6_ADDRSTRLEN];
+	struct net_sockaddr_nm event_addr;
+	net_socklen_t event_addr_len;
+	char ipaddr[NET_INET6_ADDRSTRLEN];
 	uint8_t buf[MAX_BUF_LEN];
 	int event_count = 2;
 	int ret;
@@ -407,7 +409,7 @@ static void test_net_mgmt_catch_events(void)
 		event_addr_len = sizeof(event_addr);
 
 		ret = zsock_recvfrom(fd, buf, sizeof(buf), 0,
-				     (struct sockaddr *)&event_addr,
+				     (struct net_sockaddr *)&event_addr,
 				     &event_addr_len);
 		if (ret < 0) {
 			continue;
@@ -425,7 +427,7 @@ static void test_net_mgmt_catch_events(void)
 			DBG("IPv6 address added to interface %d (%s)\n",
 			    event_addr.nm_ifindex,
 			    get_ip_addr(ipaddr, sizeof(ipaddr),
-					AF_INET6, hdr));
+					NET_AF_INET6, hdr));
 			zassert_equal(strncmp(ipaddr, "2001:db8::3",
 					      sizeof(ipaddr) - 1), 0,
 				      "Invalid IPv6 address %s added",
@@ -436,7 +438,7 @@ static void test_net_mgmt_catch_events(void)
 			DBG("IPv6 address removed from interface %d (%s)\n",
 			    event_addr.nm_ifindex,
 			    get_ip_addr(ipaddr, sizeof(ipaddr),
-					AF_INET6, hdr));
+					NET_AF_INET6, hdr));
 			zassert_equal(strncmp(ipaddr, "2001:db8::3",
 					      sizeof(ipaddr) - 1), 0,
 				      "Invalid IPv6 address %s removed",
@@ -460,8 +462,8 @@ ZTEST_USER(net_socket_net_mgmt, test_net_mgmt_catch_user)
 static void test_net_mgmt_catch_events_failure(void)
 {
 #define SMALL_BUF_LEN 16
-	struct sockaddr_nm event_addr;
-	socklen_t event_addr_len;
+	struct net_sockaddr_nm event_addr;
+	net_socklen_t event_addr_len;
 	uint8_t buf[SMALL_BUF_LEN];
 	int ret;
 
@@ -469,7 +471,7 @@ static void test_net_mgmt_catch_events_failure(void)
 	event_addr_len = sizeof(event_addr);
 
 	ret = zsock_recvfrom(fd, buf, sizeof(buf), 0,
-			     (struct sockaddr *)&event_addr,
+			     (struct net_sockaddr *)&event_addr,
 			     &event_addr_len);
 	zassert_equal(ret, -1, "Msg check failed, %d", errno);
 	zassert_equal(errno, EMSGSIZE, "Msg check failed, errno %d", errno);
@@ -520,7 +522,7 @@ ZTEST_USER(net_socket_net_mgmt, test_ethernet_set_qav_user)
 static void test_ethernet_get_qav(void)
 {
 	struct ethernet_req_params params;
-	socklen_t optlen = sizeof(params);
+	net_socklen_t optlen = sizeof(params);
 	int ret;
 
 	memset(&params, 0, sizeof(params));
@@ -550,7 +552,7 @@ ZTEST_USER(net_socket_net_mgmt, test_ethernet_get_qav_user)
 static void test_ethernet_get_unknown_option(void)
 {
 	struct ethernet_req_params params;
-	socklen_t optlen = sizeof(params);
+	net_socklen_t optlen = sizeof(params);
 	int ret;
 
 	memset(&params, 0, sizeof(params));
@@ -575,7 +577,7 @@ ZTEST_USER(net_socket_net_mgmt, test_ethernet_get_unknown_opt_user)
 static void test_ethernet_set_unknown_option(void)
 {
 	struct ethernet_req_params params;
-	socklen_t optlen = sizeof(params);
+	net_socklen_t optlen = sizeof(params);
 	int ret;
 
 	memset(&params, 0, sizeof(params));

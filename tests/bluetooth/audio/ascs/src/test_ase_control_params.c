@@ -83,6 +83,8 @@ static void test_ase_control_params_after(void *f)
 {
 	int err;
 
+	ARG_UNUSED(f);
+
 	err = bt_bap_unicast_server_unregister_cb(&mock_bap_unicast_server_cb);
 	zassert_equal(err, 0, "unexpected err response %d", err);
 
@@ -111,7 +113,7 @@ ZTEST_F(test_ase_control_params, test_sink_ase_control_operation_zero_length_wri
 
 	ret = fixture->ase_cp->write(&fixture->conn, fixture->ase_cp, (void *)buf, 0, 0, 0);
 	zassert_true(ret < 0, "ase_cp_attr->write returned unexpected (err 0x%02x)",
-		     BT_GATT_ERR(ret));
+		     (uint8_t)BT_GATT_ERR(ret));
 }
 
 static void test_expect_unsupported_opcode(struct test_ase_control_params_fixture *fixture,
@@ -382,6 +384,11 @@ static int unicast_server_cb_config_custom_fake(struct bt_conn *conn, const stru
 						struct bt_bap_qos_cfg_pref *const pref,
 						struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(conn);
+	ARG_UNUSED(ep);
+	ARG_UNUSED(dir);
+	ARG_UNUSED(codec_cfg);
+
 	*stream = &test_stream;
 	*pref = qos_pref;
 	*rsp = BT_BAP_ASCS_RSP(BT_BAP_ASCS_RSP_CODE_SUCCESS, BT_BAP_ASCS_REASON_NONE);

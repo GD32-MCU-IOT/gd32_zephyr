@@ -26,19 +26,19 @@ set(PSA_ARCH_TESTS_PATH ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/../psa-arch-test
 
 set(TFM_TEST_DIR         "${TFM_TEST_REPO_PATH}/tests_psa_arch/spe/partitions")
 set(PSA_ARCH_TESTS_CONFIG_FILE "${TFM_TEST_REPO_PATH}/tests_psa_arch/spe/config/config_test_psa_api.cmake")
-if (CONFIG_TFM_PSA_TEST_CRYPTO)
+if(CONFIG_TFM_PSA_TEST_CRYPTO)
 set(TFM_PSA_TEST_SUITE CRYPTO)
-elseif (CONFIG_TFM_PSA_TEST_PROTECTED_STORAGE)
+elseif(CONFIG_TFM_PSA_TEST_PROTECTED_STORAGE)
 set(TFM_PSA_TEST_SUITE PROTECTED_STORAGE)
-elseif (CONFIG_TFM_PSA_TEST_INTERNAL_TRUSTED_STORAGE)
+elseif(CONFIG_TFM_PSA_TEST_INTERNAL_TRUSTED_STORAGE)
 set(TFM_PSA_TEST_SUITE INTERNAL_TRUSTED_STORAGE)
-elseif (CONFIG_TFM_PSA_TEST_STORAGE)
+elseif(CONFIG_TFM_PSA_TEST_STORAGE)
 set(TFM_PSA_TEST_SUITE STORAGE)
-elseif (CONFIG_TFM_PSA_TEST_INITIAL_ATTESTATION)
+elseif(CONFIG_TFM_PSA_TEST_INITIAL_ATTESTATION)
 set(TFM_PSA_TEST_SUITE INITIAL_ATTESTATION)
 endif()
 
-if (NOT DEFINED TFM_PSA_TEST_SUITE)
+if(NOT DEFINED TFM_PSA_TEST_SUITE)
   message(FATAL_ERROR "Please define a test suite to run. Refer to the README to see the available test suites.")
 endif()
 set(TEST_PSA_API "${TFM_PSA_TEST_SUITE}")
@@ -74,6 +74,12 @@ set_property(TARGET zephyr_property_target
              -DTFM_ISOLATION_LEVEL=2
 )
 
+# Let TF-M install Mbed TLS (3.6.5) include files in the binary directory.
+set_property(TARGET zephyr_property_target
+             APPEND PROPERTY TFM_CMAKE_OPTIONS
+             -DTFM_INSTALL_MBEDTLS_HEADERS=ON
+)
+
 include(ExternalProject)
 
 ExternalProject_Add(tfm_psa_arch_test_app
@@ -84,6 +90,7 @@ ExternalProject_Add(tfm_psa_arch_test_app
                 -G ${CMAKE_GENERATOR}
                 -S ${TFM_TEST_REPO_PATH}/tests_psa_arch
                 -B ${PROJECT_BINARY_DIR}/tfm_ns
+                -DPython3_EXECUTABLE=${PYTHON_EXECUTABLE}
                 -DCROSS_COMPILE=${TFM_TOOLCHAIN_PATH}/${TFM_TOOLCHAIN_PREFIX}
                 -DPSA_TOOLCHAIN_FILE=${TFM_BINARY_DIR}/api_ns/cmake/${TFM_TOOLCHAIN_NS_FILE}
                 -DCONFIG_SPE_PATH=${TFM_BINARY_DIR}/api_ns

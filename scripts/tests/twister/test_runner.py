@@ -24,7 +24,9 @@ from twisterlib.error import BuildError
 from twisterlib.harness import Pytest
 from twisterlib.runner import CMake, ExecutionCounter, FilterBuilder, ProjectBuilder, TwisterRunner
 from twisterlib.statuses import TwisterStatus
+from twisterlib.testsuitedata import HarnessConfig
 
+# pylint: disable=no-name-in-module
 from . import ZEPHYR_BASE
 
 
@@ -103,6 +105,7 @@ def test_projectbuilder_cmake_assemble_args_single(m):
         ["basearg1", "CONFIG_t=\"test\"", "SNIPPET_t=\"test\""],
         handler,
         ["a.conf;b.conf", "c.conf"],
+        ["d.conf;e.conf", "f.conf"],
         ["extra_overlay.conf"],
         ["x.overlay;y.overlay", "z.overlay"],
         ["cmake1=foo", "cmake2=bar"],
@@ -113,6 +116,7 @@ def test_projectbuilder_cmake_assemble_args_single(m):
         "-Dbasearg1", "-DSNIPPET_t=test",
         "-Dhandler_arg1", "-Dhandler_arg2",
         "-DCONF_FILE=a.conf;b.conf;c.conf",
+        "-DEXTRA_CONF_FILE=d.conf;e.conf;f.conf",
         "-DDTC_OVERLAY_FILE=x.overlay;y.overlay;z.overlay",
         "-DOVERLAY_CONFIG=extra_overlay.conf "
         "/builddir/twister/testsuite_extra.conf",
@@ -1500,6 +1504,8 @@ def test_projectbuilder_process(
     instance_mock.handler = mock.Mock()
     instance_mock.handler.ready = instance_handler_ready
     instance_mock.testsuite.harness = 'test'
+    instance_mock.testsuite.harness_config = HarnessConfig()
+    instance_mock.required_applications = []
     env_mock = mock.Mock()
 
     pb = ProjectBuilder(instance_mock, env_mock, mocked_jobserver)
@@ -1645,7 +1651,7 @@ def test_projectbuilder_determine_testcases(
     instance_mock.testsuite.id = 'dummy.test_id'
     instance_mock.testsuite.ztest_suite_names = []
     instance_mock.testsuite.detailed_test_id = detailed_id
-    instance_mock.compose_case_name = mock.Mock(side_effect=iter(added_tcs))
+    instance_mock.testsuite.compose_case_name = mock.Mock(side_effect=iter(added_tcs))
 
     pb = ProjectBuilder(instance_mock, mocked_env, mocked_jobserver)
 
@@ -1664,10 +1670,12 @@ def test_projectbuilder_determine_testcases(
 TESTDATA_8 = [
     (
         ['addition.al'],
+        ['keep.artifact'],
         'dummy',
-        ['addition.al', '.config', 'zephyr']
+        ['addition.al', 'keep.artifact', '.config', 'zephyr']
     ),
     (
+        [],
         [],
         'all',
         ['.config', 'zephyr', 'testsuite_extra.conf', 'twister']
@@ -1675,7 +1683,7 @@ TESTDATA_8 = [
 ]
 
 @pytest.mark.parametrize(
-    'additional_keep, runtime_artifact_cleanup, expected_files',
+    'additional_keep, keep_artifacts, runtime_artifact_cleanup, expected_files',
     TESTDATA_8,
     ids=['additional keep', 'all cleanup']
 )
@@ -1683,6 +1691,7 @@ def test_projectbuilder_cleanup_artifacts(
     tmpdir,
     mocked_jobserver,
     additional_keep,
+    keep_artifacts,
     runtime_artifact_cleanup,
     expected_files
 ):
@@ -1713,12 +1722,16 @@ def test_projectbuilder_cleanup_artifacts(
     addition_al = tmpdir.join('addition.al')
     addition_al.write_text('dummy', 'utf-8')
 
+    keep_art = tmpdir.join('keep.artifact')
+    keep_art.write_text('dummy', 'utf-8')
+
     instance_mock = mock.Mock()
     instance_mock.build_dir = tmpdir
     env_mock = mock.Mock()
 
     pb = ProjectBuilder(instance_mock, env_mock, mocked_jobserver)
-    pb.options = mock.Mock(runtime_artifact_cleanup=runtime_artifact_cleanup)
+    pb.options = mock.Mock(runtime_artifact_cleanup=runtime_artifact_cleanup,
+                           keep_artifacts=keep_artifacts)
 
     pb.cleanup_artifacts(additional_keep)
 
@@ -2057,7 +2070,7 @@ def test_projectbuilder_report_out(
     instance_mock.handler.seed = 123
     instance_mock.handler.ready = ready_run
     instance_mock.run = ready_run
-    instance_mock.dut = 'dummy dut'
+    instance_mock.hardware_id = 'dummy dut'
     instance_mock.execution_time = 60
     instance_mock.platform.name = 'dummy platform'
     instance_mock.status = status
@@ -2151,6 +2164,7 @@ def test_projectbuilder_report_out(
 def test_projectbuilder_cmake_assemble_args():
     extra_args = ['CONFIG_FOO=y', 'DUMMY_EXTRA="yes"']
     handler = mock.Mock(ready=True, args=['dummy_handler'])
+    conf_files = ['file1.conf', 'file2.conf']
     extra_conf_files = ['extrafile1.conf', 'extrafile2.conf']
     extra_overlay_confs = ['extra_overlay_conf']
     extra_dtc_overlay_files = ['overlay1.dtc', 'overlay2.dtc']
@@ -2159,6 +2173,7 @@ def test_projectbuilder_cmake_assemble_args():
 
     with mock.patch('os.path.exists', return_value=True):
         results = ProjectBuilder.cmake_assemble_args(extra_args, handler,
+                                                     conf_files,
                                                      extra_conf_files,
                                                      extra_overlay_confs,
                                                      extra_dtc_overlay_files,
@@ -2171,7 +2186,8 @@ def test_projectbuilder_cmake_assemble_args():
         '-DCMAKE2=n',
         '-DDUMMY_EXTRA=yes',
         '-Ddummy_handler',
-        '-DCONF_FILE=extrafile1.conf;extrafile2.conf',
+        '-DCONF_FILE=file1.conf;file2.conf',
+        '-DEXTRA_CONF_FILE=extrafile1.conf;extrafile2.conf',
         '-DDTC_OVERLAY_FILE=overlay1.dtc;overlay2.dtc',
         f'-DOVERLAY_CONFIG=extra_overlay_conf ' \
         f'{os.path.join("build", "dir", "twister", "testsuite_extra.conf")}'
@@ -2189,9 +2205,10 @@ def test_projectbuilder_cmake():
     pb = ProjectBuilder(instance_mock, env_mock, mocked_jobserver)
     pb.build_dir = 'build_dir'
     pb.testsuite.extra_args = ['some', 'args']
-    pb.testsuite.extra_conf_files = ['some', 'files1']
-    pb.testsuite.extra_overlay_confs = ['some', 'files2']
-    pb.testsuite.extra_dtc_overlay_files = ['some', 'files3']
+    pb.testsuite.conf_files = ['some', 'files1']
+    pb.testsuite.extra_conf_files = ['some', 'files2']
+    pb.testsuite.extra_overlay_confs = ['some', 'files3']
+    pb.testsuite.extra_dtc_overlay_files = ['some', 'files4']
     pb.options.extra_args = ['other', 'args']
     pb.cmake_assemble_args = mock.Mock(return_value=['dummy'])
     cmake_res_mock = mock.Mock()
@@ -2203,6 +2220,7 @@ def test_projectbuilder_cmake():
     pb.cmake_assemble_args.assert_called_once_with(
         pb.testsuite.extra_args,
         pb.instance.handler,
+        pb.testsuite.conf_files,
         pb.testsuite.extra_conf_files,
         pb.testsuite.extra_overlay_confs,
         pb.testsuite.extra_dtc_overlay_files,
@@ -2241,7 +2259,6 @@ TESTDATA_14 = [
         True,
         True,
         True,
-        True,
         False
     ),
     (
@@ -2252,7 +2269,6 @@ TESTDATA_14 = [
         'not posix',
         {'CONFIG_FAKE_ENTROPY_NATIVE_SIM': 'y'},
         'not pytest',
-        False,
         False,
         False,
         False,
@@ -2271,14 +2287,13 @@ TESTDATA_14 = [
         False,
         False,
         False,
-        False,
         False
     ),
 ]
 
 @pytest.mark.parametrize(
     'ready, type_str, seed, platform_name, platform_arch, defconfig, harness,' \
-    ' expect_duts, expect_parse_generated, expect_seed,' \
+    ' expect_parse_generated, expect_seed,' \
     ' expect_extra_test_args, expect_pytest, expect_handle',
     TESTDATA_14,
     ids=['pytest full', 'not pytest minimal', 'not ready']
@@ -2292,7 +2307,6 @@ def test_projectbuilder_run(
     platform_arch,
     defconfig,
     harness,
-    expect_duts,
     expect_parse_generated,
     expect_seed,
     expect_extra_test_args,
@@ -2313,7 +2327,6 @@ def test_projectbuilder_run(
     instance_mock.handler.seed = 123
     instance_mock.handler.ready = ready
     instance_mock.handler.type_str = type_str
-    instance_mock.handler.duts = [mock.Mock(name='dummy dut')]
     instance_mock.platform.name = platform_name
     instance_mock.platform.arch = platform_arch
     instance_mock.testsuite.harness = harness
@@ -2321,7 +2334,6 @@ def test_projectbuilder_run(
 
     pb = ProjectBuilder(instance_mock, env_mock, mocked_jobserver)
     pb.options.extra_test_args = ['dummy_arg1', 'dummy_arg2']
-    pb.duts = ['another dut']
     pb.options.seed = seed
     pb.defconfig = defconfig
     pb.parse_generated = mock.Mock()
@@ -2329,9 +2341,6 @@ def test_projectbuilder_run(
     with mock.patch('twisterlib.runner.HarnessImporter.get_harness',
                     mock_harness):
         pb.run()
-
-    if expect_duts:
-        assert pb.instance.handler.duts == ['another dut']
 
     if expect_parse_generated:
         pb.parse_generated.assert_called_once()
@@ -2845,134 +2854,3 @@ def test_twisterrunner_get_cmake_filter_stages(filter, expected_result):
     result = TwisterRunner.get_cmake_filter_stages(filter, ['not', 'and'])
 
     assert sorted(result) == sorted(expected_result)
-
-
-@pytest.mark.parametrize(
-    'required_apps, processing_ready_keys, expected_result',
-    [
-        (['app1', 'app2'], ['app1', 'app2'], True),  # all apps ready
-        (['app1', 'app2', 'app3'], ['app1', 'app2'], False),  # some apps missing
-        ([], [], True),  # no required apps
-        (['app1'], [], False),  # single app missing
-    ],
-    ids=['all_ready', 'some_missing', 'no_apps', 'single_missing']
-)
-def test_twisterrunner_are_required_apps_ready(required_apps, processing_ready_keys, expected_result):
-    """Test _are_required_apps_ready method with various scenarios"""
-    instances = {}
-    suites = []
-    env_mock = mock.Mock()
-    tr = TwisterRunner(instances, suites, env=env_mock)
-
-    instance_mock = mock.Mock()
-    instance_mock.required_applications = required_apps
-
-    processing_ready = {key: mock.Mock() for key in processing_ready_keys}
-
-    result = tr._are_required_apps_ready(instance_mock, processing_ready)
-
-    assert result is expected_result
-
-
-@pytest.mark.parametrize(
-    'app_statuses, expected_result',
-    [
-        ([TwisterStatus.PASS, TwisterStatus.PASS], True),  # all passed
-        ([TwisterStatus.NOTRUN, TwisterStatus.NOTRUN], True),  # all notrun
-        ([TwisterStatus.PASS, TwisterStatus.NOTRUN], True),  # mixed pass/notrun
-        ([TwisterStatus.PASS, TwisterStatus.FAIL], False),  # one failed
-        ([TwisterStatus.ERROR], False),  # single error
-    ],
-    ids=['all_pass', 'all_notrun', 'mixed_pass_notrun', 'one_fail', 'single_error']
-)
-def test_twisterrunner_are_all_required_apps_success(app_statuses, expected_result):
-    """Test _are_all_required_apps_success method with various app statuses"""
-    instances = {}
-    suites = []
-    env_mock = mock.Mock()
-    tr = TwisterRunner(instances, suites, env=env_mock)
-
-    instance_mock = mock.Mock()
-    required_apps = [f'app{i + 1}' for i in range(len(app_statuses))]
-    instance_mock.required_applications = required_apps
-
-    processing_ready = {}
-    for i, status in enumerate(app_statuses):
-        app_instance = mock.Mock()
-        app_instance.status = status
-        app_instance.reason = f"Reason for app{i + 1}"
-        processing_ready[f'app{i + 1}'] = app_instance
-
-    result = tr._are_all_required_apps_success(instance_mock, processing_ready)
-    assert result is expected_result
-
-
-@pytest.mark.parametrize(
-    'required_apps, ready_apps, expected_result, expected_actions',
-    [
-        ([], {}, True,
-         {'requeue': False, 'skip': False, 'build_dirs': 0}),
-        (['app1'], {}, False,
-         {'requeue': True, 'skip': False, 'build_dirs': 0}),
-        (['app1', 'app2'], {'app1': TwisterStatus.PASS}, False,
-         {'requeue': True, 'skip': False, 'build_dirs': 0}),
-        (['app1'], {'app1': TwisterStatus.FAIL}, False,
-         {'requeue': False, 'skip': True, 'build_dirs': 0}),
-        (['app1', 'app2'], {'app1': TwisterStatus.PASS, 'app2': TwisterStatus.NOTRUN}, True,
-         {'requeue': False, 'skip': False, 'build_dirs': 2}),
-    ],
-    ids=['no_apps', 'not_ready_single_job', 'not_ready_multi_job',
-         'apps_failed', 'apps_success']
-)
-def test_twisterrunner_are_required_apps_processed(required_apps, ready_apps,
-                                                   expected_result, expected_actions):
-    """Test are_required_apps_processed method with various scenarios"""
-    # Setup TwisterRunner instances dict
-    tr_instances = {}
-    for app_name in required_apps:
-        tr_instances[app_name] = mock.Mock(build_dir=f'/path/to/{app_name}')
-
-    env_mock = mock.Mock()
-    tr = TwisterRunner(tr_instances, [], env=env_mock)
-    tr.jobs = 1
-
-    instance_mock = mock.Mock()
-    instance_mock.required_applications = required_apps[:]
-    instance_mock.required_build_dirs = []
-
-    # Setup testcases for skip scenarios
-    if expected_actions['skip']:
-        testcase_mock = mock.Mock()
-        instance_mock.testcases = [testcase_mock]
-
-    # Setup processing_ready with app instances
-    processing_ready = {}
-    for app_name, status in ready_apps.items():
-        app_instance = mock.Mock()
-        app_instance.status = status
-        app_instance.reason = f"Reason for {app_name}"
-        app_instance.build_dir = f'/path/to/{app_name}'
-        processing_ready[app_name] = app_instance
-
-    processing_queue = deque()
-    task = {'test': instance_mock}
-
-    result = tr.are_required_apps_processed(instance_mock, processing_queue, processing_ready, task)
-
-    assert result is expected_result
-
-    if expected_actions['requeue']:
-        assert len(processing_queue) == 1
-        assert processing_queue[0] == task
-
-    if expected_actions['skip']:
-        assert instance_mock.status == TwisterStatus.SKIP
-        assert instance_mock.reason == "Required application failed"
-        assert instance_mock.required_applications == []
-        assert instance_mock.testcases[0].status == TwisterStatus.SKIP
-        # Check for report task in queue
-        assert any(item.get('op') == 'report' for item in processing_queue)
-
-    assert len(instance_mock.required_build_dirs) == expected_actions['build_dirs']
-    if expected_actions['build_dirs'] > 0:
-        assert instance_mock.required_applications == []

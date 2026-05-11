@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 #include "bs_types.h"
 #include "bs_tracing.h"
@@ -40,23 +41,25 @@ static void test_cap_initiator_sample_init(void)
 
 static void test_cap_initiator_sample_tick(bs_time_t HW_device_time)
 {
+	ARG_UNUSED(HW_device_time);
+
 	/*
 	 * If in WAIT_TIME seconds we did not get enough packets through
 	 * we consider the test failed
 	 */
 
 	if (IS_ENABLED(CONFIG_SAMPLE_UNICAST)) {
-		extern uint64_t total_rx_iso_packet_count;
+		extern uint64_t total_unicast_rx_iso_packet_count;
 		extern uint64_t total_unicast_tx_iso_packet_count;
 
 		bs_trace_info_time(2, "%" PRIu64 " unicast packets received, expected >= %i\n",
-				   total_rx_iso_packet_count, PASS_THRESHOLD);
+				   total_unicast_rx_iso_packet_count, PASS_THRESHOLD);
 		bs_trace_info_time(2, "%" PRIu64 " unicast packets sent, expected >= %i\n",
 				   total_unicast_tx_iso_packet_count, PASS_THRESHOLD);
 
-		if (total_rx_iso_packet_count < PASS_THRESHOLD ||
+		if (total_unicast_rx_iso_packet_count < PASS_THRESHOLD ||
 		    total_unicast_tx_iso_packet_count < PASS_THRESHOLD) {
-			FAIL("cap_initiator FAILED with(Did not pass after %d seconds)\n ",
+			FAIL("cap_initiator unicast FAILED (Did not pass after %d seconds)\n ",
 			     WAIT_TIME);
 			return;
 		}
@@ -69,7 +72,7 @@ static void test_cap_initiator_sample_tick(bs_time_t HW_device_time)
 				   total_broadcast_tx_iso_packet_count, PASS_THRESHOLD);
 
 		if (total_broadcast_tx_iso_packet_count < PASS_THRESHOLD) {
-			FAIL("cap_initiator FAILED with (Did not pass after %d seconds)\n ",
+			FAIL("cap_initiator broadcast FAILED (Did not pass after %d seconds)\n ",
 			     WAIT_TIME);
 			return;
 		}

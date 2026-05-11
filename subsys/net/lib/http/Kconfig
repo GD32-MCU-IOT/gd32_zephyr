@@ -29,18 +29,50 @@ config HTTP_CLIENT
 	help
 	  HTTP client API
 
+config HTTP_CLIENT_SEND_BUF_SIZE
+	int "HTTP client request send buffer size"
+	depends on HTTP_CLIENT
+	default 192
+	range 64 4096
+	help
+	  Size of the temporary stack buffer used by the HTTP client while
+	  constructing and sending request headers. Larger values can reduce
+	  socket send calls at the cost of additional stack usage.
+
 menuconfig HTTP_SERVER
 	bool "HTTP Server [EXPERIMENTAL]"
 	select HTTP_PARSER
 	select HTTP_PARSER_URL
 	select EXPERIMENTAL
 	select NET_SOCKETS
-	select EVENTFD
+	select ZVFS
+	select ZVFS_EVENTFD
 	imply NET_IPV4_MAPPING_TO_IPV6 if NET_IPV4 && NET_IPV6
 	help
 	  HTTP1 and HTTP2 server support.
 
 if HTTP_SERVER
+
+config HTTP_SERVER_VERSION_1
+	bool "HTTP/1.x support"
+	default y
+	help
+	  Support HTTP 1.x version.
+
+config HTTP_SERVER_VERSION_2
+	bool "HTTP/2 support"
+	default y
+	help
+	  Support HTTP/2 version.
+
+config HTTP_SERVER_VERSION
+	int
+	default 12 if HTTP_SERVER_VERSION_1 && HTTP_SERVER_VERSION_2
+	default 2 if !HTTP_SERVER_VERSION_1 && HTTP_SERVER_VERSION_2
+	default 1 if HTTP_SERVER_VERSION_1 && !HTTP_SERVER_VERSION_2
+	default 0
+	help
+	  What HTTP version is supported in HTTP server.
 
 config HTTP_SERVER_STACK_SIZE
 	int "HTTP server thread stack size"
@@ -156,6 +188,7 @@ config HTTP_SERVER_CLIENT_INACTIVITY_TIMEOUT
 
 config HTTP_SERVER_WEBSOCKET
 	bool "Allow upgrading to Websocket connection"
+	select PSA_WANT_ALG_SHA_1
 	select WEBSOCKET_CLIENT
 	select WEBSOCKET
 	help
@@ -230,6 +263,15 @@ config HTTP_SERVER_STATIC_FS_RESPONSE_SIZE
 	  If set to 0, the server will use the minimal viable buffer size for the response.
 	  Please note that it is allocated on the stack of the HTTP server thread,
 	  so CONFIG_HTTP_SERVER_STACK_SIZE has to be sufficiently large.
+
+config HTTP_SERVER_COMPLETE_STATUS_PHRASES
+	bool "Complete HTTP status reason phrases"
+	help
+	  Include reason phrases for HTTP status codes in server responses.
+	  When disabled, HTTP responses will not include reason phrases,
+	  reducing code size. Note that reason phrases are optional per
+	  HTTP specification and their absence does not affect protocol
+	  compliance or client behavior.
 
 endif
 

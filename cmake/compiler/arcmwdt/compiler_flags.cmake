@@ -116,7 +116,7 @@ set_compiler_property(PROPERTY warning_error_misra_sane -Werror=vla)
 
 set_compiler_property(PROPERTY cstd -std=)
 
-if (NOT CONFIG_ARCMWDT_LIBC)
+if(NOT CONFIG_ARCMWDT_LIBC)
   set_compiler_property(PROPERTY nostdinc -Hno_default_include -Hnoarcexlib -U__STDC_LIB_EXT1__)
   set_compiler_property(APPEND PROPERTY nostdinc_include ${NOSTDINC})
 endif()
@@ -136,7 +136,7 @@ set_property(TARGET compiler-cpp PROPERTY dialect_cpp23 "")
 # Flag for disabling strict aliasing rule in C and C++
 set_compiler_property(PROPERTY no_strict_aliasing -fno-strict-aliasing)
 
-# Flags for set extra warnigs (ARCMWDT asm can't recognize --fatal-warnings. Skip it)
+# Flags for set extra warnings (ARCMWDT asm can't recognize --fatal-warnings. Skip it)
 set_property(TARGET compiler PROPERTY warnings_as_errors -Werror)
 set_property(TARGET asm PROPERTY warnings_as_errors -Werror)
 

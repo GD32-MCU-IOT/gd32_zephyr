@@ -147,10 +147,9 @@ static struct renesas_ra_eth_config eth_0_config = {
 	.p_cfg = &g_ether0_cfg, .phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(0, phy_handle))};
 
 /* Driver functions */
-static enum ethernet_hw_caps renesas_ra_eth_get_capabilities(const struct device *dev)
+static enum ethernet_hw_caps renesas_ra_eth_get_capabilities(const struct device *dev __unused,
+							     struct net_if *iface __unused)
 {
-	ARG_UNUSED(dev);
-
 	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE;
 }
 
@@ -256,9 +255,7 @@ static void renesas_ra_eth_initialize(struct net_if *iface)
 
 	net_if_set_link_addr(iface, ctx->mac, sizeof(ctx->mac), NET_LINK_ETHERNET);
 
-	if (ctx->iface == NULL) {
-		ctx->iface = iface;
-	}
+	ctx->iface = iface;
 
 	ethernet_init(iface);
 
@@ -274,9 +271,10 @@ static void renesas_ra_eth_initialize(struct net_if *iface)
 		LOG_ERR("Failed to init ether - R_ETHER_CallbackSet fail");
 	}
 
-	phy_link_callback_set(cfg->phy_dev, &phy_link_state_changed, (void *)dev);
 	/* Do not start the interface until PHY link is up */
 	net_if_carrier_off(ctx->iface);
+
+	phy_link_callback_set(cfg->phy_dev, &phy_link_state_changed, (void *)dev);
 }
 
 static int renesas_ra_eth_tx(const struct device *dev, struct net_pkt *pkt)
@@ -309,9 +307,18 @@ error:
 	return -1;
 }
 
+static const struct device *renesas_ra_eth_get_phy(const struct device *dev,
+						   struct net_if *iface __unused)
+{
+	const struct renesas_ra_eth_config *config = dev->config;
+
+	return config->phy_dev;
+}
+
 static const struct ethernet_api api_funcs = {
 	.iface_api.init = renesas_ra_eth_initialize,
 	.get_capabilities = renesas_ra_eth_get_capabilities,
+	.get_phy = renesas_ra_eth_get_phy,
 	.send = renesas_ra_eth_tx,
 };
 
@@ -339,7 +346,7 @@ static struct net_pkt *renesas_ra_eth_rx(const struct device *dev)
 		goto out;
 	}
 
-	pkt = net_pkt_rx_alloc_with_buffer(ctx->iface, len, AF_UNSPEC, 0, K_MSEC(100));
+	pkt = net_pkt_rx_alloc_with_buffer(ctx->iface, len, NET_AF_UNSPEC, 0, K_MSEC(100));
 	if (!pkt) {
 		LOG_ERR("Failed to obtain RX buffer");
 		goto out;

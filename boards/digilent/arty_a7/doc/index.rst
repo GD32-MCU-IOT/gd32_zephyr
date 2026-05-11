@@ -1,4 +1,4 @@
-.. _arty:
+.. zephyr:board:: arty_a7
 
 Digilent Arty
 #############
@@ -44,40 +44,7 @@ following websites:
 Supported Features
 ==================
 
-The ``arty_a7/designstart_fpga_cortex_m1`` board configuration supports the following
-hardware features of the Cortex-M1 reference design:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| SYSTICK   | on-chip    | systick                             |
-+-----------+------------+-------------------------------------+
-| GPIO      | on-chip    | gpio, non-interrupt                 |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
-+-----------+------------+-------------------------------------+
-| QSPI      | on-chip    | QSPI flash                          |
-+-----------+------------+-------------------------------------+
-
-The default configuration for the Cortex-M1 can be found in the defconfig file:
-:file:`boards/digilent/arty_a7/arty_a7_designstart_fpga_cortex_m1_defconfig`.
-
-In addition to the above, the ``arty_a7/designstart_fpga_cortex_m3`` board configuration
-supports the following hardware features of the Cortex-M3 reference design:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| MPU       | on-chip    | Memory Protection Unit              |
-+-----------+------------+-------------------------------------+
-
-The default configuration for the Cortex-M3 can be found in the defconfig file:
-:file:`boards/digilent/arty_a7/arty_a7_designstart_fpga_cortex_m3_defconfig`.
-
-Other hardware features are not currently supported by the port.
+.. zephyr:board-supported-hw::
 
 System Clock
 ============
@@ -181,12 +148,10 @@ above steps. It was merely written to internal block RAM in the FPGA. It will
 revert to the application stored in the block RAM within the FPGA bitstream
 the next time the FPGA is configured.
 
-The steps to persist the application within the FPGA bitstream are covered by
-the ARM Cortex-M1/M3 DesignStart FPGA Xilinx edition user guide. If the
-:kconfig:option:`CONFIG_BUILD_OUTPUT_BIN` is enabled and the `SiFive elf2hex`_ package
-is available, the build system will automatically generate a Verilog memory hex
-dump :file:`zephyr.mem` file suitable for initialising the block RAM using
-`Xilinx Vivado`_.
+The steps to persist the application within the FPGA bitstream are covered by the ARM Cortex-M1/M3
+DesignStart FPGA Xilinx edition user guide. If the :kconfig:option:`CONFIG_BUILD_OUTPUT_VERILOG` is
+enabled, the build system will automatically generate a Verilog memory hex dump :file:`zephyr.mem`
+file suitable for initialising the block RAM using `Xilinx Vivado`_.
 
 Debugging
 =========

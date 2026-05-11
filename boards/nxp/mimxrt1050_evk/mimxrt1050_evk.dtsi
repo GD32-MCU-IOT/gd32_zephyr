@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_rt1050.dtsi>
+#include <nxp/imxrt/nxp_rt1050.dtsi>
 #include "mimxrt1050_evk-pinctrl.dtsi"
 #include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -182,10 +182,14 @@ zephyr_lcdif: &lcdif {
 	pinctrl-names = "default";
 };
 
-&enet_mac {
+&enet {
 	status = "okay";
 	pinctrl-0 = <&pinmux_enet>;
 	pinctrl-names = "default";
+};
+
+&enet_mac {
+	status = "okay";
 	phy-handle = <&phy>;
 	nxp,unique-mac;
 	phy-connection-type = "rmii";
@@ -200,7 +204,7 @@ zephyr_lcdif: &lcdif {
 		compatible = "microchip,ksz8081";
 		reg = <0>;
 		status = "okay";
-		reset-gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio1 9 GPIO_ACTIVE_LOW>;
 		int-gpios = <&gpio1 10 GPIO_ACTIVE_HIGH>;
 		microchip,interface-type = "rmii";
 	};

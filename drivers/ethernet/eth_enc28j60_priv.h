@@ -223,7 +223,6 @@ struct eth_enc28j60_config {
 	struct spi_dt_spec spi;
 	struct gpio_dt_spec interrupt;
 	uint8_t full_duplex;
-	int32_t timeout;
 	uint8_t hw_rx_filter;
 	bool random_mac;
 };
@@ -237,8 +236,6 @@ struct eth_enc28j60_runtime {
 	struct gpio_callback gpio_cb;
 	struct k_sem tx_rx_sem;
 	struct k_sem int_sem;
-	bool iface_initialized : 1;
-	bool iface_carrier_on_init : 1;
 };
 
 #endif /*_ENC28J60_*/

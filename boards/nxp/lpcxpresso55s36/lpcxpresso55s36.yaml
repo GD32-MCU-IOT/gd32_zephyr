@@ -1,5 +1,5 @@
 #
-# Copyright 2022 NXP
+# Copyright 2022, 2026 NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,4 +23,6 @@ supported:
   - pwm
   - usb_device
   - usbd
+  - comparator
+  - gint
 vendor: nxp

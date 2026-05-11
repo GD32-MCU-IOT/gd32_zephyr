@@ -25,6 +25,7 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_IPV6_LOG_LEVEL);
 #include <zephyr/net_buf.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/net_log.h>
 
 #define NET_LOG_ENABLED 1
 #include "net_private.h"
@@ -33,15 +34,15 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_IPV6_LOG_LEVEL);
 #include "udp_internal.h"
 
 /* Interface 1 addresses */
-static struct in6_addr my_addr1 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+static struct net_in6_addr my_addr1 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					0, 0, 0, 0, 0, 0, 0, 0x1 } } };
 
 /* Interface 2 addresses */
-static struct in6_addr my_addr2 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+static struct net_in6_addr my_addr2 = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
 					0, 0, 0, 0, 0, 0, 0, 0x2 } } };
 
 /* Extra address is assigned to ll_addr */
-static struct in6_addr ll_addr = { { { 0xfe, 0x80, 0x43, 0xb8, 0, 0, 0, 0,
+static struct net_in6_addr ll_addr = { { { 0xfe, 0x80, 0x43, 0xb8, 0, 0, 0, 0,
 				       0, 0, 0, 0xf2, 0xaa, 0x29, 0x02,
 				       0x04 } } };
 
@@ -1488,10 +1489,12 @@ static enum net_verdict udp_data_received(struct net_conn *conn,
 	const struct net_ipv6_hdr *hdr = NET_IPV6_HDR(pkt);
 	uint8_t verify_buf[NET_IPV6H_LEN];
 	size_t expected_pkt_length = NET_IPV6H_LEN + NET_UDPH_LEN + 1600U;
-	uint16_t expected_udp_length = htons(1600U + NET_UDPH_LEN);
+	uint16_t expected_udp_length = net_htons(1600U + NET_UDPH_LEN);
 	static const char expected_data[] = "123456789.";
 	const size_t expected_data_len = sizeof(expected_data) - 1;
 	uint16_t i;
+	uint16_t out_chksum = 0;
+	int ret;
 
 	NET_DBG("Data %p received", pkt);
 
@@ -1526,8 +1529,10 @@ static enum net_verdict udp_data_received(struct net_conn *conn,
 			  "UDP header destination port mismatch");
 	zassert_mem_equal(verify_buf + 4, &expected_udp_length, 2,
 			  "UDP header length mismatch");
-	zassert_equal(net_calc_verify_chksum_udp(pkt), 0,
-		      "UDP header invalid checksum");
+
+	ret = net_calc_verify_chksum_udp(pkt, &out_chksum);
+	zassert_equal(ret, 0, "Calculation failed");
+	zassert_equal(out_chksum, 0, "UDP header invalid checksum");
 
 	/* Verify data is valid */
 	i = NET_IPV6H_LEN + NET_UDPH_LEN;
@@ -1596,7 +1601,7 @@ NET_DEVICE_INIT_INSTANCE(net_iface1_test,
 			 NET_IPV6_MTU);
 
 static void add_nbr(struct net_if *iface,
-		    struct in6_addr *addr,
+		    struct net_in6_addr *addr,
 		    struct net_linkaddr *lladdr)
 {
 	struct net_nbr *nbr;
@@ -1606,23 +1611,23 @@ static void add_nbr(struct net_if *iface,
 	zassert_not_null(nbr, "Cannot add neighbor");
 }
 
-static void setup_udp_handler(const struct in6_addr *raddr,
-			      const struct in6_addr *laddr,
+static void setup_udp_handler(const struct net_in6_addr *raddr,
+			      const struct net_in6_addr *laddr,
 			      uint16_t remote_port,
 			      uint16_t local_port)
 {
 	static struct net_conn_handle *handle;
-	struct sockaddr remote_addr = { 0 };
-	struct sockaddr local_addr = { 0 };
+	struct net_sockaddr remote_addr = { 0 };
+	struct net_sockaddr local_addr = { 0 };
 	int ret;
 
 	net_ipaddr_copy(&net_sin6(&local_addr)->sin6_addr, laddr);
-	local_addr.sa_family = AF_INET6;
+	local_addr.sa_family = NET_AF_INET6;
 
 	net_ipaddr_copy(&net_sin6(&remote_addr)->sin6_addr, raddr);
-	remote_addr.sa_family = AF_INET6;
+	remote_addr.sa_family = NET_AF_INET6;
 
-	ret = net_udp_register(AF_INET6, &remote_addr, &local_addr,
+	ret = net_udp_register(NET_AF_INET6, &remote_addr, &local_addr,
 			       remote_port, local_port, NULL, udp_data_received,
 			       NULL, &handle);
 	zassert_equal(ret, 0, "Cannot register UDP handler");
@@ -1692,8 +1697,8 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_udp)
 	struct net_pkt *pkt;
 	int ret;
 
-	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_udp), AF_INET6,
-					IPPROTO_UDP, ALLOC_TIMEOUT);
+	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_udp), NET_AF_INET6,
+					NET_IPPROTO_UDP, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
@@ -1728,10 +1733,10 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_hbho_udp)
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_hbho) +
 					sizeof(struct net_ipv6_hdr) + 6,
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 	net_pkt_set_ipv6_ext_len(pkt, sizeof(ipv6_hbho) -
 				 sizeof(struct net_ipv6_hdr));
@@ -1764,10 +1769,10 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_hbho_1)
 	int ret;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_hbho_1),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 
 	/* Add IPv6 header + HBH option + fragment header */
@@ -1807,10 +1812,10 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_hbho_2)
 	int ret;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_hbho_2),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 
 	/* Add IPv6 header + HBH option + fragment header */
@@ -1850,10 +1855,10 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_hbho_3)
 	int ret;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_hbho_3),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 
 	/* Add IPv6 header + HBH option + fragment header */
@@ -1891,10 +1896,10 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_hbho_frag)
 	int ret;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_hbho_frag),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 
 	/* Add IPv6 header + HBH option + fragment header */
@@ -1928,10 +1933,10 @@ ZTEST(net_ipv6_fragment, test_find_last_ipv6_fragment_hbho_frag_1)
 	int ret;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_hbho_frag_1),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 
 	/* Add IPv6 header + HBH option + fragment header */
@@ -1977,11 +1982,11 @@ ZTEST(net_ipv6_fragment, test_send_ipv6_fragment)
 
 	pkt = net_pkt_alloc_with_buffer(iface1,
 					sizeof(ipv6_hbho) + (count * data_len),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
 	net_pkt_set_iface(pkt, iface1);
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 	net_pkt_set_ipv6_ext_len(pkt, 8); /* hbho */
 
@@ -2008,7 +2013,7 @@ ZTEST(net_ipv6_fragment, test_send_ipv6_fragment)
 	zassert_equal(total_len - net_pkt_ipv6_ext_len(pkt) - 8, pkt_data_len,
 		      "Packet size invalid");
 
-	NET_IPV6_HDR(pkt)->len = htons(total_len);
+	NET_IPV6_HDR(pkt)->len = net_htons(total_len);
 
 	net_pkt_cursor_init(pkt);
 	net_pkt_set_overwrite(pkt, true);
@@ -2042,10 +2047,10 @@ ZTEST(net_ipv6_fragment, test_send_ipv6_fragment_large_hbho)
 	test_type = IPV6_LARGE_HBHO_FRAG;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_large_hbho),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 	net_pkt_set_ipv6_ext_len(pkt, 1032); /* hbho */
 
@@ -2087,11 +2092,11 @@ ZTEST(net_ipv6_fragment, test_send_ipv6_fragment_without_hbho)
 	test_type = IPV6_WITHOUT_HBHO_FRAG;
 
 	pkt = net_pkt_alloc_with_buffer(iface1, sizeof(ipv6_frag_wo_hbho),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
 	net_pkt_set_ll_proto_type(pkt, NET_ETH_PTYPE_IPV6);
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 	net_pkt_set_ipv6_ext_len(pkt, NET_IPV6_FRAGH_LEN); /* without hbho*/
 
@@ -2138,11 +2143,11 @@ ZTEST(net_ipv6_fragment, test_send_ipv6_fragment_udp_loopback)
 
 	pkt = net_pkt_alloc_with_buffer(iface1,
 					sizeof(ipv6_udp) + (count * data_len),
-					AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt, "packet");
 
 	net_pkt_set_iface(pkt, iface1);
-	net_pkt_set_family(pkt, AF_INET6);
+	net_pkt_set_family(pkt, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt, sizeof(struct net_ipv6_hdr));
 	net_pkt_set_ipv6_ext_len(pkt, 0);
 
@@ -2169,7 +2174,7 @@ ZTEST(net_ipv6_fragment, test_send_ipv6_fragment_udp_loopback)
 	zassert_equal(total_len - net_pkt_ipv6_ext_len(pkt) - 8, pkt_data_len,
 		      "Packet size invalid");
 
-	NET_IPV6_HDR(pkt)->len = htons(total_len);
+	NET_IPV6_HDR(pkt)->len = net_htons(total_len);
 
 	net_pkt_cursor_init(pkt);
 	net_pkt_set_overwrite(pkt, true);
@@ -2217,18 +2222,20 @@ static uint8_t ipv6_reass_frag2[] = {
 
 static uint16_t test_recv_payload_len = 1300U;
 
-static int handle_ipv6_echo_reply(struct net_icmp_ctx *ctx,
-				  struct net_pkt *pkt,
-				  struct net_icmp_ip_hdr *ip_hdr,
-				  struct net_icmp_hdr *icmp_hdr,
-				  void *user_data)
+static enum net_verdict handle_ipv6_echo_reply(struct net_icmp_ctx *ctx,
+					       struct net_pkt *pkt,
+					       struct net_icmp_ip_hdr *ip_hdr,
+					       struct net_icmp_hdr *icmp_hdr,
+					       void *user_data)
 {
 	const struct net_ipv6_hdr *hdr = NET_IPV6_HDR(pkt);
 	uint8_t verify_buf[NET_IPV6H_LEN];
 	size_t expected_pkt_length = NET_IPV6H_LEN + ECHO_REPLY_H_LEN + test_recv_payload_len;
-	uint16_t expected_icmpv6_length = htons(test_recv_payload_len + ECHO_REPLY_H_LEN);
+	uint16_t expected_icmpv6_length = net_htons(test_recv_payload_len + ECHO_REPLY_H_LEN);
 	uint16_t i;
 	uint8_t expected_data = 0;
+	uint16_t chksum = 0;
+	int ret;
 
 	ARG_UNUSED(ctx);
 	ARG_UNUSED(ip_hdr);
@@ -2247,7 +2254,7 @@ static int handle_ipv6_echo_reply(struct net_icmp_ctx *ctx,
 	zassert_mem_equal(&hdr->flow, &ipv6_reass_frag1[offsetof(struct net_ipv6_hdr, flow)],
 			  sizeof(hdr->flow), "IPv6 header flow mismatch");
 	zassert_equal(hdr->len, expected_icmpv6_length, "IPv6 header len mismatch");
-	zassert_equal(hdr->nexthdr, IPPROTO_ICMPV6, "IPv6 header nexthdr mismatch");
+	zassert_equal(hdr->nexthdr, NET_IPPROTO_ICMPV6, "IPv6 header nexthdr mismatch");
 	zassert_equal(hdr->hop_limit, ipv6_reass_frag1[offsetof(struct net_ipv6_hdr, hop_limit)],
 		      "IPv6 header hop_limit mismatch");
 	zassert_mem_equal(hdr->src, &ipv6_reass_frag1[offsetof(struct net_ipv6_hdr, src)],
@@ -2263,8 +2270,10 @@ static int handle_ipv6_echo_reply(struct net_icmp_ctx *ctx,
 	zassert_equal(verify_buf[0], NET_ICMPV6_ECHO_REPLY,
 		      "Echo reply header invalid type");
 	zassert_equal(verify_buf[1], 0, "Echo reply header invalid code");
-	zassert_equal(net_calc_chksum_icmpv6(pkt), 0,
-		      "Echo reply header invalid checksum");
+
+	ret = net_calc_chksum_icmpv6(pkt, &chksum);
+	zassert_equal(ret, 0, "Calculation failed");
+	zassert_equal(chksum, 0, "Echo reply header invalid checksum");
 	zassert_mem_equal(verify_buf + 4, ipv6_reass_frag1 + ECHO_REPLY_ID_OFFSET, 2,
 			  "Echo reply header invalid identifier");
 	zassert_mem_equal(verify_buf + 6, ipv6_reass_frag1 + ECHO_REPLY_SEQ_OFFSET, 2,
@@ -2299,7 +2308,7 @@ ZTEST(net_ipv6_fragment, test_recv_ipv6_fragment)
 	int ret;
 	struct net_icmp_ctx ctx;
 
-	ret = net_icmp_init_ctx(&ctx, NET_ICMPV6_ECHO_REPLY,
+	ret = net_icmp_init_ctx(&ctx, NET_AF_INET6, NET_ICMPV6_ECHO_REPLY,
 				0, handle_ipv6_echo_reply);
 	zassert_equal(ret, 0, "Cannot register %s handler (%d)",
 		      STRINGIFY(NET_ICMPV6_ECHO_REPLY), ret);
@@ -2309,11 +2318,11 @@ ZTEST(net_ipv6_fragment, test_recv_ipv6_fragment)
 	payload1_len = NET_IPV6_MTU - sizeof(ipv6_reass_frag1);
 	payload2_len = test_recv_payload_len - payload1_len;
 
-	pkt1 = net_pkt_alloc_with_buffer(iface1, NET_IPV6_MTU, AF_UNSPEC,
+	pkt1 = net_pkt_alloc_with_buffer(iface1, NET_IPV6_MTU, NET_AF_UNSPEC,
 					 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt1, "packet");
 
-	net_pkt_set_family(pkt1, AF_INET6);
+	net_pkt_set_family(pkt1, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt1, sizeof(struct net_ipv6_hdr));
 	net_pkt_cursor_init(pkt1);
 
@@ -2350,10 +2359,10 @@ ZTEST(net_ipv6_fragment, test_recv_ipv6_fragment)
 
 	pkt2 = net_pkt_alloc_with_buffer(iface1, payload2_len +
 					 sizeof(ipv6_reass_frag2),
-					 AF_UNSPEC, 0, ALLOC_TIMEOUT);
+					 NET_AF_UNSPEC, 0, ALLOC_TIMEOUT);
 	zassert_not_null(pkt2, "packet");
 
-	net_pkt_set_family(pkt2, AF_INET6);
+	net_pkt_set_family(pkt2, NET_AF_INET6);
 	net_pkt_set_ip_hdr_len(pkt2, sizeof(struct net_ipv6_hdr));
 	net_pkt_cursor_init(pkt2);
 

@@ -74,7 +74,7 @@ static struct net_if *get_iface(struct e1000_dev *ctx)
 	return ctx->iface;
 }
 
-static enum ethernet_hw_caps e1000_caps(const struct device *dev)
+static enum ethernet_hw_caps e1000_caps(const struct device *dev, struct net_if *iface __unused)
 {
 	return
 #if defined(CONFIG_NET_VLAN)
@@ -92,7 +92,8 @@ static enum ethernet_hw_caps e1000_caps(const struct device *dev)
 }
 
 #if defined(CONFIG_ETH_E1000_PTP_CLOCK)
-static const struct device *e1000_get_ptp_clock(const struct device *dev)
+static const struct device *e1000_get_ptp_clock(const struct device *dev,
+						struct net_if *iface __unused)
 {
 	struct e1000_dev *ctx = dev->data;
 
@@ -128,6 +129,10 @@ static int e1000_send(const struct device *ddev, struct net_pkt *pkt)
 	struct e1000_dev *dev = ddev->data;
 	size_t len = net_pkt_get_len(pkt);
 
+	if (len > sizeof(dev->txb[dev->next_tx_desc])) {
+		return -EMSGSIZE;
+	}
+
 	if (net_pkt_read(pkt, dev->txb[dev->next_tx_desc], len)) {
 		return -EIO;
 	}
@@ -157,7 +162,7 @@ static struct net_pkt *e1000_rx(struct e1000_dev *dev)
 
 	hexdump(buf, len, "%zd byte(s)", len);
 
-	pkt = net_pkt_rx_alloc_with_buffer(dev->iface, len, AF_UNSPEC, 0,
+	pkt = net_pkt_rx_alloc_with_buffer(dev->iface, len, NET_AF_UNSPEC, 0,
 					   K_NO_WAIT);
 	if (!pkt) {
 		LOG_ERR("Out of buffers");
@@ -269,12 +274,10 @@ static void e1000_iface_init(struct net_if *iface)
 	struct e1000_dev *dev = net_if_get_device(iface)->data;
 	const struct e1000_config *config = net_if_get_device(iface)->config;
 
-	if (dev->iface == NULL) {
-		dev->iface = iface;
+	dev->iface = iface;
 
-		/* Do the phy link up only once */
-		config->config_func(dev);
-	}
+	/* Do the phy link up only once */
+	config->config_func(dev);
 
 	ethernet_init(iface);
 
@@ -285,7 +288,7 @@ static void e1000_iface_init(struct net_if *iface)
 }
 
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-static struct net_stats_eth *get_stats(const struct device *dev)
+static struct net_stats_eth *get_stats(const struct device *dev, struct net_if *iface __unused)
 {
 	struct e1000_dev *ctx = dev->data;
 

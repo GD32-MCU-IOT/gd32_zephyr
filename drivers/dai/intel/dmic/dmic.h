@@ -9,7 +9,7 @@
 
 #include <zephyr/sys/util_macro.h>
 
-/* The microphones create a low frequecy thump sound when clock is enabled.
+/* The microphones create a low frequency thump sound when clock is enabled.
  * The unmute linear gain ramp chacteristic is defined here.
  * NOTE: Do not set any of these to 0.
  */
@@ -173,8 +173,7 @@ struct dai_intel_dmic {
 	/* hardware parameters */
 	uint32_t reg_base;
 	uint32_t shim_base;
-#if defined(CONFIG_SOC_INTEL_ACE20_LNL) || defined(CONFIG_SOC_INTEL_ACE30) ||                      \
-	defined(CONFIG_SOC_INTEL_ACE40)
+#if defined(CONFIG_SOC_ACE20_LNL) || defined(CONFIG_SOC_ACE30) || defined(CONFIG_SOC_ACE40)
 	uint32_t hdamldmic_base;
 	uint32_t vshim_base;
 #endif

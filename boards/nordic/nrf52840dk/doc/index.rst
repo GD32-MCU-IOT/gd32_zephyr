@@ -4,28 +4,11 @@ Overview
 ********
 
 The nRF52840 Development Kit (PCA10056) hardware provides support for the
-Nordic Semiconductor nRF52840 ARM Cortex-M4F CPU and the following devices:
-
-* :abbr:`ADC (Analog to Digital Converter)`
-* CLOCK
-* FLASH
-* :abbr:`GPIO (General Purpose Input Output)`
-* :abbr:`I2C (Inter-Integrated Circuit)`
-* :abbr:`MPU (Memory Protection Unit)`
-* :abbr:`NVIC (Nested Vectored Interrupt Controller)`
-* :abbr:`PWM (Pulse Width Modulation)`
-* RADIO (Bluetooth Low Energy and 802.15.4)
-* :abbr:`RTC (nRF RTC System Clock)`
-* Segger RTT (RTT Console)
-* :abbr:`SPI (Serial Peripheral Interface)`
-* :abbr:`UART (Universal asynchronous receiver-transmitter)`
-* :abbr:`USB (Universal Serial Bus)`
-* :abbr:`WDT (Watchdog Timer)`
+Nordic Semiconductor nRF52840 ARM Cortex-M4F CPU.
 
 More information about the board can be found at the `nRF52840 DK website`_.
 `nRF52840 Product Specification`_ contains the processor's information
 and the datasheet.
-
 
 Hardware
 ********
@@ -70,6 +53,10 @@ Applications for the ``nrf52840dk/nrf52840`` board configuration can be
 built, flashed, and debugged in the usual way. See
 :ref:`build_an_application` and :ref:`application_run` for more details on
 building and running.
+
+The nRF52840 DK supports programming and debugging external boards with
+nRF51 Series or nRF52 Series System on Chip (SoC)s. For more information,
+see the documentation on `nRF52840 DK Debug output`_.
 
 Flashing
 ========
@@ -190,5 +177,6 @@ References
 .. _nRF52840 DK website: https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK
 .. _nRF52840 Product Specification: https://docs.nordicsemi.com/bundle/ps_nrf52840/page/keyfeatures_html5.html
 .. _nRF52840 DK Hardware guide: https://docs.nordicsemi.com/bundle/ug_nrf52840_dk/page/UG/dk/intro.html
+.. _nRF52840 DK Debug output: https://docs.nordicsemi.com/bundle/ug_nrf52840_dk/page/UG/dk/hw_debug_out.html
 .. _J-Link Software and documentation pack: https://www.segger.com/jlink-software.html
 .. _nRF52811 website: https://www.nordicsemi.com/Products/Low-power-short-range-wireless/nRF52811

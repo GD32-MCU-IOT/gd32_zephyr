@@ -13,7 +13,7 @@
 LOG_MODULE_REGISTER(net_ieee802154_6lo, CONFIG_NET_L2_IEEE802154_LOG_LEVEL);
 
 #include "ieee802154_6lo.h"
-#include "ieee802154_frame.h"
+#include <zephyr/net/ieee802154_frame.h>
 #include "ieee802154_security.h"
 
 #include <6lo.h>
@@ -39,7 +39,7 @@ int ieee802154_6lo_encode_pkt(struct net_if *iface, struct net_pkt *pkt,
 			      struct ieee802154_6lo_fragment_ctx *frag_ctx, uint8_t ll_hdr_len,
 			      uint8_t authtag_len)
 {
-	if (net_pkt_family(pkt) != AF_INET6) {
+	if (net_pkt_family(pkt) != NET_AF_INET6) {
 		return 0;
 	}
 

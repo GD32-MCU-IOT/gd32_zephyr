@@ -16,6 +16,7 @@ def test_runner_imports():
 
     expected = set((
         # zephyr-keep-sorted-start
+        'amebaflash',
         'arc-nsim',
         'bflb_mcu_tool',
         'blackmagicprobe',
@@ -28,14 +29,18 @@ def test_runner_imports():
         'ezflashcli',
         'gd32isp',
         'hifive1',
+        'iar',
         'intel_adsp',
         'intel_cyclonev',
         'jlink',
         'linkserver',
+        'lldbac',
         'mdb-hw',
         'mdb-nsim',
         'minichlink',
         'misc-flasher',
+        'mpcli',
+        'mplab_ipe',
         'native',
         'nrfjprog',
         'nrfutil',
@@ -58,6 +63,8 @@ def test_runner_imports():
         'teensy',
         'trace32',
         'uf2',
+        'wchisp',
+        'wlink',
         'xsdb',
         'xtensa',
         # zephyr-keep-sorted-stop

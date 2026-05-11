@@ -17,4 +17,11 @@ supported:
   - pinctrl
   - uart
   - dma
+  - i2c
+  - spi
+  - flash
+  - entropy
+  - crypto
+  - counter
+  - usbd
 vendor: doiting

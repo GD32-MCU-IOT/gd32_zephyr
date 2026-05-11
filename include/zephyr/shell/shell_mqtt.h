@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @file
+ * @brief MQTT shell backend
+ * @ingroup shell_api
+ */
+
 #ifndef ZEPHYR_INCLUDE_SHELL_MQTT_H_
 #define ZEPHYR_INCLUDE_SHELL_MQTT_H_
 
@@ -68,7 +74,7 @@ struct shell_mqtt {
 	struct k_mutex lock;
 
 	/** MQTT Broker details. */
-	struct sockaddr_storage broker;
+	struct net_sockaddr_storage broker;
 
 	struct zsock_addrinfo *haddr;
 	struct zsock_pollfd fds[1];

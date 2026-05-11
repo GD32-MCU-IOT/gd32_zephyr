@@ -10,6 +10,7 @@
 LOG_MODULE_DECLARE(net_sock, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 #include <zephyr/kernel.h>
+#include <zephyr/net/net_log.h>
 
 #include "sockets_internal.h"
 #include "../../ip/net_private.h"
@@ -161,7 +162,7 @@ out:
 int sock_obj_core_alloc_find(int sock, int new_sock, int type)
 {
 	struct net_socket_register *reg = NULL;
-	socklen_t optlen = sizeof(int);
+	net_socklen_t optlen = sizeof(int);
 	int family;
 	int ret;
 
@@ -174,7 +175,7 @@ int sock_obj_core_alloc_find(int sock, int new_sock, int type)
 		goto out;
 	}
 
-	ret = zsock_getsockopt(sock, SOL_SOCKET, SO_DOMAIN, &family, &optlen);
+	ret = zsock_getsockopt(sock, ZSOCK_SOL_SOCKET, ZSOCK_SO_DOMAIN, &family, &optlen);
 	if (ret < 0) {
 		NET_ERR("Cannot get socket domain (%d)", -errno);
 		goto out;

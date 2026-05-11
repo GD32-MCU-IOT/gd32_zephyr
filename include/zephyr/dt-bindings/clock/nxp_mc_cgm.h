@@ -18,11 +18,14 @@
 #define NXP_PLL_MUX_0_DC_4_DIV DT_PROP(DT_NODELABEL(mc_cgm), mux_0_dc_4_div)
 #define NXP_PLL_MUX_0_DC_5_DIV DT_PROP(DT_NODELABEL(mc_cgm), mux_0_dc_5_div)
 #define NXP_PLL_MUX_0_DC_6_DIV DT_PROP(DT_NODELABEL(mc_cgm), mux_0_dc_6_div)
+#define NXP_PLL_MUX_1_DC_0_DIV DT_PROP(DT_NODELABEL(mc_cgm), mux_1_dc_0_div)
+#define NXP_PLL_MUX_2_DC_0_DIV DT_PROP(DT_NODELABEL(mc_cgm), mux_2_dc_0_div)
 
 /* Note- clock identifiers in this file must be unique,
  * as the driver uses them in a switch case
  */
-
+#define MCUX_MC_CGM_PERIPHERAL_MASK        0xFF00UL
+#define MCUX_MC_CGM_INSTANCE_MASK          0xFFUL
 #define MCUX_MC_CGM_CLK_ID(high, low) ((high << 8) | (low))
 
 /* These IDs are used within SOC macros, and thus cannot be defined
@@ -109,5 +112,7 @@
 #define MCUX_EMACRX_CLK MCUX_MC_CGM_CLK_ID(0x2C, 0x01)
 #define MCUX_EMACTX_CLK MCUX_MC_CGM_CLK_ID(0x2C, 0x02)
 #define MCUX_EMACTS_CLK MCUX_MC_CGM_CLK_ID(0x2C, 0x03)
+
+#define MCUX_TEMPSENSE_CLK MCUX_MC_CGM_CLK_ID(0x2C, 0x04)
 
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_NXP_MC_CGM_H_ */

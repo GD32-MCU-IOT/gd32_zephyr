@@ -17,7 +17,7 @@ config COVERAGE
 	  This option will build your application with the -coverage option
 	  which will generate data that can be used to create coverage reports.
 	  For more information see
-	  https://docs.zephyrproject.org/latest/guides/coverage.html
+	  https://docs.zephyrproject.org/latest/develop/test/coverage.html
 
 choice
 	prompt "Coverage mode"
@@ -35,7 +35,7 @@ config COVERAGE_NATIVE_GCOV
 config COVERAGE_NATIVE_SOURCE
 	bool "Host compiler source based code coverage"
 	depends on NATIVE_BUILD
-	depends on "$(ZEPHYR_TOOLCHAIN_VARIANT)" = "llvm"
+	depends on "$(TOOLCHAIN_VARIANT_COMPILER)" = "llvm"
 	help
 	  Build natively with the compiler source based coverage options.
 	  Today this is only supported with LLVM
@@ -54,12 +54,14 @@ endchoice
 config COVERAGE_GCOV_HEAP_SIZE
 	int "Size of heap allocated for gcov coverage data dump"
 	depends on COVERAGE_GCOV
-	default 32768 if X86 || SOC_SERIES_MPS2
+	default 65536 if X86 || SOC_SERIES_MPS2
 	default 16384
 	help
 	  This option configures the heap size allocated for gcov coverage
 	  data to be dumped over serial. If the value is 0, no buffer will be used,
 	  data will be dumped directly over serial.
+
+if COVERAGE_GCOV
 
 choice COVERAGE_DUMP_METHOD
 	prompt "Method to dump coverage data"
@@ -77,6 +79,8 @@ config COVERAGE_SEMIHOST
 	  Use semihosting to write coverage data to a file on the host.
 
 endchoice
+
+endif # COVERAGE_GCOV
 
 config FORCE_COVERAGE
 	bool "Force coverage"

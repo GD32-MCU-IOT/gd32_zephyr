@@ -118,6 +118,9 @@
 #define REGION_RAM_ATTR(size)                                                                      \
 	{(NORMAL_OUTER_INNER_WRITE_BACK_WRITE_READ_ALLOCATE_NON_SHAREABLE |                        \
 	  IF_ENABLED(CONFIG_XIP, (MPU_RASR_XN_Msk |)) size | P_RW_U_NA_Msk)}
+#define REGION_RAM_WT_ATTR(size)                                                                   \
+	{(NORMAL_OUTER_INNER_WRITE_THROUGH_NON_SHAREABLE |                                         \
+	  IF_ENABLED(CONFIG_XIP, (MPU_RASR_XN_Msk |)) size | P_RW_U_NA_Msk)}
 #define REGION_RAM_NOCACHE_ATTR(size)                                                              \
 	{(NORMAL_OUTER_INNER_NON_CACHEABLE_NON_SHAREABLE | MPU_RASR_XN_Msk | size | P_RW_U_NA_Msk)}
 #if defined(CONFIG_MPU_ALLOW_FLASH_WRITE)
@@ -279,8 +282,8 @@ typedef struct {
 		     "The size of the partition must be power of 2 and greater than or equal to "  \
 		     "the minimum MPU region size.\n")
 
-/* Some compilers do not handle BUILD_ASSERT on the values of pointers.*/
-#if defined(__IAR_SYSTEMS_ICC__)
+/* Some compilers do not handle BUILD_ASSERT on the values of pointers. */
+#if defined(__IAR_SYSTEMS_ICC__) || defined(__clang__)
 #define _ARCH_MEM_PARTITION_ALIGN_CHECK_START(start, size)
 #else
 #define _ARCH_MEM_PARTITION_ALIGN_CHECK_START(start, size)                                         \

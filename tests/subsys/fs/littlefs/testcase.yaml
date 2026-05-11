@@ -30,11 +30,12 @@ tests:
     timeout: 60
     platform_allow:
       - nrf54l15dk/nrf54l15/cpuapp
-      - ophelia4ev/nrf54l15/cpuapp
       - s32z2xxdc2/s32z270/rtu0
       - s32z2xxdc2/s32z270/rtu1
       - s32z2xxdc2@D/s32z270/rtu0
       - s32z2xxdc2@D/s32z270/rtu1
+      - s32k5xxcvb/s32k566/m7
+      - s32k5xxcvb/s32k566/r52
       - frdm_mcxa156
       - frdm_mcxn236
       - frdm_mcxw71

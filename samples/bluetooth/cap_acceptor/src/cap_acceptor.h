@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/cap.h>
 #include <zephyr/bluetooth/conn.h>
@@ -18,8 +19,8 @@
 struct peer_config {
 	/** Stream for the source endpoint */
 	struct bt_cap_stream source_stream;
-	/** Stream for the sink endpoint */
-	struct bt_cap_stream sink_stream;
+	/** Streams for the sink endpoint */
+	struct bt_cap_stream sink_streams[CONFIG_BT_ASCS_MAX_ASE_SNK_COUNT];
 	/** Semaphore to help wait for a release operation if the source stream is not idle */
 	struct k_sem source_stream_sem;
 	/** Semaphore to help wait for a release operation if the sink stream is not idle */

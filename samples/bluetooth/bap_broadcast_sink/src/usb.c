@@ -16,14 +16,16 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/drivers/usb/udc_buf.h>
+#include <zephyr/drivers/usb/usb_buf.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/shell/shell.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/ring_buffer.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
@@ -90,7 +92,7 @@ static void uac2_sof_cb(const struct device *dev, void *user_data)
 	}
 
 	if (CONFIG_INFO_REPORTING_INTERVAL > 0) {
-		if (size != 0) {
+		if (size != 0U) {
 			static size_t cnt;
 
 			if (++cnt % (CONFIG_INFO_REPORTING_INTERVAL * 10) == 0U) {
@@ -224,7 +226,7 @@ int usb_add_frame_to_usb(enum bt_audio_location chan_allocation, const int16_t *
 	const bool is_left = (chan_allocation & BT_AUDIO_LOCATION_FRONT_LEFT) != 0;
 	const bool is_right = (chan_allocation & BT_AUDIO_LOCATION_FRONT_RIGHT) != 0;
 	const bool is_mono = chan_allocation == BT_AUDIO_LOCATION_MONO_AUDIO;
-	const uint8_t ts_jitter_us = 100; /* timestamps may have jitter */
+	const uint8_t ts_jitter_us = 100U; /* timestamps may have jitter */
 	static size_t cnt;
 
 	if (!terminal_enabled) {
@@ -249,7 +251,7 @@ int usb_add_frame_to_usb(enum bt_audio_location chan_allocation, const int16_t *
 		return -EINVAL;
 	}
 
-	if (((is_left || is_right) && decoded_sdu.mono_frames_cnt != 0) ||
+	if (((is_left || is_right) && decoded_sdu.mono_frames_cnt != 0U) ||
 	    (is_mono &&
 	     (decoded_sdu.left_frames_cnt != 0U || decoded_sdu.right_frames_cnt != 0U))) {
 		LOG_DBG("Cannot mix and match mono with left or right");

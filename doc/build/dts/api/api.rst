@@ -257,6 +257,16 @@ controllers or channels, and properties related to them.
 
 .. doxygengroup:: devicetree-dmas
 
+.. _devicetree-display-api:
+
+Display
+=======
+
+These conveniences may be used for nodes which describe display
+controllers, and properties related to them.
+
+.. doxygengroup:: devicetree-display
+
 .. _devicetree-flash-api:
 
 Fixed flash partitions
@@ -278,6 +288,16 @@ and properties related to them.
 
 .. doxygengroup:: devicetree-gpio
 
+.. _devicetree-hwspinlock-api:
+
+HWSpinlock
+==========
+
+These conveniences may be used for nodes which describe hardware spinlock,
+and properties related to them.
+
+.. doxygengroup:: devicetree-hwspinlock
+
 IO channels
 ===========
 
@@ -295,6 +315,26 @@ These conveniences may be used for nodes which describe MBOX controllers/users,
 and properties related to them.
 
 .. doxygengroup:: devicetree-mbox
+
+.. _devicetree-nvmem-api:
+
+NVMEM
+=====
+
+These conveniences may be used for nodes which describe Non-Volatile
+Memory, and properties related to them.
+
+.. doxygengroup:: devicetree-nvmem
+
+.. _devicetree-ordinals-api:
+
+Ordinals
+========
+
+These conveniences may be used for nodes which describe Dependency
+tracking, and properties related to them.
+
+.. doxygengroup:: devicetree-dep-ord
 
 .. _devicetree-pinctrl-api:
 
@@ -392,8 +432,6 @@ device.
      - Video input device, typically a camera.
    * - zephyr,canbus
      - Sets the default CAN controller
-   * - zephyr,ccm
-     - Core-Coupled Memory node on some STM32 SoCs
    * - zephyr,code-partition
      - Flash partition that the Zephyr image's text section should be linked
        into
@@ -403,8 +441,6 @@ device.
      - Selects the CRC device used as an accelerator by the CRC subsystem
    * - zephyr,display
      - Sets the default display controller
-   * - zephyr,keyboard-scan
-     - Sets the default keyboard scan controller
    * - zephyr,dtcm
      - Data Tightly Coupled Memory node on some Arm SoCs
    * - zephyr,entropy
@@ -436,6 +472,9 @@ device.
        If defined, the UART log backend would output to the devices listed in this node.
    * - zephyr,ocm
      - On-chip memory node on Xilinx Zynq-7000 and ZynqMP SoCs
+   * - zephyr,openthread-counter
+     - Selects the counter device used by the OpenThread platform for microsecond alarm
+       timers when :kconfig:option:`CONFIG_OPENTHREAD_ALARM_COUNTER` is enabled.
    * - zephyr,osdp-uart
      - Sets UART device used by OSDP subsystem
    * - zephyr,ot-uart
@@ -444,6 +483,9 @@ device.
      - The node corresponding to the PCIe Controller
    * - zephyr,ppp-uart
      - Sets UART device used by PPP
+   * - zephyr,rtc
+     - Sets the default RTC device (used for example by the :ref:`SNTP library <sntp_interface>` to
+       set the system time when :kconfig:option:`CONFIG_NET_CONFIG_CLOCK_SNTP_SET_RTC` is enabled)
    * - zephyr,settings-partition
      - Fixed partition node. If defined this selects the partition used
        by the NVS and FCB settings backends.
@@ -452,20 +494,27 @@ device.
    * - zephyr,sram
      - A node whose ``reg`` sets the base address and size of SRAM memory
        available to the Zephyr image, used during linking
+   * - zephyr,system-timer
+     - Selects the hardware timer instance used as the Zephyr system timer.
+       Used when devicetree selects which timer instance provides that
+       singleton system function.
+   * - zephyr,system-timer-companion
+     - Selects the device used to keep time while the primary system timer is
+       inactive in low-power states
    * - zephyr,tracing-uart
      - Sets UART device used by tracing subsystem
    * - zephyr,uart-mcumgr
      - UART used for :ref:`device_mgmt`
    * - zephyr,uart-pipe
      - Sets UART device used by serial pipe driver
-   * - zephyr,usb-device
-     - USB device node. If defined and has a ``vbus-gpios`` property, these
-       will be used by the USB subsystem to enable/disable VBUS
    * - zephyr,led-strip
      - A LED-strip node which is used to determine the timings of the
        WS2812 GPIO driver
    * - zephyr,touch
-     - touchscreen controller device node.
+     - Touchscreen controller device node. When LVGL is used, if
+       :kconfig:option:`CONFIG_LV_Z_POINTER_FROM_CHOSEN_TOUCH` is enabled, an LVGL
+       pointer input device is created using the touchscreen controller
+       as its input source.
    * - zephyr,videoenc
      - Video encoder device, typically an H264 or MJPEG video encoder.
    * - mcuboot,ram-load-dev

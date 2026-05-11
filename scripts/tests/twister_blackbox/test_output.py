@@ -76,11 +76,6 @@ class TestOutput:
 
         expected_start = os.path.relpath(TEST_DATA, ZEPHYR_BASE) if expect_paths else 'dummy.'
         assert all([testsuite.startswith(expected_start) for _, testsuite, _ in filtered_j])
-        if expect_paths:
-            assert all([(tc_name.count('.') > 1) for _, _, tc_name in filtered_j])
-        else:
-            assert all([(tc_name.count('.') == 1) for _, _, tc_name in filtered_j])
-
 
     def test_inline_logs(self, out_path):
         test_platforms = ['qemu_x86', 'intel_adl_crb']
@@ -97,7 +92,7 @@ class TestOutput:
         assert str(sys_exit.value) == '1'
 
         rel_path = os.path.relpath(path, ZEPHYR_BASE)
-        build_path = os.path.join(out_path, 'qemu_x86_atom', 'zephyr', rel_path, 'always_fail.dummy', 'build.log')
+        build_path = os.path.join(out_path, 'qemu_x86_atom', 'zephyr_gnu', rel_path, 'always_fail.dummy', 'build.log')
         with open(build_path) as f:
             build_log = f.read()
 
@@ -171,7 +166,7 @@ class TestOutput:
     )
     def test_output_levels(self, capfd, out_path, flags):
         test_path = os.path.join(TEST_DATA, 'tests', 'dummy', 'agnostic')
-        args = ['--outdir', out_path, '-T', test_path, *flags]
+        args = ['--outdir', out_path, '-T', test_path, '-p', 'qemu_x86', *flags]
 
         with mock.patch.object(sys, 'argv', [sys.argv[0]] + args), \
             pytest.raises(SystemExit) as sys_exit:
