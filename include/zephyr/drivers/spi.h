@@ -149,7 +149,7 @@ extern "C" {
  * @brief Get SPI word size in bits from a @ref spi_operation_t
  *
  * @param operation A @ref spi_operation_t from which to get the configured word size.
- * @retval The size (in bits) of a spi word for the operation.
+ * @return The size (in bits) of a spi word for the operation.
  */
 #define SPI_WORD_SIZE_GET(operation)					\
 	(((operation) & SPI_WORD_SIZE_MASK) >> SPI_WORD_SIZE_SHIFT)
@@ -158,7 +158,7 @@ extern "C" {
  * @brief Get a bitmask to set the word size in a @ref spi_operation_t
  *
  * @param word_size The size of a SPI data frame in bits.
- * @retval A bitmask to apply to a @ref spi_operation_t
+ * @return A bitmask to apply to a @ref spi_operation_t
  */
 #define SPI_WORD_SET(word_size)			\
 	((word_size) << SPI_WORD_SIZE_SHIFT)
@@ -419,7 +419,6 @@ struct spi_cs_control {
 /** @} */
 
 /**
- * @typedef spi_operation_t
  * Opaque type to hold the SPI operation flags.
  */
 #if defined(CONFIG_SPI_EXTENDED_MODES)
@@ -859,8 +858,13 @@ static inline void spi_transceive_stats(const struct device *dev, int error,
 	SPI_DEVICE_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
 
 /**
- * @typedef spi_api_io
- * @brief Callback API for I/O
+ * @def_driverbackendgroup{SPI,spi_interface}
+ * @{
+ */
+
+/**
+ * @brief Callback API for I/O.
+ *
  * See spi_transceive() for argument descriptions
  */
 typedef int (*spi_api_io)(const struct device *dev,
@@ -878,8 +882,8 @@ typedef int (*spi_api_io)(const struct device *dev,
 typedef void (*spi_callback_t)(const struct device *dev, int result, void *data);
 
 /**
- * @typedef spi_api_io
- * @brief Callback API for asynchronous I/O
+ * @brief Callback API for asynchronous I/O.
+ *
  * See spi_transceive_signal() for argument descriptions
  */
 typedef int (*spi_api_io_async)(const struct device *dev,
@@ -889,10 +893,9 @@ typedef int (*spi_api_io_async)(const struct device *dev,
 				spi_callback_t cb,
 				void *userdata);
 
-#if defined(CONFIG_SPI_RTIO) || defined(DOXYGEN)
+#if defined(CONFIG_SPI_RTIO) || defined(__DOXYGEN__)
 
 /**
- * @typedef spi_api_iodev_submit
  * @brief Callback API for submitting work to a SPI device with RTIO
  */
 typedef void (*spi_api_iodev_submit)(const struct device *dev,
@@ -900,7 +903,6 @@ typedef void (*spi_api_iodev_submit)(const struct device *dev,
 #endif /* CONFIG_SPI_RTIO */
 
 /**
- * @typedef spi_api_release
  * @brief Callback API for unlocking SPI device.
  * See spi_release() for argument descriptions
  */
@@ -909,19 +911,35 @@ typedef int (*spi_api_release)(const struct device *dev,
 
 
 /**
- * @brief SPI driver API
- * This is the mandatory API any SPI driver needs to expose.
+ * @driver_ops{SPI}
  */
 __subsystem struct spi_driver_api {
+	/**
+	 * @driver_ops_mandatory @copybrief spi_transceive
+	 */
 	spi_api_io transceive;
-#ifdef CONFIG_SPI_ASYNC
+#if defined(CONFIG_SPI_ASYNC) || defined(__DOXYGEN__)
+	/**
+	 * @driver_ops_optional @copybrief spi_transceive_cb
+	 * @kconfig_dep{CONFIG_SPI_ASYNC}
+	 */
 	spi_api_io_async transceive_async;
 #endif /* CONFIG_SPI_ASYNC */
-#ifdef CONFIG_SPI_RTIO
+#if defined(CONFIG_SPI_RTIO) || defined(__DOXYGEN__)
+	/**
+	 * @driver_ops_optional @copybrief spi_iodev_submit
+	 * @kconfig_dep{CONFIG_SPI_RTIO}
+	 */
 	spi_api_iodev_submit iodev_submit;
 #endif /* CONFIG_SPI_RTIO */
+	/**
+	 * @driver_ops_mandatory @copybrief spi_release
+	 */
 	spi_api_release release;
 };
+/**
+ * @}
+ */
 
 /**
  * @brief Check if SPI CS is controlled using a GPIO.
@@ -1017,11 +1035,8 @@ static inline int z_impl_spi_transceive(const struct device *dev,
 					const struct spi_buf_set *tx_bufs,
 					const struct spi_buf_set *rx_bufs)
 {
-	const struct spi_driver_api *api =
-		(const struct spi_driver_api *)dev->api;
-	int ret;
+	int ret = DEVICE_API_GET(spi, dev)->transceive(dev, config, tx_bufs, rx_bufs);
 
-	ret = api->transceive(dev, config, tx_bufs, rx_bufs);
 	spi_transceive_stats(dev, ret, tx_bufs, rx_bufs);
 
 	return ret;
@@ -1153,9 +1168,7 @@ static inline int spi_write_dt(const struct spi_dt_spec *spec,
  */
 
 /**
- * @brief Read/write the specified amount of data from the SPI driver.
- *
- * @note This function is asynchronous.
+ * @brief Read/write the specified amount of data from the SPI driver asynchronously.
  *
  * @note This function is available only if @kconfig{CONFIG_SPI_ASYNC}
  * is selected.
@@ -1191,10 +1204,8 @@ static inline int spi_transceive_cb(const struct device *dev,
 				    spi_callback_t callback,
 				    void *userdata)
 {
-	const struct spi_driver_api *api =
-		(const struct spi_driver_api *)dev->api;
-
-	return api->transceive_async(dev, config, tx_bufs, rx_bufs, callback, userdata);
+	return DEVICE_API_GET(spi, dev)->transceive_async(dev, config, tx_bufs, rx_bufs, callback,
+							  userdata);
 }
 
 #if defined(CONFIG_POLL) || defined(__DOXYGEN__)
@@ -1240,11 +1251,9 @@ static inline int spi_transceive_signal(const struct device *dev,
 				       const struct spi_buf_set *rx_bufs,
 				       struct k_poll_signal *sig)
 {
-	const struct spi_driver_api *api =
-		(const struct spi_driver_api *)dev->api;
 	spi_callback_t cb = (sig == NULL) ? NULL : z_spi_transfer_signal_cb;
 
-	return api->transceive_async(dev, config, tx_bufs, rx_bufs, cb, sig);
+	return DEVICE_API_GET(spi, dev)->transceive_async(dev, config, tx_bufs, rx_bufs, cb, sig);
 }
 
 /**
@@ -1342,9 +1351,8 @@ static inline void spi_iodev_submit(struct rtio_iodev_sqe *iodev_sqe)
 {
 	const struct spi_dt_spec *dt_spec = (const struct spi_dt_spec *)iodev_sqe->sqe.iodev->data;
 	const struct device *dev = dt_spec->bus;
-	const struct spi_driver_api *api = (const struct spi_driver_api *)dev->api;
 
-	api->iodev_submit(dt_spec->bus, iodev_sqe);
+	DEVICE_API_GET(spi, dev)->iodev_submit(dev, iodev_sqe);
 }
 
 /** @cond INTERNAL_HIDDEN */
@@ -1365,6 +1373,19 @@ extern const struct rtio_iodev_api spi_iodev_api;
 	const struct spi_dt_spec _spi_dt_spec_##name =				\
 		SPI_DT_SPEC_GET(node_id, operation_, __VA_ARGS__);		\
 	RTIO_IODEV_DEFINE(name, &spi_iodev_api, (void *)&_spi_dt_spec_##name)
+
+/**
+ * @brief Define an iodev for a devicetree instance on the bus
+ *
+ * This is equivalent to
+ * <tt>SPI_DT_IODEV_DEFINE(name, DT_DRV_INST(inst), operation)</tt>.
+ *
+ * @param name Symbolic name to use for defining the iodev
+ * @param inst Devicetree instance number
+ * @param operation_ SPI operational mode
+ */
+#define SPI_DT_INST_IODEV_DEFINE(name, inst, operation_, ...)			\
+	SPI_DT_IODEV_DEFINE(name, DT_DRV_INST(inst), operation_, __VA_ARGS__)
 
 /**
  * @brief Validate that SPI bus (and CS gpio if defined) is ready.
@@ -1410,10 +1431,7 @@ __syscall int spi_release(const struct device *dev,
 static inline int z_impl_spi_release(const struct device *dev,
 				     const struct spi_config *config)
 {
-	const struct spi_driver_api *api =
-		(const struct spi_driver_api *)dev->api;
-
-	return api->release(dev, config);
+	return DEVICE_API_GET(spi, dev)->release(dev, config);
 }
 
 /**

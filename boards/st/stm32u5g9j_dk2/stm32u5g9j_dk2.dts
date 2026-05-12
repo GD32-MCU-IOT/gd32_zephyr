@@ -63,7 +63,7 @@
 		compatible = "zephyr,memory-region";
 		reg = <0xa0000000 DT_SIZE_M(128)>;
 		zephyr,memory-region = "EXTMEM";
-		/* The ATTR_MPU_EXTMEM attribut causing a MPU FAULT */
+		/* The ATTR_MPU_EXTMEM attribute causing a MPU FAULT */
 		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_IO)>;
 	};
 };
@@ -248,7 +248,7 @@
 	pinctrl-0 = <&adc1_in5_pa0 &adc1_in12_pa7>;
 	pinctrl-names = "default";
 	st,adc-clock-source = "ASYNC";
-	st,adc-prescaler = <1>;
+	st,adc-prescaler = <2>;
 	status = "okay";
 
 	#address-cells = <1>;
@@ -303,29 +303,33 @@ zephyr_udc0: &usbotg_hs {
 
 &flash0 {
 	partitions {
-		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		ranges;
 
 		/*
 		 * Following flash partition is dedicated to the use of bootloader
 		 */
 		boot_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
 			label = "mcuboot";
 			reg = <0x00000000 DT_SIZE_K(64)>;
 		};
 
 		slot0_partition: partition@10000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-0";
 			reg = <0x00010000 DT_SIZE_K(1952)>;
 		};
 
 		slot1_partition: partition@1f8000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-1";
 			reg = <0x001f8000 DT_SIZE_K(1960)>;
 		};
 
 		storage_partition: partition@3e2000 {
+			compatible = "zephyr,mapped-partition";
 			label = "storage";
 			reg = <0x003e2000 DT_SIZE_K(120)>;
 		};

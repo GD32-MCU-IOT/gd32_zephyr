@@ -15,8 +15,8 @@
 LOG_MODULE_REGISTER(isotp, CONFIG_ISOTP_LOG_LEVEL);
 
 #ifdef CONFIG_ISOTP_ENABLE_CONTEXT_BUFFERS
-K_MEM_SLAB_DEFINE(ctx_slab, sizeof(struct isotp_send_ctx),
-		  CONFIG_ISOTP_TX_CONTEXT_BUF_COUNT, 4);
+K_MEM_SLAB_DEFINE_TYPE(ctx_slab, struct isotp_send_ctx,
+		       CONFIG_ISOTP_TX_CONTEXT_BUF_COUNT);
 #endif
 
 static void receive_pool_free(struct net_buf *buf);
@@ -762,7 +762,10 @@ static void send_can_tx_cb(const struct device *dev, int error, void *arg)
 
 	ARG_UNUSED(dev);
 
-	sctx->tx_backlog--;
+	if (sctx->tx_backlog > 0) {
+		sctx->tx_backlog--;
+	}
+
 	k_sem_give(&sctx->tx_sem);
 
 	if (sctx->state == ISOTP_TX_WAIT_BACKLOG) {

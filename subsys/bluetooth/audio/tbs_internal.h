@@ -4,7 +4,7 @@
 
 /*
  * Copyright (c) 2019 Bose Corporation
- * Copyright (c) 2021 Nordic Semiconductor ASA
+ * Copyright (c) 2021-2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +14,7 @@
 #include <stdint.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/att.h>
 #include <zephyr/bluetooth/audio/tbs.h>
 #include <zephyr/bluetooth/gatt.h>
@@ -21,7 +22,6 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/types.h>
 
-#define BT_TBS_MAX_UCI_SIZE                        6
 #define BT_TBS_MIN_URI_LEN                         3 /* a:b */
 #define BT_TBS_FREE_CALL_INDEX                     0
 
@@ -47,9 +47,6 @@
 
 #define BT_TBS_CALL_FLAG_SET_INCOMING(flag) (flag &= ~BT_TBS_CALL_FLAG_OUTGOING)
 #define BT_TBS_CALL_FLAG_SET_OUTGOING(flag) (flag |= BT_TBS_CALL_FLAG_OUTGOING)
-
-const char *parse_string_value(const void *data, uint16_t length,
-				      uint16_t max_len);
 
 static inline const char *bt_tbs_state_str(uint8_t state)
 {
@@ -127,26 +124,26 @@ static inline const char *bt_tbs_status_str(uint8_t status)
 	}
 }
 
-static inline const char *bt_tbs_technology_str(uint8_t status)
+static inline const char *bt_bearer_tech_str(enum bt_bearer_tech tech)
 {
-	switch (status) {
-	case BT_TBS_TECHNOLOGY_3G:
+	switch (tech) {
+	case BT_BEARER_TECH_3G:
 		return "3G";
-	case BT_TBS_TECHNOLOGY_4G:
+	case BT_BEARER_TECH_4G:
 		return "4G";
-	case BT_TBS_TECHNOLOGY_LTE:
+	case BT_BEARER_TECH_LTE:
 		return "LTE";
-	case BT_TBS_TECHNOLOGY_WIFI:
+	case BT_BEARER_TECH_WIFI:
 		return "WIFI";
-	case BT_TBS_TECHNOLOGY_5G:
+	case BT_BEARER_TECH_5G:
 		return "5G";
-	case BT_TBS_TECHNOLOGY_GSM:
+	case BT_BEARER_TECH_GSM:
 		return "GSM";
-	case BT_TBS_TECHNOLOGY_CDMA:
+	case BT_BEARER_TECH_CDMA:
 		return "CDMA";
-	case BT_TBS_TECHNOLOGY_2G:
+	case BT_BEARER_TECH_2G:
 		return "2G";
-	case BT_TBS_TECHNOLOGY_WCDMA:
+	case BT_BEARER_TECH_WCDMA:
 		return "WCDMA";
 	default:
 		return "unknown technology";
@@ -199,8 +196,8 @@ static inline bool bt_tbs_valid_uri(const uint8_t *uri, size_t uri_len)
 		return false;
 	}
 
-	for (size_t i = 1; i < uri_len; i++) {
-		if (uri[i] == ':' && uri[i + 1] >= FIRST_PRINTABLE_ASCII_CHAR) {
+	for (size_t i = 1U; i < uri_len - 1U; i++) {
+		if (uri[i] == ':' && uri[i + 1U] >= FIRST_PRINTABLE_ASCII_CHAR) {
 			return true;
 		}
 	}
@@ -290,6 +287,11 @@ struct bt_tbs_current_call_item {
 struct bt_tbs_in_uri {
 	uint8_t call_index;
 	char uri[CONFIG_BT_TBS_MAX_URI_LENGTH + 1];
+} __packed;
+
+struct bt_tbs_friendly_name {
+	uint8_t call_index;
+	char name[CONFIG_BT_TBS_MAX_FRIENDLY_NAME_LENGTH + 1];
 } __packed;
 
 #if defined(CONFIG_BT_TBS_CLIENT)

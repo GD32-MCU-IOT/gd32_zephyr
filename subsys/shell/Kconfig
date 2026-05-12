@@ -8,7 +8,6 @@
 menuconfig SHELL
 	bool "Shell"
 	imply LOG_RUNTIME_FILTERING
-	select EVENTS
 
 if SHELL
 
@@ -16,6 +15,14 @@ module = SHELL
 module-str = Shell
 source "subsys/logging/Kconfig.template.log_config"
 source "subsys/shell/backends/Kconfig.backends"
+
+config SHELL_LOCAL
+	bool
+	depends on !SHELL_REMOTE_CLI
+	select EVENTS
+	default y
+	help
+	  Indicates that the shell is local, not remote client.
 
 config SHELL_MINIMAL
 	bool "Default config to reduce flash and memory requirements"
@@ -45,6 +52,7 @@ endif
 
 config SHELL_STACK_SIZE
 	int "Shell thread stack size"
+	default 4096 if NET_SHELL_HTTP_CLIENT_SUPPORTED
 	default 3168 if OPENTHREAD_SHELL
 	default 3072 if 64BIT
 	default 2048 if MULTITHREADING
@@ -190,11 +198,11 @@ config SHELL_VT100_COLORS
 
 config SHELL_GETOPT
 	bool "Threadsafe getopt support in shell"
-	select POSIX_C_LIB_EXT
+	select GETOPT
 	help
 	  This config creates a separate getopt_state for the shell instance.
 	  It ensures that using getopt with shell is thread safe.
-	  When more threads are using getopt please call getopt_state_get to
+	  When more threads are using sys_getopt please call sys_getopt_state_get to
 	  get getopt state of the shell thread.
 
 config SHELL_METAKEYS
@@ -248,6 +256,7 @@ config SHELL_STATS
 config SHELL_CMDS
 	bool "Built-in commands"
 	default y if !SHELL_MINIMAL
+	depends on !SHELL_REMOTE_CLI
 	help
 	  Enable built-in commands like 'clear', 'history', etc.
 
@@ -296,12 +305,48 @@ config SHELL_LOG_BACKEND_CUSTOM
 	  It allows to provide custom implementation of multiplexing logging messages
 	  with shell data.
 
+if SHELL_LOG_BACKEND
+
+config SHELL_LOG_OUTPUT_TIMESTAMP
+	bool "Log output timestamp"
+	default y
+	help
+	  Enable timestamp in log output.
+
 config SHELL_LOG_FORMAT_TIMESTAMP
 	bool "Format timestamp"
 	default y
-	depends on SHELL_LOG_BACKEND
 	help
 	  Enable timestamp formatting.
+
+config SHELL_LOG_OUTPUT_LEVEL
+	bool "Log output level"
+	default y
+	help
+	  Enable log level in log output.
+
+config SHELL_LOG_OUTPUT_CRLF_NONE
+	bool "Log output CRLF none"
+	help
+	  Do not modify CRLF characters in log output.
+
+config SHELL_LOG_OUTPUT_CRLF_LFONLY
+	bool "Log output CRLF LF only"
+	help
+	  Convert CRLF to LF in log output.
+
+config SHELL_LOG_OUTPUT_THREAD
+	bool "Log output thread"
+	default y
+	help
+	  Enable logging thread id or name
+
+config SHELL_LOG_OUTPUT_SKIP_SOURCE
+	bool "Log output skip source"
+	help
+	  Skip outputting source in log output.
+
+endif # SHELL_LOG_BACKEND
 
 config SHELL_AUTOSTART
 	bool "Auto-start shell at boot"
@@ -318,7 +363,8 @@ config SHELL_CMDS_RETURN_VALUE
 	  the return value from the most recently executed command.
 
 config SHELL_CUSTOM_HEADER
-	bool "Include Custom Shell Header"
+	bool "Include Custom Shell Header [EXPERIMENTAL]"
+	select EXPERIMENTAL
 	help
 	  When enabled, a custom application provided header, named
 	  "zephyr_custom_shell.h", is included at the end of shell.h. This enables
@@ -335,6 +381,90 @@ config SHELL_TX_TIMEOUT_MS
 	  When using the shell log backend, the timeout should be longer to avoid
 	  timeouts due to log processing. A value of 0 means no timeout.
 
+config SHELL_BYPASS_READ_BUF_SIZE
+	int "Bypass read buffer size"
+	range 1 $(UINT16_MAX)
+	default SEGGER_RTT_BUFFER_SIZE_DOWN if SHELL_BACKEND_RTT
+	default 16
+	help
+	  Size of buffer used for reading data in bypass mode.
+	  This buffer is allocated on stack. The bypass reads data
+	  in a loop, so a small buffer is sufficient.
+	  Must be smaller than SHELL_STACK_SIZE.
+
+	  When using RTT backend, this defaults to SEGGER_RTT_BUFFER_SIZE_DOWN
+	  for backward compatibility.
+
+config SHELL_REMOTE
+	depends on IPC_SERVICE
+	bool "Shell remote host"
+	help
+	  If enabled, the shell supports remote clients.
+
+if SHELL_REMOTE
+
+config SHELL_REMOTE_MULTI_CLI
+	bool "Multiple remote clients support"
+	help
+	  If enabled, the shell supports multiple remote clients.
+
+config SHELL_REMOTE_TMP_BUF_SIZE
+	int "Temporary buffer size for remote shell command data"
+	range 16 2048
+	default 128
+	help
+	  Buffer size on the shell host for remote command syntax and help text,
+	  and for packing exec messages sent to the remote shell client.
+	  If the buffer is too small, the help string will be truncated.
+
+endif # SHELL_REMOTE
+
+config SHELL_REMOTE_CLI
+	bool "Shell remote client"
+	depends on IPC_SERVICE
+	imply SHELL_MINIMAL
+	help
+	  If enabled, the shell works as a remote client.
+
+config SHELL_REMOTE_EP_NAME
+	string "Shell remote endpoint name"
+	default "shell_remote"
+	depends on SHELL_REMOTE || SHELL_REMOTE_CLI
+
+config SHELL_REMOTE_TIMEOUT_MS
+	int "Shell remote timeout in milliseconds"
+	default 100
+	help
+	  The timeout in milliseconds for the IPC communication.
+
+if SHELL_REMOTE_CLI
+
+config SHELL_REMOTE_CLI_SKIP_RO_STRINGS
+	bool "Skip read-only strings in remote message"
+	default y
+	help
+	  When enabled, read-only strings are not included in the remote message.
+	  This can save some memory (for example, stack space) and reduces the size of
+	  IPC messages.
+
+config SHELL_REMOTE_CLI_BUF_SIZE
+	int "Internal buffer size"
+	range 64 2048
+	default 128 if SHELL_REMOTE_CLI_SKIP_RO_STRINGS
+	default 256
+	help
+	  Size of the internal buffer used for remote messages.
+
+config SHELL_REMOTE_CLI_KWORK
+	bool "Use kwork context for command execution"
+	default y
+
+config SHELL_REMOTE_CLI_STACK_SIZE
+	int "Thread stack size"
+	default 2048
+	depends on !SHELL_REMOTE_CLI_KWORK
+
+endif
 source "subsys/shell/modules/Kconfig"
 
 endif # SHELL

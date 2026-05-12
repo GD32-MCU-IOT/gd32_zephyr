@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_mcxw71.dtsi>
+#include <nxp/mcx/nxp_mcxw71.dtsi>
 #include "frdm_mcxw71-pinctrl.dtsi"
 #include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -138,6 +138,8 @@
 	};
 };
 
+arduino_i2c: &lpi2c1 {};
+
 &lpspi1 {
 	status = "okay";
 	pinctrl-0 = <&pinmux_lpspi1>;
@@ -184,12 +186,17 @@
 			reg = <0x10000 DT_SIZE_K(424)>;
 		};
 
-		slot1_partition: partition@7A000 {
-			reg = <0x7A000 DT_SIZE_K(424)>;
+		slot1_partition: partition@7a000 {
+			reg = <0x7a000 DT_SIZE_K(424)>;
 		};
 
-		storage_partition: partition@E4000 {
-			reg = <0xE4000 DT_SIZE_K(112)>;
+		storage_partition: partition@e4000 {
+			reg = <0xe4000 DT_SIZE_K(104)>;
+		};
+
+		hw_params_partition: partition@fe000 {
+			label = "hw-parameters";
+			reg = <0xfe000 DT_SIZE_K(8)>;
 		};
 	};
 };
@@ -210,6 +217,14 @@
 
 &lptmr0 {
 	status = "okay";
+};
+
+&lptmr1 {
+	status = "okay";
+};
+
+&ieee802154 {
+	counter = <&lptmr1>;
 };
 
 &flexcan0 {

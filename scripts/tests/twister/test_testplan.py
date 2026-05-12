@@ -20,6 +20,19 @@ from twisterlib.statuses import TwisterStatus
 from twisterlib.testinstance import TestInstance
 from twisterlib.testplan import TestConfiguration, TestPlan, change_skip_to_error_if_integration
 from twisterlib.testsuite import TestSuite
+from twisterlib.testsuitedata import RequiredApplication
+
+
+def mock_twister_env():
+    """ Helper function to mock TwisterEnv class """
+    env = mock.Mock()
+
+    env.modules = [
+        {"name": "mod1"},
+        {"name": "mod2"},
+    ]
+
+    return env
 
 
 def test_testplan_add_testsuites_short(class_testplan):
@@ -280,7 +293,7 @@ def test_apply_changes_for_required_applications(testplan_with_one_instance: Tes
     testinstance_req = next(iter(plan.instances.values()))
 
     testsuite = get_testsuite_for_given_test(plan, 'test_a.check_1')
-    testsuite.required_applications = [{'name': 'sample_test.app'}]
+    testsuite.required_applications = [RequiredApplication(name='sample_test.app')]
     platform = plan.get_platform("demo_board_1")
     testinstance = TestInstance(testsuite, platform, 'zephyr', plan.env.outdir)
     plan.add_instances([testinstance])
@@ -295,7 +308,7 @@ def test_apply_changes_for_required_applications_missing_app(testplan_with_one_i
     plan = testplan_with_one_instance
     testsuite = get_testsuite_for_given_test(plan, 'test_a.check_1')
     # Set a required application that does not exist
-    testsuite.required_applications = [{'name': 'nonexistent_app'}]
+    testsuite.required_applications = [RequiredApplication(name='nonexistent_app')]
     platform = plan.get_platform("demo_board_1")
     testinstance = TestInstance(testsuite, platform, 'zephyr', plan.env.outdir)
     plan.add_instances([testinstance])
@@ -311,7 +324,7 @@ def test_apply_changes_for_required_applications_wrong_platform(testplan_with_on
     """ Test apply_changes_for_required_applications with not matched platform """
     plan = testplan_with_one_instance
     testsuite = get_testsuite_for_given_test(plan, 'test_a.check_1')
-    testsuite.required_applications = [{'name': 'sample_test.app', 'platform': 'demo_board_2'}]
+    testsuite.required_applications = [RequiredApplication(name='sample_test.app', platform='demo_board_2')]
     platform = plan.get_platform("demo_board_2")
     testinstance = TestInstance(testsuite, platform, 'zephyr', plan.env.outdir)
     plan.add_instances([testinstance])
@@ -331,7 +344,7 @@ def test_apply_changes_for_required_applications_in_outdir(testplan_with_one_ins
     req_app_in_outdir = "prebuilt_sample_test.app"
 
     testsuite = get_testsuite_for_given_test(plan, 'test_a.check_1')
-    testsuite.required_applications = [{'name': req_app_in_outdir}]
+    testsuite.required_applications = [RequiredApplication(name=req_app_in_outdir)]
     platform = plan.get_platform("demo_board_1")
     testinstance = TestInstance(testsuite, platform, 'zephyr', plan.env.outdir)
     plan.add_instances([testinstance])
@@ -499,7 +512,7 @@ def test_required_snippets_short(
 
 
 def test_testplan_get_level():
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     lvl1 = mock.Mock()
     lvl1.name = 'a lvl'
     lvl2 = mock.Mock()
@@ -559,7 +572,7 @@ levels:
     ids=['no config', 'valid config']
 )
 def test_testplan_parse_configuration(tmp_path, config_yaml, expected_scenarios):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.scenarios = ['sc1', 'sc1-1', 'sc1-2', 'sc2']
 
     tmp_config_file = tmp_path / 'config_file.yaml'
@@ -592,7 +605,7 @@ def test_testplan_find_subtests(
     expected_outs,
     expect_error
 ):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.options = mock.Mock(sub_test=sub_tests)
     testplan.run_individual_testsuite = []
     testplan.testsuites = {
@@ -629,9 +642,9 @@ def test_testplan_find_subtests(
 
 
 TESTDATA_3 = [
-    (0, 0, [], False, [], TwisterRuntimeError, []),
-    (1, 1, [], False, [], TwisterRuntimeError, []),
-    (1, 0, [], True, [], TwisterRuntimeError, ['No quarantine list given to be verified']),
+    (0, 0, [], False, [], SystemExit, []),
+    (1, 1, [], False, [], SystemExit, []),
+    (1, 0, [], True, [], SystemExit, ['No quarantine list given to be verified']),
     (1, 0, ['qfile.yaml'], False, ['- platforms:\n  - demo_board_3\n  comment: "board_3"'], None, []),
 ]
 
@@ -662,7 +675,7 @@ def test_testplan_discover(
         tmp_qf = tmp_path / qf
         tmp_qf.write_text(data)
 
-    env = mock.Mock()
+    env = mock_twister_env()
     env.test_config = tmp_tc
     testplan = TestPlan(env=env)
     testplan.options = mock.Mock(
@@ -702,10 +715,10 @@ TESTDATA_4 = [
 ]
 
 @pytest.mark.parametrize(
-    'report_suffix, only_failed, load_tests, test_only, subset,' \
-    ' exception, expected_selected_platforms, expected_generate_subset_args',
+    'report_suffix, only_failed, load_tests, test_only, subset, ' \
+    'exception, expected_selected_platforms, expected_generate_subset_args',
     TESTDATA_4,
-    ids=['apply_filters only', 'only failed', 'load tests', 'test only']
+    ids=['apply-filters-only', 'only-failed', 'load-tests', 'test-only']
 )
 def test_testplan_load(
     tmp_path,
@@ -816,8 +829,9 @@ def test_testplan_load(
 """
     load_tests_file = tmp_path / 'load_tests.json'
     load_tests_file.write_text(load_tests_json)
-
-    testplan = TestPlan(env=mock.Mock(outdir=tmp_path))
+    env = mock_twister_env()
+    env.outdir = tmp_path
+    testplan = TestPlan(env=env)
     testplan.testsuites = {
         'ts1': mock.Mock(testcases=[], extra_configs=[]),
         'ts2': mock.Mock(testcases=[], extra_configs=[]),
@@ -930,7 +944,7 @@ def test_testplan_generate_subset(
     sets,
     expected_subset
 ):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.options = mock.Mock(
         device_testing=device_testing,
         shuffle_tests=shuffle,
@@ -951,18 +965,6 @@ def test_testplan_generate_subset(
 
     assert [instance for instance in testplan.instances.keys()] == \
            expected_subset
-
-
-def test_testplan_handle_modules():
-    testplan = TestPlan(env=mock.Mock())
-
-    modules = [mock.Mock(meta={'name': 'name1'}),
-               mock.Mock(meta={'name': 'name2'})]
-
-    with mock.patch('twisterlib.testplan.parse_modules', return_value=modules):
-        testplan.handle_modules()
-
-    assert testplan.modules == ['name1', 'name2']
 
 
 TESTDATA_6 = [
@@ -990,7 +992,7 @@ def test_testplan_report(
     expected_res,
     expected_method
 ):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.report_test_tree = mock.Mock()
     testplan.report_test_list = mock.Mock()
     testplan.report_tag_list = mock.Mock()
@@ -1065,7 +1067,7 @@ def test_testplan_report_duplicates(
     def mock_get(name):
         return list(filter(lambda x: name in x.scenarios, testsuites))
 
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.scenarios = [scenario for testsuite in testsuites \
                                    for scenario in testsuite.scenarios]
     testplan.get_testsuite = mock.Mock(side_effect=mock_get)
@@ -1081,7 +1083,7 @@ def test_testplan_report_duplicates(
 
 
 def test_testplan_report_tag_list(capfd):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.testsuites = {
         'testsuite0': mock.Mock(tags=set(['tag1', 'tag2'])),
         'testsuite1': mock.Mock(tags=set(['tag1', 'tag2', 'tag3'])),
@@ -1102,7 +1104,7 @@ def test_testplan_report_tag_list(capfd):
 
 
 def test_testplan_report_test_tree(capfd):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.get_tests_list = mock.Mock(
         return_value=['1.dummy.case.1', '1.dummy.case.2',
                       '2.dummy.case.1', '2.dummy.case.2',
@@ -1160,7 +1162,7 @@ Testsuite
 
 
 def test_testplan_report_test_list(capfd):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.get_tests_list = mock.Mock(
         return_value=['4.dummy.case.1', '4.dummy.case.2',
                       '3.dummy.case.2', '2.dummy.case.2',
@@ -1214,8 +1216,11 @@ def test_testplan_add_configurations(
     expected_platform_names,
     expected_defaults
 ):
-    env = mock.Mock(board_roots=[tmp_path / 'boards'], soc_roots=[tmp_path], arch_roots=[tmp_path])
-
+    env = mock_twister_env()
+    env.board_roots = [tmp_path / 'boards']
+    env.soc_roots = [tmp_path]
+    env.arch_roots = [tmp_path]
+    env.hwm = mock.Mock(duts=[])
     testplan = TestPlan(env=env)
     testplan.test_config = mock.Mock()
     testplan.test_config.override_default_platforms = override_default_platforms
@@ -1251,7 +1256,7 @@ def test_testplan_add_configurations(
 
 
 def test_testplan_get_all_tests():
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     tc1 = mock.Mock()
     tc1.name = 'tc1'
     tc2 = mock.Mock()
@@ -1403,11 +1408,10 @@ tests:
     testfile_3 = tmp_alt_good_test_dir / 'testcase.yaml'
     testfile_3.write_text(testcase_yaml_3)
 
-    env = mock.Mock(
-        test_roots=[tmp_test_root_dir],
-        options=mock.Mock(detailed_test_id=detailed_id),
-        alt_config_root=[tmp_alt_test_root_dir] if use_alt_root else []
-    )
+    env = mock_twister_env()
+    env.test_roots=[tmp_test_root_dir]
+    env.options=mock.Mock(detailed_test_id=detailed_id)
+    env.alt_config_root=[tmp_alt_test_root_dir] if use_alt_root else []
 
     testplan = TestPlan(env=env)
 
@@ -1418,7 +1422,7 @@ tests:
 
 
 def test_testplan_str():
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.name = 'my name'
 
     res = testplan.__str__()
@@ -1437,7 +1441,7 @@ TESTDATA_10 = [
     ids=['platform exists', 'no platform']
 )
 def test_testplan_get_platform(name, expect_found):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     p1 = mock.Mock()
     p1.name = 'some platform'
     p1.aliases = [p1.name]
@@ -1495,7 +1499,9 @@ def test_testplan_load_from_file(caplog, device_testing, expected_tfilter):
     ts5.name = 'TestSuite 5'
     ts5.toolchain = 'zephyr'
 
-    testplan = TestPlan(env=mock.Mock(outdir=os.path.join('out', 'dir')))
+    env = mock_twister_env()
+    env.outdir = os.path.join('out', 'dir')
+    testplan = TestPlan(env=env)
     testplan.options = mock.Mock(device_testing=device_testing, test_only=True, report_summary=None)
     testplan.testsuites = {
         'TestSuite 1': ts1,
@@ -1703,7 +1709,7 @@ def test_testplan_load_from_file(caplog, device_testing, expected_tfilter):
 
 
 def test_testplan_add_instances():
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     instance1 = mock.Mock()
     instance1.name = 'instance 1'
     instance2 = mock.Mock()
@@ -1719,7 +1725,7 @@ def test_testplan_add_instances():
 
 
 def test_testplan_get_testcase():
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.testsuites = {
         'test1.suite0': mock.Mock(testcases=[mock.Mock(), mock.Mock()]),
         'test1.suite1': mock.Mock(testcases=[mock.Mock(), mock.Mock()]),
@@ -1746,7 +1752,7 @@ def test_testplan_get_testcase():
 
 
 def test_testplan_verify_platforms_existence(caplog):
-    testplan = TestPlan(env=mock.Mock())
+    testplan = TestPlan(env=mock_twister_env())
     testplan.platform_names = ['a platform', 'other platform']
 
     platform_names = ['other platform', 'some platform']
@@ -1784,7 +1790,9 @@ def test_testplan_create_build_dir_links(exists):
     }
     expected_instances = [instances['inst0'], instances['inst2']]
 
-    testplan = TestPlan(env=mock.Mock(outdir=outdir))
+    env = mock_twister_env()
+    env.outdir=outdir
+    testplan = TestPlan(env=env)
     testplan._create_build_dir_link = mock.Mock(side_effect=mock_link)
     testplan.instances = instances
 
@@ -1831,7 +1839,7 @@ def test_testplan_create_build_dir_link(os_name):
          mock.patch('subprocess.call', side_effect=mock_call), \
          mock.patch('os.path.join', side_effect=mock_join):
 
-        testplan = TestPlan(env=mock.Mock())
+        testplan = TestPlan(env=mock_twister_env())
         links_dir_path = os.path.join('links', 'path')
         instance_build_dir = os.path.join('some', 'far', 'off', 'build', 'dir')
         instance = mock.Mock(build_dir=instance_build_dir)

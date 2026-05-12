@@ -51,6 +51,8 @@ else()
   set(KCONFIG_ROOT ${ZEPHYR_BASE}/Kconfig)
 endif()
 
+zephyr_get(KCONFIG_VARIANT_SOURCE SYSBUILD LOCAL)
+
 if(NOT DEFINED BOARD_DEFCONFIG)
   zephyr_file(CONF_FILES ${BOARD_DIRECTORIES} DEFCONFIG BOARD_DEFCONFIG)
 endif()
@@ -129,6 +131,18 @@ else()
   set(_local_TOOLCHAIN_HAS_PICOLIBC n)
 endif()
 
+if(TOOLCHAIN_HAS_GLIBCXX)
+  set(_local_TOOLCHAIN_HAS_GLIBCXX y)
+else()
+  set(_local_TOOLCHAIN_HAS_GLIBCXX n)
+endif()
+
+if(TOOLCHAIN_HAS_LIBCXX)
+  set(_local_TOOLCHAIN_HAS_LIBCXX y)
+else()
+  set(_local_TOOLCHAIN_HAS_LIBCXX n)
+endif()
+
 # APP_DIR: Path to the main image (sysbuild) or synonym for APPLICATION_SOURCE_DIR (non-sysbuild)
 zephyr_get(APP_DIR VAR APP_DIR APPLICATION_SOURCE_DIR)
 
@@ -154,9 +168,12 @@ set(COMMON_KCONFIG_ENV_SETTINGS
   KCONFIG_BINARY_DIR=${KCONFIG_BINARY_DIR}
   APPLICATION_SOURCE_DIR=${APPLICATION_SOURCE_DIR}
   ZEPHYR_TOOLCHAIN_VARIANT=${ZEPHYR_TOOLCHAIN_VARIANT}
+  TOOLCHAIN_VARIANT_COMPILER=${TOOLCHAIN_VARIANT_COMPILER}
   TOOLCHAIN_KCONFIG_DIR=${TOOLCHAIN_KCONFIG_DIR}
   TOOLCHAIN_HAS_NEWLIB=${_local_TOOLCHAIN_HAS_NEWLIB}
   TOOLCHAIN_HAS_PICOLIBC=${_local_TOOLCHAIN_HAS_PICOLIBC}
+  TOOLCHAIN_HAS_GLIBCXX=${_local_TOOLCHAIN_HAS_GLIBCXX}
+  TOOLCHAIN_HAS_LIBCXX=${_local_TOOLCHAIN_HAS_LIBCXX}
   EDT_PICKLE=${EDT_PICKLE}
   # Export all Zephyr modules to Kconfig
   ${ZEPHYR_KCONFIG_MODULES_DIR}
@@ -197,18 +214,22 @@ set(EXTRA_KCONFIG_TARGET_COMMAND_FOR_traceconfig
   ${PROJECT_BINARY_DIR}/kconfig-trace.md
   )
 
-set_ifndef(KCONFIG_TARGETS menuconfig guiconfig hardenconfig traceconfig)
+zephyr_get(KCONFIG_TARGETS SYSBUILD LOCAL)
+
+if(NOT DEFINED KCONFIG_TARGETS)
+  set(KCONFIG_TARGETS menuconfig guiconfig hardenconfig traceconfig)
+endif()
 
 foreach(kconfig_target
     ${KCONFIG_TARGETS}
     ${EXTRA_KCONFIG_TARGETS}
     )
-  add_custom_target(
+  zephyr_custom_target_shared(
     ${kconfig_target}
     ${CMAKE_COMMAND} -E env
     ZEPHYR_BASE=${ZEPHYR_BASE}
     ${COMMON_KCONFIG_ENV_SETTINGS}
-    "SHIELD_AS_LIST=${SHIELD_AS_LIST_ESCAPED}"
+    SHIELD_AS_LIST='${SHIELD_AS_LIST_ESCAPED}'
     DTS_POST_CPP=${DTS_POST_CPP}
     DTS_ROOT_BINDINGS=${DTS_ROOT_BINDINGS}
     ${PTY_INTERFACE}
@@ -217,7 +238,6 @@ foreach(kconfig_target
     ${KCONFIG_ROOT}
     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/kconfig
     USES_TERMINAL
-    COMMAND_EXPAND_LISTS
     )
 endforeach()
 
@@ -313,6 +333,13 @@ foreach(f ${merge_config_files})
   endif()
 endforeach()
 
+if(KCONFIG_VARIANT_SOURCE)
+  set(
+    merge_config_files
+    ${KCONFIG_VARIANT_SOURCE}
+  )
+endif()
+
 # Calculate a checksum of merge_config_files to determine if we need
 # to re-generate .config
 set(merge_config_files_checksum "")
@@ -355,7 +382,10 @@ if(EXISTS ${DOTCONFIG} AND EXISTS ${merge_config_files_checksum_file})
 endif()
 
 if(CREATE_NEW_DOTCONFIG)
-  set(input_configs_flags --handwritten-input-configs)
+  if(NOT KCONFIG_VARIANT_SOURCE)
+    set(input_configs_flags --handwritten-input-configs)
+  endif()
+
   set(input_configs ${merge_config_files} ${FORCED_CONF_FILE})
   build_info(kconfig files PATH ${input_configs})
 else()

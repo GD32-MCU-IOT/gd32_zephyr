@@ -14,6 +14,7 @@
 #include <zephyr/drivers/spi.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/wifi/nrf_wifi/bus/qspi_if.h>
+#include <zephyr/pm/device_runtime.h>
 
 #include "spi_if.h"
 
@@ -51,33 +52,35 @@ static int spim_xfer_tx(unsigned int addr, void *data, unsigned int len)
 	return err;
 }
 
+#define HDR_SIZE          5
+#define MAX_DISCARD_BYTES 8
 
 static int spim_xfer_rx(unsigned int addr, void *data, unsigned int len, unsigned int discard_bytes)
 {
-	uint8_t hdr[] = {
+	uint8_t hdr[HDR_SIZE + MAX_DISCARD_BYTES] = {
 		0x0b, /* FASTREAD opcode */
 		(addr >> 16) & 0xFF,
 		(addr >> 8) & 0xFF,
 		addr & 0xFF,
 		0 /* dummy byte */
 	};
-	uint8_t discard[sizeof(hdr) + 2 * 4];
+	uint8_t discard[HDR_SIZE + MAX_DISCARD_BYTES];
 
 	const struct spi_buf tx_buf[] = {
-		{.buf = hdr,  .len = sizeof(hdr) },
+		{.buf = hdr,  .len = HDR_SIZE + discard_bytes},
 		{.buf = NULL, .len = len },
 	};
 
 	const struct spi_buf_set tx = { .buffers = tx_buf, .count = 2 };
 
 	const struct spi_buf rx_buf[] = {
-		{.buf = discard,  .len = sizeof(hdr) + discard_bytes},
+		{.buf = discard,  .len = HDR_SIZE + discard_bytes},
 		{.buf = data, .len = len },
 	};
 
 	const struct spi_buf_set rx = { .buffers = rx_buf, .count = 2 };
 
-	if (rx_buf[0].len > sizeof(discard)) {
+	if (discard_bytes > MAX_DISCARD_BYTES) {
 		LOG_ERR("Discard bytes too large, please adjust buf size");
 		return -EINVAL;
 	}
@@ -286,11 +289,19 @@ int spim_init(struct qspi_config *config)
 		spi_spec.config.frequency / MHZ(1));
 	LOG_INF("SPIM %s: latency = %d", spi_spec.bus->name, spim_config->qspi_slave_latency);
 
+#ifdef CONFIG_NRF70_SPI_PM_CLAIM_WHILE_ACTIVE
+	return pm_device_runtime_get(spi_spec.bus);
+#else
 	return 0;
+#endif /* CONFIG_NRF70_SPI_PM_CLAIM_WHILE_ACTIVE */
 }
 
 int spim_deinit(void)
 {
+#ifdef CONFIG_NRF70_SPI_PM_CLAIM_WHILE_ACTIVE
+	(void)pm_device_runtime_put(spi_spec.bus);
+#endif /* CONFIG_NRF70_SPI_PM_CLAIM_WHILE_ACTIVE */
+
 	return spi_release_dt(&spi_spec);
 }
 

@@ -427,6 +427,40 @@ end:
 	return rc;
 }
 
+static int disk_flash_access_erase(struct disk_info *disk, uint32_t start_sector,
+				   uint32_t sector_count)
+{
+	struct flashdisk_data *ctx;
+	off_t fl_start, fl_end;
+	uint32_t size;
+	int rc = 0;
+
+	ctx = CONTAINER_OF(disk, struct flashdisk_data, info);
+
+	if (!sectors_in_range(ctx, start_sector, sector_count)) {
+		return -EINVAL;
+	}
+
+	fl_start = ctx->offset + start_sector * ctx->sector_size;
+	size = (sector_count * ctx->sector_size);
+	fl_end = fl_start + size;
+
+	k_mutex_lock(&ctx->lock, K_FOREVER);
+
+	/* Erase the provided sectors */
+	if (flash_erase(ctx->info.dev, fl_start, size) < 0) {
+		rc = -EIO;
+	}
+	/* Invalidate cache if it was pointing in this address range */
+	if (ctx->cache_valid && ((fl_start <= ctx->cached_addr) && (ctx->cached_addr < fl_end))) {
+		ctx->cache_valid = false;
+		ctx->cache_dirty = false;
+	}
+	k_mutex_unlock(&ctx->lock);
+
+	return rc;
+}
+
 static int disk_flash_access_ioctl(struct disk_info *disk, uint8_t cmd, void *buff)
 {
 	int rc;
@@ -466,6 +500,7 @@ static const struct disk_operations flash_disk_ops = {
 	.status = disk_flash_access_status,
 	.read = disk_flash_access_read,
 	.write = disk_flash_access_write,
+	.erase = disk_flash_access_erase,
 	.ioctl = disk_flash_access_ioctl,
 };
 
@@ -485,8 +520,8 @@ DT_INST_FOREACH_STATUS_OKAY(DEFINE_FLASHDISKS_CACHE)
 		.ops = &flash_disk_ops,						\
 		.name = DT_INST_PROP(n, disk_name),				\
 	},									\
-	.area_id = DT_FIXED_PARTITION_ID(PARTITION_PHANDLE(n)),			\
-	.offset = DT_REG_ADDR(PARTITION_PHANDLE(n)),				\
+	.area_id = DT_PARTITION_ID(PARTITION_PHANDLE(n)),			\
+	.offset = PARTITION_NODE_OFFSET(PARTITION_PHANDLE(n)),		\
 	.cache = flashdisk##n##_cache,						\
 	.cache_size = sizeof(flashdisk##n##_cache),				\
 	.size = DT_REG_SIZE(PARTITION_PHANDLE(n)),				\

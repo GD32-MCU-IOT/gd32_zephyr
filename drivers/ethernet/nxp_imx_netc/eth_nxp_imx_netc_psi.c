@@ -60,14 +60,7 @@ static void netc_eth_iface_init(struct net_if *iface)
 	const struct netc_eth_config *cfg = dev->config;
 	status_t result;
 
-	/*
-	 * For VLAN, this value is only used to get the correct L2 driver.
-	 * The iface pointer in context should contain the main interface
-	 * if the VLANs are enabled.
-	 */
-	if (data->iface == NULL) {
-		data->iface = iface;
-	}
+	data->iface = iface;
 
 	/* Set MAC address */
 	result = EP_SetPrimaryMacAddr(&data->handle, (uint8_t *)data->mac_addr);
@@ -123,7 +116,8 @@ init_common:
 	return netc_eth_init_common(dev);
 }
 
-static const struct device *netc_eth_get_phy(const struct device *dev)
+static const struct device *netc_eth_get_phy(const struct device *dev,
+					     struct net_if *iface __unused)
 {
 	const struct netc_eth_config *cfg = dev->config;
 
@@ -134,7 +128,7 @@ static const struct ethernet_api netc_eth_api = {.iface_api.init = netc_eth_ifac
 						 .get_capabilities = netc_eth_get_capabilities,
 						 .get_phy = netc_eth_get_phy,
 						 .set_config = netc_eth_set_config,
-#ifdef CONFIG_PTP_CLOCK_NXP_NETC
+#ifdef NETC_PTP_TIMESTAMPING_SUPPORT
 						 .get_ptp_clock = netc_eth_get_ptp_clock,
 #endif
 						 .send = netc_eth_tx};
@@ -216,7 +210,7 @@ static const struct ethernet_api netc_eth_api = {.iface_api.init = netc_eth_ifac
 		IF_DISABLED(CONFIG_ETH_NXP_IMX_NETC_MSI_GIC,                                       \
 			(.tx_intr_msg_data = NETC_TX_INTR_MSG_DATA_START + n,                      \
 			.rx_intr_msg_data = NETC_RX_INTR_MSG_DATA_START + n,))                     \
-		IF_ENABLED(CONFIG_PTP_CLOCK_NXP_NETC,				                   \
+		IF_ENABLED(NETC_PTP_TIMESTAMPING_SUPPORT,                                          \
 			(.ptp_clock = DEVICE_DT_GET_OR_NULL(DT_INST_PHANDLE(n, ptp_clock)),))      \
 	};                                                                                         \
 	ETH_NET_DEVICE_DT_INST_DEFINE(n, netc_eth_init, NULL, &netc_eth##n##_data,                 \

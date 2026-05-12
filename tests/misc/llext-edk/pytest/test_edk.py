@@ -109,12 +109,13 @@ def test_edk(unlaunched_dut: DeviceAdapter):
             logger.debug(f"Running application with extension in {tempdir_extension}")
             try:
                 unlaunched_dut.launch()
-                lines = unlaunched_dut.readlines_until("Done")
+                lines = unlaunched_dut.readlines_until(regex="Done")
 
                 assert "Calling extension from kernel" in lines
                 assert "Calling extension from user" in lines
                 assert "foo(42) is 1764" in lines
                 assert "foo(43) is 1849" in lines
+                assert "GLOBAL_OPT is set" in lines
 
             finally:
                 unlaunched_dut.close()

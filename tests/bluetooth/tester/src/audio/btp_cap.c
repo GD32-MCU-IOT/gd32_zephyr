@@ -12,6 +12,7 @@
 
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/cap.h>
@@ -27,6 +28,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 #include "btp/btp.h"
 #include "btp_bap_audio_stream.h"
@@ -85,6 +87,8 @@ static void cap_discovery_complete_cb(struct bt_conn *conn, int err,
 				      const struct bt_csip_set_coordinator_set_member *member,
 				      const struct bt_csip_set_coordinator_csis_inst *csis_inst)
 {
+	ARG_UNUSED(member);
+
 	LOG_DBG("");
 
 	if (err != 0) {
@@ -132,6 +136,8 @@ static void btp_send_cap_unicast_stop_completed_ev(uint8_t cig_id, uint8_t statu
 
 static void unicast_start_complete_cb(int err, struct bt_conn *conn)
 {
+	ARG_UNUSED(conn);
+
 	LOG_DBG("");
 
 	if (err != 0) {
@@ -148,6 +154,8 @@ static void unicast_start_complete_cb(int err, struct bt_conn *conn)
 
 static void unicast_update_complete_cb(int err, struct bt_conn *conn)
 {
+	ARG_UNUSED(conn);
+
 	LOG_DBG("");
 
 	if (err != 0) {
@@ -157,6 +165,8 @@ static void unicast_update_complete_cb(int err, struct bt_conn *conn)
 
 static void unicast_stop_complete_cb(int err, struct bt_conn *conn)
 {
+	ARG_UNUSED(conn);
+
 	LOG_DBG("");
 
 	if (err != 0) {
@@ -173,6 +183,9 @@ static void unicast_stop_complete_cb(int err, struct bt_conn *conn)
 
 static void broadcast_stopped_cb(struct bt_cap_broadcast_source *source, uint8_t reason)
 {
+	ARG_UNUSED(source);
+	ARG_UNUSED(reason);
+
 	LOG_DBG("");
 
 	k_sem_give(&source_stopped_sem);
@@ -191,6 +204,9 @@ static uint8_t btp_cap_supported_commands(const void *cmd, uint16_t cmd_len,
 {
 	struct btp_cap_read_supported_commands_rp *rp = rsp;
 
+	ARG_UNUSED(cmd);
+	ARG_UNUSED(cmd_len);
+
 	*rsp_len = tester_supported_commands(BTP_SERVICE_ID_CAP, rp->data);
 	*rsp_len += sizeof(*rp);
 
@@ -203,6 +219,10 @@ static uint8_t btp_cap_discover(const void *cmd, uint16_t cmd_len,
 	const struct btp_cap_discover_cmd *cp = cmd;
 	struct bt_conn *conn;
 	int err;
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
 
 	LOG_DBG("");
 
@@ -274,6 +294,10 @@ static uint8_t btp_cap_unicast_setup_ase(const void *cmd, uint16_t cmd_len,
 	const uint8_t *ltv_ptr;
 	int err;
 
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
 	LOG_DBG("");
 
 	conn = bt_conn_lookup_addr_le(BT_ID_DEFAULT, &cp->address);
@@ -321,11 +345,15 @@ static uint8_t btp_cap_unicast_audio_start(const void *cmd, uint16_t cmd_len,
 					   void *rsp, uint16_t *rsp_len)
 {
 	int err;
-	size_t stream_count = 0;
+	size_t stream_count = 0U;
 	const struct btp_cap_unicast_audio_start_cmd *cp = cmd;
 	struct bt_cap_unicast_audio_start_param start_param;
 	struct bt_cap_unicast_audio_start_stream_param stream_params[
 		ARRAY_SIZE(btp_csip_set_members) * BTP_BAP_UNICAST_MAX_STREAMS_COUNT];
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
 
 	LOG_DBG("");
 
@@ -336,15 +364,15 @@ static uint8_t btp_cap_unicast_audio_start(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	for (size_t conn_index = 0; conn_index < ARRAY_SIZE(btp_csip_set_members); conn_index++) {
+	for (size_t conn_index = 0U; conn_index < ARRAY_SIZE(btp_csip_set_members); conn_index++) {
 		struct btp_bap_unicast_connection *u_conn = btp_bap_unicast_conn_get(conn_index);
 
-		if (u_conn->end_points_count == 0) {
+		if (u_conn->end_points_count == 0U) {
 			/* Connection not initialized */
 			continue;
 		}
 
-		for (size_t i = 0; i < ARRAY_SIZE(u_conn->streams); i++) {
+		for (size_t i = 0U; i < ARRAY_SIZE(u_conn->streams); i++) {
 			struct bt_cap_unicast_audio_start_stream_param *stream_param;
 			struct btp_bap_unicast_stream *u_stream = &u_conn->streams[i];
 
@@ -385,14 +413,18 @@ static uint8_t btp_cap_unicast_audio_update(const void *cmd, uint16_t cmd_len,
 		stream_params[ARRAY_SIZE(btp_csip_set_members) * BTP_BAP_UNICAST_MAX_STREAMS_COUNT];
 	struct bt_cap_unicast_audio_update_param param = {0};
 
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
 	LOG_DBG("");
 
-	if (cp->stream_count == 0) {
+	if (cp->stream_count == 0U) {
 		return BTP_STATUS_FAILED;
 	}
 
 	data_ptr = cp->update_data;
-	for (size_t i = 0; i < cp->stream_count; i++) {
+	for (size_t i = 0U; i < cp->stream_count; i++) {
 		struct btp_bap_unicast_connection *u_conn;
 		struct btp_bap_unicast_stream *u_stream;
 		struct bt_conn *conn;
@@ -409,7 +441,7 @@ static uint8_t btp_cap_unicast_audio_update(const void *cmd, uint16_t cmd_len,
 
 		u_conn = btp_bap_unicast_conn_get(bt_conn_index(conn));
 		bt_conn_unref(conn);
-		if (u_conn->end_points_count == 0) {
+		if (u_conn->end_points_count == 0U) {
 			/* Connection not initialized */
 
 			return BTP_STATUS_FAILED;
@@ -452,18 +484,22 @@ static uint8_t btp_cap_unicast_audio_stop(const void *cmd, uint16_t cmd_len,
 	const struct btp_cap_unicast_audio_stop_cmd *cp = cmd;
 	size_t stream_cnt = 0U;
 
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
 	LOG_DBG("");
 
 	/* Get generate the same stream list as used by btp_cap_unicast_audio_start */
-	for (size_t conn_index = 0; conn_index < ARRAY_SIZE(btp_csip_set_members); conn_index++) {
+	for (size_t conn_index = 0U; conn_index < ARRAY_SIZE(btp_csip_set_members); conn_index++) {
 		struct btp_bap_unicast_connection *u_conn = btp_bap_unicast_conn_get(conn_index);
 
-		if (u_conn->end_points_count == 0) {
+		if (u_conn->end_points_count == 0U) {
 			/* Connection not initialized */
 			continue;
 		}
 
-		for (size_t i = 0; i < ARRAY_SIZE(u_conn->streams); i++) {
+		for (size_t i = 0U; i < ARRAY_SIZE(u_conn->streams); i++) {
 			struct btp_bap_unicast_stream *u_stream = &u_conn->streams[i];
 
 			if (!u_stream->in_use || u_stream->cig_id != cp->cig_id) {
@@ -477,7 +513,7 @@ static uint8_t btp_cap_unicast_audio_stop(const void *cmd, uint16_t cmd_len,
 	param.streams = streams;
 	param.count = stream_cnt;
 	param.type = BT_CAP_SET_TYPE_AD_HOC;
-	param.release = (cp->flags & BTP_CAP_UNICAST_AUDIO_STOP_FLAG_RELEASE) != 0;
+	param.release = (cp->flags & BTP_CAP_UNICAST_AUDIO_STOP_FLAG_RELEASE) != 0U;
 
 	err = bt_cap_initiator_unicast_audio_stop(&param);
 	if (err != 0) {
@@ -498,14 +534,47 @@ static uint8_t btp_cap_broadcast_source_setup_stream(const void *cmd, uint16_t c
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
 
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
 	if (source == NULL) {
-		return BTP_STATUS_FAILED;
+		if (cp->source_id >= CONFIG_BT_BAP_BROADCAST_SRC_COUNT) {
+			LOG_DBG("Invalid cp->source ID for new source: %u", cp->source_id);
+			return BTP_STATUS_FAILED;
+		}
+
+		LOG_DBG("Could not get source by id %u, allocating", cp->source_id);
+		/* The CAP BTP commands are fundamentally broken as they expect a broadcast source
+		 * to already have been allocated. In the case that the source isn't allocated, we
+		 * attempt to allocate it with a dummy broadcast ID that will be updated later by
+		 * `btp_cap_broadcast_source_setup`.
+		 * The source_id returned from btp_bap_broadcast_local_source_allocate is also
+		 * overridden as it may not be the same as requested by this command.
+		 */
+		source = btp_bap_broadcast_local_source_allocate(0);
+
+		if (source == NULL) {
+			LOG_DBG("Could not allocate source");
+
+			return BTP_STATUS_FAILED;
+		}
+
+		source->source_id = cp->source_id;
 	}
 
 	struct bt_audio_codec_cfg *codec_cfg;
 
 	stream = btp_bap_broadcast_stream_alloc(source);
 	if (stream == NULL) {
+		const int err = btp_bap_broadcast_local_source_free(source);
+
+		LOG_DBG("Could not allocate stream");
+
+		if (err != 0) {
+			LOG_ERR("Failed to free allocated broadcast source: %d", err);
+		}
+
 		return BTP_STATUS_FAILED;
 	}
 
@@ -540,26 +609,26 @@ static uint8_t btp_cap_broadcast_source_setup_subgroup(const void *cmd, uint16_t
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
 
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
 	if (source == NULL) {
+		LOG_DBG("Could not get source from src_id %u", cp->source_id);
 		return BTP_STATUS_FAILED;
 	}
 
 	if (cp->subgroup_id >= ARRAY_SIZE(cap_broadcast_params[0].cap_subgroup_params)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	uint8_t idx = btp_bap_broadcast_local_source_idx_get(source);
-
-	if (idx >= ARRAY_SIZE(cap_broadcast_params)) {
+		LOG_DBG("Invalid subgroup_id: %u (>= %zu)", cp->subgroup_id,
+			ARRAY_SIZE(cap_broadcast_params[0].cap_subgroup_params));
 		return BTP_STATUS_FAILED;
 	}
 
 	struct bt_cap_initiator_broadcast_subgroup_param *subgroup_param =
-		&cap_broadcast_params[idx].cap_subgroup_params[cp->subgroup_id];
+		&cap_broadcast_params[cp->source_id].cap_subgroup_params[cp->subgroup_id];
 
-	subgroup_param->codec_cfg = &source->subgroup_codec_cfg[cp->subgroup_id];
-
-	codec_cfg = subgroup_param->codec_cfg;
+	codec_cfg = &source->subgroup_codec_cfg[cp->subgroup_id];
+	subgroup_param->codec_cfg = codec_cfg;
 
 	memset(codec_cfg, 0, sizeof(*codec_cfg));
 	codec_cfg->id = cp->coding_format;
@@ -657,7 +726,12 @@ static uint8_t btp_cap_broadcast_source_setup(const void *cmd, uint16_t cmd_len,
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
 
+	ARG_UNUSED(cmd_len);
+
+	LOG_DBG("");
+
 	if (source == NULL) {
+		LOG_DBG("Could not get source from src_id %u", cp->source_id);
 		return BTP_STATUS_FAILED;
 	}
 
@@ -666,11 +740,14 @@ static uint8_t btp_cap_broadcast_source_setup(const void *cmd, uint16_t cmd_len,
 
 	struct bt_bap_qos_cfg *qos = &source->qos;
 
-	LOG_DBG("");
-
 	memset(&create_param, 0, sizeof(create_param));
 
-	for (size_t i = 0; i < ARRAY_SIZE(source->streams); i++) {
+	/* The source is allocated by btp_cap_broadcast_source_setup_stream but at that time we do
+	 * not have the broadcast_id, so update it here
+	 */
+	source->broadcast_id = sys_get_le24(cp->broadcast_id);
+
+	for (size_t i = 0U; i < ARRAY_SIZE(source->streams); i++) {
 		struct btp_bap_broadcast_stream *stream = &source->streams[i];
 		struct bt_cap_initiator_broadcast_stream_param *stream_param;
 		uint8_t bis_id;
@@ -694,8 +771,8 @@ static uint8_t btp_cap_broadcast_source_setup(const void *cmd, uint16_t cmd_len,
 		}
 	}
 
-	for (size_t i = 0; i < ARRAY_SIZE(cap_params->cap_subgroup_params); i++) {
-		if (cap_params->cap_subgroup_params[i].stream_count == 0) {
+	for (size_t i = 0U; i < ARRAY_SIZE(cap_params->cap_subgroup_params); i++) {
+		if (cap_params->cap_subgroup_params[i].stream_count == 0U) {
 			/* No gaps allowed */
 			break;
 		}
@@ -705,6 +782,7 @@ static uint8_t btp_cap_broadcast_source_setup(const void *cmd, uint16_t cmd_len,
 	}
 
 	if (create_param.subgroup_count == 0) {
+		LOG_DBG("create_param.subgroup_count is 0");
 		return BTP_STATUS_FAILED;
 	}
 
@@ -734,9 +812,11 @@ static uint8_t btp_cap_broadcast_source_setup(const void *cmd, uint16_t cmd_len,
 
 	err = cap_broadcast_source_adv_setup(source, &gap_settings);
 	if (err != 0) {
+		LOG_DBG("Failed to setup adv for source: %d", err);
 		return BTP_STATUS_FAILED;
 	}
 
+	rp->source_id = cp->source_id;
 	rp->gap_settings = gap_settings;
 	sys_put_le24(source->broadcast_id, rp->broadcast_id);
 	*rsp_len = sizeof(*rp);
@@ -751,6 +831,10 @@ static uint8_t btp_cap_broadcast_source_release(const void *cmd, uint16_t cmd_le
 	const struct btp_cap_broadcast_source_release_cmd *cp = cmd;
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
 
 	LOG_DBG("");
 
@@ -778,6 +862,10 @@ static uint8_t btp_cap_broadcast_adv_start(const void *cmd, uint16_t cmd_len,
 	const struct btp_cap_broadcast_adv_start_cmd *cp = cmd;
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
 
 	if (source == NULL) {
 		return BTP_STATUS_FAILED;
@@ -807,11 +895,14 @@ static uint8_t btp_cap_broadcast_adv_stop(const void *cmd, uint16_t cmd_len,
 {
 	int err;
 	const struct btp_cap_broadcast_adv_stop_cmd *cp = cmd;
-
-	LOG_DBG("");
-
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
+	LOG_DBG("");
 
 	if (source == NULL) {
 		return BTP_STATUS_FAILED;
@@ -838,6 +929,10 @@ static uint8_t btp_cap_broadcast_source_start(const void *cmd, uint16_t cmd_len,
 	const struct btp_cap_broadcast_source_start_cmd *cp = cmd;
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
 
 	if (source == NULL) {
 		return BTP_STATUS_FAILED;
@@ -867,6 +962,10 @@ static uint8_t btp_cap_broadcast_source_stop(const void *cmd, uint16_t cmd_len,
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
 
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
+
 	/* If no source has been started yet, there is nothing to stop */
 	if (source == NULL || source->cap_broadcast == NULL) {
 		return BTP_STATUS_SUCCESS;
@@ -881,7 +980,7 @@ static uint8_t btp_cap_broadcast_source_stop(const void *cmd, uint16_t cmd_len,
 
 	/* Make sure source is stopped before proceeding */
 	err = k_sem_take(&source_stopped_sem, K_SECONDS(1));
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("Semaphore timed out: %d", err);
 
 		return BTP_STATUS_FAILED;
@@ -898,6 +997,10 @@ static uint8_t btp_cap_broadcast_source_update(const void *cmd, uint16_t cmd_len
 	const struct btp_cap_broadcast_source_update_cmd *cp = cmd;
 	struct btp_bap_broadcast_local_source *source =
 		btp_bap_broadcast_local_source_from_src_id_get(cp->source_id);
+
+	ARG_UNUSED(cmd_len);
+	ARG_UNUSED(rsp);
+	ARG_UNUSED(rsp_len);
 
 	if (source == NULL) {
 		return BTP_STATUS_FAILED;

@@ -27,7 +27,7 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/atomic.h>
-#include <zephyr/sys/check.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
@@ -531,6 +531,8 @@ static void bond_deleted_cb(uint8_t id, const bt_addr_le_t *addr)
 {
 	struct client_context *context;
 
+	ARG_UNUSED(id);
+
 	context = context_find(addr);
 	if (context != NULL) {
 		context_free(context);
@@ -565,12 +567,17 @@ static struct has_preset {
 static sys_slist_t preset_list = SYS_SLIST_STATIC_INIT(&preset_list);
 static sys_slist_t preset_free_list = SYS_SLIST_STATIC_INIT(&preset_free_list);
 
-typedef uint8_t (*preset_func_t)(const struct has_preset *preset, void *user_data);
+typedef bool (*preset_func_t)(const struct has_preset *preset, void *user_data);
 
-static void preset_foreach(uint8_t start_index, uint8_t end_index, preset_func_t func,
-			   void *user_data)
+static int preset_foreach(uint8_t start_index, uint8_t end_index, preset_func_t func,
+			  void *user_data)
 {
 	struct has_preset *preset, *tmp;
+
+	if (func == NULL) {
+		LOG_DBG("func is NULL");
+		return -EINVAL;
+	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&preset_list, preset, tmp, node) {
 		if (preset->index < start_index) {
@@ -578,22 +585,24 @@ static void preset_foreach(uint8_t start_index, uint8_t end_index, preset_func_t
 		}
 
 		if (preset->index > end_index) {
-			return;
+			break;
 		}
 
-		if (func(preset, user_data) == BT_HAS_PRESET_ITER_STOP) {
-			return;
+		if (!func(preset, user_data)) {
+			return -ECANCELED;
 		}
 	}
+
+	return 0;
 }
 
-static uint8_t preset_found(const struct has_preset *preset, void *user_data)
+static bool preset_found(const struct has_preset *preset, void *user_data)
 {
 	const struct has_preset **found = user_data;
 
 	*found = preset;
 
-	return BT_HAS_PRESET_ITER_STOP;
+	return false;
 }
 
 static void preset_insert(struct has_preset *preset)
@@ -728,6 +737,8 @@ static void control_point_ntf_complete(struct bt_conn *conn, void *user_data)
 {
 	struct has_client *client = client_find_by_conn(conn);
 
+	ARG_UNUSED(user_data);
+
 	LOG_DBG("conn %p", (void *)conn);
 
 	/* Resubmit if needed */
@@ -740,7 +751,9 @@ static void control_point_ind_complete(struct bt_conn *conn,
 				       struct bt_gatt_indicate_params *params,
 				       uint8_t err)
 {
-	if (err) {
+	ARG_UNUSED(params);
+
+	if (err != 0) {
 		/* TODO: Handle error somehow */
 		LOG_ERR("conn %p err 0x%02x", (void *)conn, err);
 	}
@@ -813,7 +826,7 @@ static int control_point_send_all(struct net_buf_simple *buf)
 		}
 
 		err = control_point_send(client, buf);
-		if (err) {
+		if (err != 0) {
 			result = err;
 			/* continue anyway */
 		}
@@ -903,7 +916,7 @@ static int settings_set_cb(const char *name, size_t len_rd, settings_read_cb rea
 	}
 
 	err = bt_settings_decode_key(name, &addr);
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("Unable to decode address %s", name);
 		return -EINVAL;
 	}
@@ -986,8 +999,9 @@ static int read_preset_response(struct has_client *client)
 
 	__ASSERT_NO_MSG(client != NULL);
 
-	preset_foreach(client->read_presets_req.start_index, BT_HAS_PRESET_INDEX_LAST,
-		       preset_found, &preset);
+	err = preset_foreach(client->read_presets_req.start_index, BT_HAS_PRESET_INDEX_LAST,
+			     preset_found, &preset);
+	__ASSERT(err != -EINVAL, "preset_foreach returned %d", err);
 
 	if (unlikely(preset == NULL)) {
 		return bt_has_cp_read_preset_rsp(client, NULL, BT_HAS_IS_LAST);
@@ -996,7 +1010,9 @@ static int read_preset_response(struct has_client *client)
 	if (client->read_presets_req.num_presets > 1) {
 		const struct has_preset *next = NULL;
 
-		preset_foreach(preset->index + 1, BT_HAS_PRESET_INDEX_LAST, preset_found, &next);
+		err = preset_foreach(preset->index + 1, BT_HAS_PRESET_INDEX_LAST, preset_found,
+				     &next);
+		__ASSERT(err != -EINVAL, "preset_foreach returned %d", err);
 
 		is_last = next == NULL;
 	}
@@ -1105,14 +1121,16 @@ static int preset_list_changed(struct has_client *client)
 		return 0;
 	}
 
-	preset_foreach(client->preset_changed_index_next, BT_HAS_PRESET_INDEX_LAST,
-		       preset_found, &preset);
+	err = preset_foreach(client->preset_changed_index_next, BT_HAS_PRESET_INDEX_LAST,
+			     preset_found, &preset);
+	__ASSERT(err != -EINVAL, "preset_foreach returned %d", err);
 
 	if (preset == NULL) {
 		return 0;
 	}
 
-	preset_foreach(preset->index + 1, BT_HAS_PRESET_INDEX_LAST, preset_found, &next);
+	err = preset_foreach(preset->index + 1, BT_HAS_PRESET_INDEX_LAST, preset_found, &next);
+	__ASSERT(err != -EINVAL, "preset_foreach returned %d", err);
 
 	/* It is last Preset Changed notification if there are no presets left to notify and the
 	 * currently notified preset have the highest index known to the client.
@@ -1162,6 +1180,7 @@ static uint8_t handle_read_preset_req(struct bt_conn *conn, struct net_buf_simpl
 	const struct bt_has_cp_read_presets_req *req;
 	const struct has_preset *preset = NULL;
 	struct has_client *client;
+	__maybe_unused int err;
 
 	if (buf->len < sizeof(*req)) {
 		return BT_HAS_ERR_INVALID_PARAM_LEN;
@@ -1185,7 +1204,8 @@ static uint8_t handle_read_preset_req(struct bt_conn *conn, struct net_buf_simpl
 	LOG_DBG("start_index %d num_presets %d", req->start_index, req->num_presets);
 
 	/* Abort if there is no preset in requested index range */
-	preset_foreach(req->start_index, BT_HAS_PRESET_INDEX_LAST, preset_found, &preset);
+	err = preset_foreach(req->start_index, BT_HAS_PRESET_INDEX_LAST, preset_found, &preset);
+	__ASSERT(err != -EINVAL, "preset_foreach returned %d", err);
 
 	if (preset == NULL) {
 		return BT_ATT_ERR_OUT_OF_RANGE;
@@ -1208,6 +1228,7 @@ static uint8_t handle_read_preset_req(struct bt_conn *conn, struct net_buf_simpl
 static int set_preset_name(uint8_t index, const char *name, size_t len)
 {
 	struct has_preset *preset = NULL;
+	__maybe_unused int err;
 
 	LOG_DBG("index %d name_len %zu", index, len);
 
@@ -1216,7 +1237,8 @@ static int set_preset_name(uint8_t index, const char *name, size_t len)
 	}
 
 	/* Abort if there is no preset in requested index range */
-	preset_foreach(index, BT_HAS_PRESET_INDEX_LAST, preset_found, &preset);
+	err = preset_foreach(index, BT_HAS_PRESET_INDEX_LAST, preset_found, &preset);
+	__ASSERT(err != -EINVAL, "preset_foreach returned %d", err);
 
 	if (preset == NULL) {
 		return -ENOENT;
@@ -1278,7 +1300,7 @@ static uint8_t handle_write_preset_name(struct bt_conn *conn, struct net_buf_sim
 		return BT_ATT_ERR_OUT_OF_RANGE;
 	} else if (err == -EPERM) {
 		return BT_HAS_ERR_WRITE_NAME_NOT_ALLOWED;
-	} else if (err) {
+	} else if (err != 0) {
 		return BT_ATT_ERR_UNLIKELY;
 	}
 
@@ -1309,7 +1331,7 @@ static uint8_t preset_select(struct has_preset *preset, bool sync)
 		return BT_HAS_ERR_OPERATION_NOT_POSSIBLE;
 	}
 
-	if (err) {
+	if (err != 0) {
 		return BT_ATT_ERR_UNLIKELY;
 	}
 
@@ -1466,7 +1488,7 @@ static ssize_t write_control_point(struct bt_conn *conn, const struct bt_gatt_at
 	net_buf_simple_init_with_data(&buf, (void *)data, len);
 
 	err = handle_control_point_op(conn, &buf);
-	if (err) {
+	if (err != 0) {
 		LOG_WRN("handle_control_point_op err 0x%02x", err);
 		return BT_GATT_ERR(err);
 	}
@@ -1479,38 +1501,38 @@ int bt_has_preset_register(const struct bt_has_preset_register_param *param)
 	struct has_preset *preset;
 	size_t name_len;
 
-	CHECKIF(param == NULL) {
+	if (param == NULL) {
 		LOG_ERR("param is NULL");
 		return -EINVAL;
 	}
 
-	CHECKIF(param->index == BT_HAS_PRESET_INDEX_NONE) {
+	if (param->index == BT_HAS_PRESET_INDEX_NONE) {
 		LOG_ERR("param->index is invalid");
 		return -EINVAL;
 	}
 
-	CHECKIF(param->name == NULL) {
+	if (param->name == NULL) {
 		LOG_ERR("param->name is NULL");
 		return -EINVAL;
 	}
 
 	name_len = strlen(param->name);
 
-	CHECKIF(name_len < BT_HAS_PRESET_NAME_MIN) {
+	if (name_len < BT_HAS_PRESET_NAME_MIN) {
 		LOG_ERR("param->name is too short (%zu < %u)", name_len, BT_HAS_PRESET_NAME_MIN);
 		return -EINVAL;
 	}
 
-	CHECKIF(name_len > BT_HAS_PRESET_NAME_MAX) {
+	if (name_len > BT_HAS_PRESET_NAME_MAX) {
 		LOG_WRN("param->name is too long (%zu > %u)", name_len, BT_HAS_PRESET_NAME_MAX);
 	}
 
-	CHECKIF(param->ops == NULL) {
+	if (param->ops == NULL) {
 		LOG_ERR("param->ops is NULL");
 		return -EINVAL;
 	}
 
-	CHECKIF(param->ops->select == NULL) {
+	if (param->ops->select == NULL) {
 		LOG_ERR("param->ops->select is NULL");
 		return -EINVAL;
 	}
@@ -1520,8 +1542,8 @@ int bt_has_preset_register(const struct bt_has_preset_register_param *param)
 		return -EALREADY;
 	}
 
-	CHECKIF(!IS_ENABLED(CONFIG_BT_HAS_PRESET_NAME_DYNAMIC) &&
-		(param->properties & BT_HAS_PROP_WRITABLE) > 0) {
+	if (!IS_ENABLED(CONFIG_BT_HAS_PRESET_NAME_DYNAMIC) &&
+	    (param->properties & BT_HAS_PROP_WRITABLE) > 0) {
 		LOG_ERR("Writable presets are not supported");
 		return -ENOTSUP;
 	}
@@ -1544,7 +1566,7 @@ int bt_has_preset_unregister(uint8_t index)
 	struct has_preset *preset;
 	int err;
 
-	CHECKIF(index == BT_HAS_PRESET_INDEX_NONE) {
+	if (index == BT_HAS_PRESET_INDEX_NONE) {
 		LOG_ERR("index is invalid");
 		return -EINVAL;
 	}
@@ -1579,7 +1601,7 @@ static int set_preset_availability(uint8_t index, bool available)
 	struct has_preset *preset;
 	uint8_t change_id;
 
-	CHECKIF(index == BT_HAS_PRESET_INDEX_NONE) {
+	if (index == BT_HAS_PRESET_INDEX_NONE) {
 		LOG_ERR("index is invalid");
 		return -EINVAL;
 	}
@@ -1623,20 +1645,25 @@ struct bt_has_preset_foreach_data {
 	void *user_data;
 };
 
-static uint8_t bt_has_preset_foreach_func(const struct has_preset *preset, void *user_data)
+static bool bt_has_preset_foreach_func(const struct has_preset *preset, void *user_data)
 {
 	const struct bt_has_preset_foreach_data *data = user_data;
 
 	return data->func(preset->index, preset->properties, preset->name, data->user_data);
 }
 
-void bt_has_preset_foreach(uint8_t index, bt_has_preset_func_t func, void *user_data)
+int bt_has_preset_foreach(uint8_t index, bt_has_preset_func_t func, void *user_data)
 {
 	uint8_t start_index, end_index;
 	struct bt_has_preset_foreach_data data = {
 		.func = func,
 		.user_data = user_data,
 	};
+
+	if (func == NULL) {
+		LOG_DBG("func is NULL");
+		return -EINVAL;
+	}
 
 	if (index == BT_HAS_PRESET_INDEX_NONE) {
 		start_index = BT_HAS_PRESET_INDEX_FIRST;
@@ -1645,7 +1672,7 @@ void bt_has_preset_foreach(uint8_t index, bt_has_preset_func_t func, void *user_
 		start_index = end_index = index;
 	}
 
-	preset_foreach(start_index, end_index, bt_has_preset_foreach_func, &data);
+	return preset_foreach(start_index, end_index, bt_has_preset_foreach_func, &data);
 }
 
 int bt_has_preset_active_set(uint8_t index)
@@ -1682,7 +1709,7 @@ uint8_t bt_has_preset_active_get(void)
 
 int bt_has_preset_name_change(uint8_t index, const char *name)
 {
-	CHECKIF(name == NULL) {
+	if (name == NULL) {
 		return -EINVAL;
 	}
 
@@ -1764,7 +1791,7 @@ int bt_has_register(const struct bt_has_features_param *features)
 
 	LOG_DBG("features %p", features);
 
-	CHECKIF(!features) {
+	if (!features) {
 		LOG_DBG("NULL params pointer");
 		return -EINVAL;
 	}

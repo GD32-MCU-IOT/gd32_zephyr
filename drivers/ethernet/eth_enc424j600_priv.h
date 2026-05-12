@@ -277,7 +277,6 @@ struct enc424j600_config {
 	struct spi_dt_spec spi;
 	struct gpio_dt_spec interrupt;
 	uint8_t full_duplex;
-	int32_t timeout;
 };
 
 struct enc424j600_runtime {
@@ -294,7 +293,6 @@ struct enc424j600_runtime {
 	struct k_sem int_sem;
 	uint16_t next_pkt_ptr;
 	bool suspended : 1;
-	bool iface_initialized : 1;
 };
 
 #endif /*_ENC424J600_*/

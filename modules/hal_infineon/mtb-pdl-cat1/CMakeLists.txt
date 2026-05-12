@@ -49,6 +49,7 @@ zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_TIMER    ${pdl_drv_dir}/source/
 zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_UART     ${pdl_drv_dir}/source/cy_scb_uart.c)
 zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_FLASH    ${pdl_drv_dir}/source/cy_flash.c)
 zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_WDT      ${pdl_drv_dir}/source/cy_wdt.c)
+zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_LPCOMP   ${pdl_drv_dir}/source/cy_lpcomp.c)
 
 if(CONFIG_SOC_FAMILY_INFINEON_CAT1B)
   zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_ADC      ${pdl_drv_dir}/source/cy_adcmic.c)
@@ -71,11 +72,8 @@ if(CONFIG_USE_INFINEON_UART OR CONFIG_USE_INFINEON_I2C OR CONFIG_USE_INFINEON_SP
   zephyr_library_sources(${pdl_drv_dir}/source/cy_scb_common.c)
 endif()
 
-if(CONFIG_USE_INFINEON_DMA OR CONFIG_USE_INFINEON_ADC OR CONFIG_USE_INFINEON_SMIF)
-  zephyr_library_sources(${pdl_drv_dir}/source/cy_dma.c)
-  zephyr_library_sources(${pdl_drv_dir}/source/cy_dmac.c)
-endif()
-
+zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_DMA ${pdl_drv_dir}/source/cy_dma.c)
+zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_DMA ${pdl_drv_dir}/source/cy_dmac.c)
 zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_SMIF ${pdl_drv_dir}/source/cy_smif.c)
 zephyr_code_relocate(FILES ${pdl_drv_dir}/source/cy_smif.c LOCATION RAM)
 zephyr_library_sources_ifdef(CONFIG_USE_INFINEON_SMIF ${pdl_drv_dir}/source/cy_smif_sfdp.c)
@@ -88,13 +86,17 @@ if(CONFIG_USE_INFINEON_ADC)
 endif()
 
 # Common part
-zephyr_library_sources(${pdl_drv_dir}/source/cy_flash.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_gpio.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_ipc_drv.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_ipc_pipe.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_ipc_sema.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_prot.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_sysclk.c)
+
+if(CONFIG_SOC_FAMILY_INFINEON_CAT1A)
+  zephyr_library_sources(${pdl_drv_dir}/source/cy_flash.c)
+  zephyr_library_sources(${pdl_drv_dir}/source/cy_wdt.c)
+endif()
 
 if(CONFIG_SOC_FAMILY_INFINEON_CAT1B OR CONFIG_SOC_FAMILY_INFINEON_CAT1C)
   zephyr_library_sources(${pdl_drv_dir}/source/cy_sysclk_v2.c)
@@ -109,12 +111,12 @@ if(CONFIG_SOC_FAMILY_INFINEON_CAT1B)
   zephyr_library_sources(${pdl_drv_dir}/source/cy_ppc.c)
   zephyr_library_sources(${pdl_drv_dir}/source/cy_ms_ctl.c)
   zephyr_library_sources(${pdl_drv_dir}/source/ppu_v1.c)
+  zephyr_library_sources(${pdl_drv_dir}/source/cy_wdt.c)
 endif()
+
 zephyr_library_sources(${pdl_drv_dir}/source/cy_syslib.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_systick.c)
 zephyr_library_sources(${pdl_drv_dir}/source/cy_trigmux.c)
-zephyr_library_sources(${pdl_drv_dir}/source/cy_wdt.c)
-zephyr_library_sources(${pdl_drv_dir}/source/cy_tcpwm_pwm.c)
 
 zephyr_library_sources(${pdl_drv_dir}/source/cy_syspm.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_FAMILY_INFINEON_CAT1C ${pdl_drv_dir}/source/cy_syspm_v3.c)

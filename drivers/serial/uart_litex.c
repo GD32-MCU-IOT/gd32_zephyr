@@ -28,14 +28,14 @@ BUILD_ASSERT(DT_ANY_INST_HAS_BOOL_STATUS_OKAY(rx_fifo_rx_we) ==
 #define UART_EV_RX		BIT(1)
 
 struct uart_litex_device_config {
-	uint32_t rxtx_addr;
-	uint32_t txfull_addr;
-	uint32_t rxempty_addr;
-	uint32_t ev_status_addr;
-	uint32_t ev_pending_addr;
-	uint32_t ev_enable_addr;
-	uint32_t txempty_addr;
-	uint32_t rxfull_addr;
+	mem_addr_t rxtx_addr;
+	mem_addr_t txfull_addr;
+	mem_addr_t rxempty_addr;
+	mem_addr_t ev_status_addr;
+	mem_addr_t ev_pending_addr;
+	mem_addr_t ev_enable_addr;
+	mem_addr_t txempty_addr;
+	mem_addr_t rxfull_addr;
 	uint32_t baud_rate;
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	void (*config_func)(const struct device *dev);
@@ -264,7 +264,14 @@ static void uart_litex_irq_err(const struct device *dev)
  */
 static int uart_litex_irq_is_pending(const struct device *dev)
 {
-	return (uart_litex_irq_tx_ready(dev) || uart_litex_irq_rx_ready(dev));
+	const struct uart_litex_device_config *config = dev->config;
+	uint8_t pending;
+
+	pending = litex_read8(config->ev_pending_addr);
+	pending &= litex_read8(config->ev_enable_addr);
+	pending &= UART_EV_RX | UART_EV_TX;
+
+	return pending > 0;
 }
 
 static int uart_litex_irq_update(const struct device *dev)

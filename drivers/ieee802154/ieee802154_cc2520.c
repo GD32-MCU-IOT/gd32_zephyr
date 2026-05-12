@@ -618,7 +618,7 @@ static void cc2520_rx(void *p1, void *p2, void *p3)
 		}
 
 		pkt = net_pkt_rx_alloc_with_buffer(cc2520->iface, pkt_len,
-						   AF_UNSPEC, 0, K_NO_WAIT);
+						   NET_AF_UNSPEC, 0, K_NO_WAIT);
 		if (!pkt) {
 			LOG_ERR("No pkt available");
 			goto flush;
@@ -789,7 +789,7 @@ static int cc2520_tx(const struct device *dev,
 	bool status;
 
 	if (mode != IEEE802154_TX_MODE_DIRECT) {
-		NET_ERR("TX mode %d not supported", mode);
+		LOG_ERR("TX mode %d not supported", mode);
 		return -ENOTSUP;
 	}
 

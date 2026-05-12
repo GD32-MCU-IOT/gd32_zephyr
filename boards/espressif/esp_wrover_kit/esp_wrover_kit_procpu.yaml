@@ -17,4 +17,7 @@ supported:
   - spi
   - counter
   - entropy
+  - crypto
+  - retained_mem
+  - netif:wifi
 vendor: espressif

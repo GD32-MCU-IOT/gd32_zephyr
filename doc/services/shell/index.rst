@@ -241,6 +241,13 @@ File-System
 - :kconfig:option:`CONFIG_FILE_SYSTEM`
 - :kconfig:option:`CONFIG_FILE_SYSTEM_SHELL`
 
+ADC
+---
+
+- :kconfig:option:`CONFIG_ADC`
+- :kconfig:option:`CONFIG_ADC_SHELL`
+- :kconfig:option:`CONFIG_ADC_EMUL_SHELL` (requires :kconfig:option:`CONFIG_ADC_EMUL`)
+
 Creating commands
 =================
 
@@ -631,6 +638,10 @@ modules you can execute the following command:
 
 This feature is activated by :kconfig:option:`CONFIG_SHELL_WILDCARD` set to ``y``.
 
+.. note::
+	When the wildcard feature is enabled, the characters ``*`` and ``?``
+	cannot be used as normal characters in commands or arguments.
+
 Meta Keys Feature
 *****************
 
@@ -678,16 +689,16 @@ The shell module supports the following meta keys:
 
 This feature is activated by :kconfig:option:`CONFIG_SHELL_METAKEYS` set to ``y``.
 
-Getopt Feature
-*****************
+sys_getopt Feature
+******************
 
 Some shell users apart from subcommands might need to use options as well.
 the arguments string, looking for supported options. Typically, this task
 is accomplished by the ``getopt`` family functions.
 
-For this purpose shell supports the getopt and getopt_long libraries available
-in the FreeBSD project. This feature is activated by:
-:kconfig:option:`CONFIG_POSIX_C_LIB_EXT` set to ``y`` and :kconfig:option:`CONFIG_GETOPT_LONG`
+For this purpose shell supports a variant of the getopt and getopt_long libraries from
+the FreeBSD project called sys_getopt and sys_getopt_long. This feature is activated by:
+:kconfig:option:`CONFIG_GETOPT` set to ``y`` and :kconfig:option:`CONFIG_GETOPT_LONG`
 set to ``y``.
 
 This feature can be used in thread safe as well as non thread safe manner.
@@ -699,10 +710,10 @@ An example non-thread safe usage:
 .. code-block:: c
 
   char *cvalue = NULL;
-  while ((char c = getopt(argc, argv, "abhc:")) != -1) {
+  while ((char c = sys_getopt(argc, argv, "abhc:")) != -1) {
         switch (c) {
         case 'c':
-                cvalue = optarg;
+                cvalue = sys_getopt_optarg;
                 break;
         default:
                 break;
@@ -714,9 +725,9 @@ An example thread safe usage:
 .. code-block:: c
 
   char *cvalue = NULL;
-  struct getopt_state *state;
-  while ((char c = getopt(argc, argv, "abhc:")) != -1) {
-        state = getopt_state_get();
+  struct sys_getopt_state *state;
+  while ((char c = sys_getopt(argc, argv, "abhc:")) != -1) {
+        state = sys_getopt_state_get();
         switch (c) {
         case 'c':
                 cvalue = state->optarg;
@@ -726,7 +737,7 @@ An example thread safe usage:
         }
   }
 
-Thread safe getopt functionality is activated by
+Thread safe sys_getopt functionality is activated by
 :kconfig:option:`CONFIG_SHELL_GETOPT` set to ``y``.
 
 Obscured Input Feature
@@ -751,6 +762,55 @@ of any other command besides a login command, by means of the
 ``shell_set_root_cmd`` function. Likewise, :kconfig:option:`CONFIG_SHELL_PROMPT_UART`
 allows you to set the prompt upon startup, but it can be changed later with the
 ``shell_prompt_change`` function.
+
+.. _shell-readline:
+
+Reading User Input
+******************
+
+The shell provides a :c:func:`shell_readline` function that allows command handlers
+to interactively read a line of input from the user. This is useful for implementing
+commands that need to prompt the user for additional information, such as confirmation
+dialogs, multi-step wizards, or interactive data entry.
+
+The function reads from the shell transport until a newline character is received,
+storing the data in a provided buffer. The newline character itself is not included
+in the buffer. The buffer is automatically null-terminated on success.
+
+.. note::
+
+   The :c:func:`shell_readline` function should be called from the shell thread in a
+   shell command handler and blocks the thread until a result is returned.
+
+Example usage:
+
+.. code-block:: c
+
+   static int cmd_read_secret(const struct shell *sh, size_t argc, char **argv)
+   {
+           uint8_t input_buf[256];
+           int ret;
+
+           shell_fprintf_normal(sh, "Enter your secret: ");
+
+           shell_obscure_set(sh, true);
+           ret = shell_readline(sh, input_buf, sizeof(input_buf), K_SECONDS(10));
+           shell_obscure_set(sh, false);
+
+           if (ret < 0) {
+                   if (ret == -ETIMEDOUT) {
+                           shell_error(sh, "Timeout waiting for input");
+                   } else if (ret == -ECANCELED) {
+                           shell_error(sh, "Input canceled");
+                   } else if (ret == -ENOBUFS) {
+                           shell_error(sh, "Input too long");
+                   }
+                   return ret;
+           }
+
+           shell_print(sh, "Secret input received (%d bytes)", ret);
+           return 0;
+   }
 
 Shell Logger Backend Feature
 ****************************
@@ -803,6 +863,87 @@ This allows interactive use of the shell through JLinkRTTViewer, while the log
 is written to file.
 
 See `shell backends <backends_>`_ for details on how to enable RTT as a Shell backend.
+
+Remote Shell
+************
+
+The shell module supports remote shell. Remote shell allows to execute commands
+on the remote core using the main core shell interface. User interface features
+like ``Tab`` autocompletion or history navigation are supported on the remote
+shell client. There can be multiple remote clients connected to the main core shell.
+Each remote client has its own tree of commands. Remote client commands are executed
+in the context of the remote client core. Remote shell is using :ref:`ipc_service` to
+communicate with the remote core.
+
+If only a single remote client is enabled then ``remote_shell`` command is registered as a root
+command for the remote core tree of commands. If multiple remote clients are enabled
+then ``remote_shell <core_name>`` is used as a root for the given remote client.
+
+Remote client implementation supports case where threads are disabled
+(:kconfig:option:`CONFIG_MULTITHREADING` set to ``n``).
+
+This approach has two main benefits:
+
+1. It allows to use the same shell interface for both the main and the remote cores.
+2. Full shell implementation is present only on the host core, significantly reducing the
+   memory footprint of the remote cores. Implementation uses less than 3 kB per remote client.
+   Half of the memory is used for string formatting and can be shared with other
+   modules that use string formatting (for example, logging).
+
+See :zephyr:code-sample:`shell-module` for details on how to enable remote shell.
+
+Configuration
+=============
+
+Following Kconfig options are available for remote shell host configuration:
+
+:kconfig:option:`CONFIG_SHELL_REMOTE`: Enables remote shell on the host core.
+
+:kconfig:option:`CONFIG_SHELL_REMOTE_MULTI_CLI`: Enables multiple remote clients.
+
+:kconfig:option:`CONFIG_SHELL_REMOTE_TMP_BUF_SIZE`: Size of the temporary buffer for remote shell
+command data. Need to be large enough to hold the command and its arguments.
+
+Following Kconfig options are available for remote shell client configuration:
+
+:kconfig:option:`CONFIG_SHELL_REMOTE_CLI`: Enables remote shell client on the remote core.
+
+:kconfig:option:`CONFIG_SHELL_REMOTE_CLI_BUF_SIZE`: Size of the internal buffer used for
+remote messages. Need to be large enough to hold the command syntax and help text.
+Help text is truncated if the buffer is too small. It is also used to hold data for
+shell print messages. If it is too small then the print message is replaced with
+the error message.
+
+:kconfig:option:`CONFIG_SHELL_REMOTE_CLI_KWORK`: Use kwork context for command execution.
+
+:kconfig:option:`CONFIG_SHELL_REMOTE_CLI_STACK_SIZE`: Thread stack size for remote shell client.
+
+If a single client is used then IPC service device is automatically chosen based on the devicetree
+configuration. User can specify the IPC device tree node using chosen node. If not specified then
+if there is only a single IPC device available that one is used.
+
+IPC service device tree node configuration example:
+
+.. code-block:: dts
+
+	chosen {
+		zephyr,ipc_shell = &ipc0;
+	};
+
+
+Limitations
+============
+
+Some shell features are not supported on the remote shell client:
+
+* Bypass mode is not supported on the remote shell client.
+* Select mode is not supported on the remote shell client.
+
+IPC communication assumes same endianness and alignment of the data on both sides. It has been
+tested on the following core pairs:
+
+* Cortex-M33 (host) and Cortex-M33 (client)
+* Cortex-M33 (host) and RISC-V 32 (client)
 
 Usage
 *****

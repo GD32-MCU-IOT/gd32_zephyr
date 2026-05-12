@@ -14,7 +14,7 @@
 #include "mcx_nx4x_evk_cpu0.dtsi"
 
 / {
-	aliases{
+	aliases {
 		pwm-0 = &flexpwm1_pwm0;
 	};
 };
@@ -23,6 +23,7 @@
 	status = "okay";
 };
 
-&lpcmp2 {
+&sema42 {
+	domain-id = <1>;
 	status = "okay";
 };

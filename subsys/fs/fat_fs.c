@@ -23,12 +23,12 @@ LOG_MODULE_DECLARE(fs, CONFIG_FS_LOG_LEVEL);
 #define FATFS_MAX_FILE_NAME 12 /* Uses 8.3 SFN */
 
 /* Memory pool for FatFs directory objects */
-K_MEM_SLAB_DEFINE(fatfs_dirp_pool, sizeof(DIR),
-			CONFIG_FS_FATFS_NUM_DIRS, 4);
+K_MEM_SLAB_DEFINE_TYPE(fatfs_dirp_pool, DIR,
+	CONFIG_FS_FATFS_NUM_DIRS);
 
 /* Memory pool for FatFs file objects */
-K_MEM_SLAB_DEFINE(fatfs_filep_pool, sizeof(FIL),
-			CONFIG_FS_FATFS_NUM_FILES, 4);
+K_MEM_SLAB_DEFINE_TYPE(fatfs_filep_pool, FIL,
+	CONFIG_FS_FATFS_NUM_FILES);
 
 static int translate_error(int error)
 {
@@ -577,19 +577,21 @@ static const struct fs_file_system_t fatfs_fs = {
 DT_INST_FOREACH_STATUS_OKAY(DEFINE_FS);
 
 #ifdef CONFIG_FS_FATFS_FSTAB_AUTOMOUNT
-#define REFERENCE_MOUNT(inst) (&FS_FSTAB_ENTRY(DT_DRV_INST(inst))),
+#define REFERENCE_MOUNT(inst)                                                                      \
+	IF_ENABLED(DT_INST_PROP(inst, automount), ((&FS_FSTAB_ENTRY(DT_DRV_INST(inst))),))
 
 static void automount_if_enabled(struct fs_mount_t *mountp)
 {
-	int ret = 0;
+	int ret;
 
-	if ((mountp->flags & FS_MOUNT_FLAG_AUTOMOUNT) != 0) {
-		ret = fs_mount(mountp);
-		if (ret < 0) {
-			LOG_ERR("Error mounting filesystem: at %s: %d", mountp->mnt_point, ret);
-		} else {
-			LOG_DBG("FATFS Filesystem \"%s\" initialized", mountp->mnt_point);
-		}
+	/* We already filter it during build. */
+	__ASSERT_NO_MSG((mountp->flags & FS_MOUNT_FLAG_AUTOMOUNT) != 0);
+
+	ret = fs_mount(mountp);
+	if (ret < 0) {
+		LOG_ERR("Error mounting filesystem: at %s: %d", mountp->mnt_point, ret);
+	} else {
+		LOG_DBG("FATFS Filesystem \"%s\" initialized", mountp->mnt_point);
 	}
 }
 #endif /* CONFIG_FS_FATFS_FSTAB_AUTOMOUNT */

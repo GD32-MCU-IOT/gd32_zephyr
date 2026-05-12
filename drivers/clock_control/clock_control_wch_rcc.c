@@ -35,6 +35,7 @@
 #define WCH_RCC_SRC_IS_HSI 1
 #endif
 
+#if defined(CONFIG_DT_HAS_WCH_CH32V20X_30X_PLL_CLOCK_ENABLED)
 #if defined(CONFIG_SOC_CH32V307)
 /* TODO: Entry 13 is 6.5x (fractional multiple currently unsupported without
  * changes to RCC config datatype)
@@ -42,6 +43,7 @@
 static const uint8_t pllmul_lut[] = {18, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0, 15, 16};
 #else
 static const uint8_t pllmul_lut[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18};
+#endif
 #endif
 
 struct clock_control_wch_rcc_config {
@@ -100,7 +102,7 @@ static void clock_control_wch_rcc_setup_flash(void)
 	} else {
 		latency = FLASH_ACTLR_LATENCY_1;
 	}
-#elif defined(CONFIG_SOC_SERIES_CH32V00X)
+#elif defined(CONFIG_SOC_CH32V006)
 	if (WCH_RCC_SYSCLK <= 15000000) {
 		latency = FLASH_ACTLR_LATENCY_0;
 	} else if (WCH_RCC_SYSCLK <= 24000000) {
@@ -122,8 +124,6 @@ static DEVICE_API(clock_control, clock_control_wch_rcc_api) = {
 
 static int clock_control_wch_rcc_init(const struct device *dev)
 {
-	const struct clock_control_wch_rcc_config *config = dev->config;
-
 	clock_control_wch_rcc_setup_flash();
 
 	if (IS_ENABLED(CONFIG_DT_HAS_WCH_CH32V00X_PLL_CLOCK_ENABLED) ||
@@ -165,7 +165,8 @@ static int clock_control_wch_rcc_init(const struct device *dev)
 		} else if (IS_ENABLED(WCH_RCC_PLL_SRC_IS_HSI)) {
 			RCC->CFGR0 &= ~RCC_PLLSRC;
 		}
-
+#if defined(RCC_PLLMULL)
+		const struct clock_control_wch_rcc_config *config = dev->config;
 		uint8_t pllmul = 0x0; /* Default Reset Value */
 
 		for (size_t i = 0; i < ARRAY_SIZE(pllmul_lut); i++) {
@@ -175,6 +176,7 @@ static int clock_control_wch_rcc_init(const struct device *dev)
 		}
 		RCC->CFGR0 &= ~RCC_PLLMULL;
 		RCC->CFGR0 |= WCH_RCC_PLLMUL_VAL(pllmul);
+#endif
 		RCC->CTLR |= RCC_PLLON;
 		while ((RCC->CTLR & RCC_PLLRDY) == 0) {
 		}

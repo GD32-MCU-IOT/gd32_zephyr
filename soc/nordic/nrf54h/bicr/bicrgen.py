@@ -324,7 +324,7 @@ class LFXOConfig:
             raise ValueError("Invalid LFXO startup time (not configured)")
 
         return cls(
-            accuracy_ppm=int(lfosc_lfxoconfig.enum_get("ACCURACY")[:3]),
+            accuracy_ppm=int(lfosc_lfxoconfig.enum_get("ACCURACY")[:-3]),
             mode=LFXOMode(lfosc_lfxoconfig.enum_get("MODE")),
             builtin_load_capacitors=builtin_load_capacitors,
             builtin_load_capacitance_pf=builtin_load_capacitance_pf,
@@ -684,7 +684,7 @@ if __name__ == "__main__":
     if args.output:
         if args.output.suffix == ".hex":
             bicr_address = int(bicr_spec.find("baseAddress").text, 0)
-            last_reg = Register(bicr_spec, "TAMPC.ACTIVESHIELD")
+            last_reg = Register(bicr_spec, "HFXO.STARTUPTIME")
             bicr_size = last_reg.offset + last_reg.size
 
             buf = bytearray([0xFF] * bicr_size)

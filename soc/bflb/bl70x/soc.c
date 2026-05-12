@@ -19,28 +19,6 @@
 #include <bflb_soc.h>
 #include <glb_reg.h>
 #include <hbn_reg.h>
-#include <pds_reg.h>
-
-/* Set Embedded Flash Pullup */
-static void system_bor_init(void)
-{
-	uint32_t tmp;
-
-	tmp = sys_read32(HBN_BASE + HBN_MISC_OFFSET);
-	/* borThreshold = 1 */
-	tmp = (tmp & HBN_BOR_VTH_UMSK) | ((uint32_t)(1) << HBN_BOR_VTH_POS);
-	/* enablePorInBor true*/
-	tmp = (tmp & HBN_BOR_SEL_UMSK) | ((uint32_t)(1) << HBN_BOR_SEL_POS);
-	/* enableBor true*/
-	tmp = (tmp & HBN_PU_BOR_UMSK) | ((uint32_t)(1) << HBN_PU_BOR_POS);
-	sys_write32(tmp, HBN_BASE + HBN_MISC_OFFSET);
-
-
-	/* enableBorInt false */
-	tmp = sys_read32(HBN_BASE + HBN_IRQ_MODE_OFFSET);
-	tmp = tmp & HBN_IRQ_BOR_EN_UMSK;
-	sys_write32(tmp, HBN_BASE + HBN_IRQ_MODE_OFFSET);
-}
 
 void soc_early_init_hook(void)
 {
@@ -54,9 +32,13 @@ void soc_early_init_hook(void)
 	tmp = tmp & HBN_REG_EN_HW_PU_PD_UMSK;
 	sys_write32(tmp, HBN_BASE + HBN_IRQ_MODE_OFFSET);
 
-	/* 'seam' 0kb, undocumented */
+	/* Configure "seam" (BLE exchange memory): 8KB with BLE, 0KB otherwise */
 	tmp = sys_read32(GLB_BASE + GLB_SEAM_MISC_OFFSET);
+#if defined(CONFIG_BT_BFLB_BL70X)
+	tmp = (tmp & GLB_EM_SEL_UMSK) | (3U << GLB_EM_SEL_POS);
+#else
 	tmp = (tmp & GLB_EM_SEL_UMSK) | (0U << GLB_EM_SEL_POS);
+#endif
 	sys_write32(tmp, GLB_BASE + GLB_SEAM_MISC_OFFSET);
 
 	/* Reset UART signal swap */
@@ -76,9 +58,6 @@ void soc_early_init_hook(void)
 	for (i = 0; i < (IRQn_LAST + 3) / 4; i++) {
 		p[i] = 0;
 	}
-
-	/* init bor for all platform */
-	system_bor_init();
 
 	sys_cache_data_flush_and_invd_all();
 }

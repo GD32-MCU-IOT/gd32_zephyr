@@ -43,6 +43,20 @@ static struct bt_keys key_pool[CONFIG_BT_MAX_PAIRED];
 
 #define BT_KEYS_STORAGE_LEN_COMPAT (BT_KEYS_STORAGE_LEN - sizeof(uint32_t))
 
+/* Configuration version used to detect if the device has configuration flags present in the stored
+ * keys. Shall be higher than the maximum value of the `enc_size` field (16).
+ */
+#define STORAGE_CFG_VERSION_MIN		17U
+#define STORAGE_CFG_VERSION		17U
+BUILD_ASSERT(STORAGE_CFG_VERSION >= STORAGE_CFG_VERSION_MIN, "STORAGE_CFG_VERSION is too small");
+BUILD_ASSERT(STORAGE_CFG_VERSION <= UINT8_MAX, "STORAGE_CFG_VERSION is too large");
+/* Configuration flags for storage. Based on the bt_keys_cfg_flags enum. */
+#define STORAGE_CFG_FLAGS                                                                          \
+	((IS_ENABLED(CONFIG_BT_SIGNING) ? BT_KEYS_CFG_SIGNING : 0) |                               \
+	 (IS_ENABLED(CONFIG_BT_SMP_SC_PAIR_ONLY) ? BT_KEYS_CFG_SC_PAIR_ONLY : 0) |                 \
+	 (IS_ENABLED(CONFIG_BT_KEYS_OVERWRITE_OLDEST) ? BT_KEYS_CFG_OVERWRITE_OLDEST : 0))
+BUILD_ASSERT(STORAGE_CFG_FLAGS < BIT(24), "STORAGE_CFG_FLAGS is too large");
+
 #if defined(CONFIG_BT_KEYS_OVERWRITE_OLDEST)
 static uint32_t aging_counter_val;
 static struct bt_keys *last_keys_updated;
@@ -70,7 +84,7 @@ static void find_key_in_use(struct bt_conn *conn, void *data)
 		if (key == &key_pool[kdata->id]) {
 			kdata->in_use = true;
 			LOG_DBG("Connected device %s is using key_pool[%d]",
-				bt_addr_le_str(bt_conn_get_dst(conn)), kdata->id);
+				bt_conn_dst_str(conn), kdata->id);
 		}
 	}
 }
@@ -148,6 +162,8 @@ struct bt_keys *bt_keys_get_addr(uint8_t id, const bt_addr_le_t *addr)
 		keys = &key_pool[first_free_slot];
 		keys->id = id;
 		bt_addr_le_copy(&keys->addr, addr);
+		keys->cfg_version = STORAGE_CFG_VERSION;
+		sys_put_le24(STORAGE_CFG_FLAGS, keys->cfg_flags);
 #if defined(CONFIG_BT_KEYS_OVERWRITE_OLDEST)
 		keys->aging_counter = ++aging_counter_val;
 		last_keys_updated = keys;
@@ -410,8 +426,19 @@ static int keys_set(const char *name, size_t len_rd, settings_read_cb read_cb,
 		return -ENOMEM;
 	}
 	if (len != BT_KEYS_STORAGE_LEN) {
-		if (IS_ENABLED(CONFIG_BT_KEYS_OVERWRITE_OLDEST) &&
+		if ((uint8_t)val[0] < (uint8_t)STORAGE_CFG_VERSION_MIN &&
 		    len == BT_KEYS_STORAGE_LEN_COMPAT) {
+			/* This check migrates keys without configuration flags to the new format
+			 * granted only the configuration version and flags are missing. Older keys
+			 * are recognized by the first octet being the enc_size field.
+			 */
+			LOG_DBG("Keys for %s do not have configuration flags, adding automatically",
+				bt_addr_le_str(&addr));
+			keys->cfg_version = STORAGE_CFG_VERSION;
+			sys_put_le24(STORAGE_CFG_FLAGS, keys->cfg_flags);
+			memcpy((char *)keys + offsetof(struct bt_keys, enc_size), val, len);
+		} else if (IS_ENABLED(CONFIG_BT_KEYS_OVERWRITE_OLDEST) &&
+			   len == BT_KEYS_STORAGE_LEN_COMPAT) {
 			/* Load shorter structure for compatibility with old
 			 * records format with no counter.
 			 */
@@ -423,8 +450,60 @@ static int keys_set(const char *name, size_t len_rd, settings_read_cb read_cb,
 
 			return -EINVAL;
 		}
+	} else if (!IS_ENABLED(CONFIG_BT_SIGNING) && IS_ENABLED(CONFIG_BT_SMP_SC_PAIR_ONLY) &&
+		   (uint8_t)val[0] < (uint8_t)STORAGE_CFG_VERSION_MIN) {
+		/* Migrate `bt_keys` stored with extra data to the new format in the most common
+		 * scenario where both legacy pairing and signing support are disabled. This allows
+		 * to still properly load and use the keys after firmware upgrade.
+		 */
+		size_t load_size = BT_KEYS_STORAGE_LEN_COMPAT;
+
+		if (IS_ENABLED(CONFIG_BT_KEYS_OVERWRITE_OLDEST)) {
+			/* Restoring aging counter is not implemented for this use-case. */
+			LOG_WRN("Skip aging counter - keys for %s", bt_addr_le_str(&addr));
+			/* `aging_counter` is an `uint32_t` */
+			load_size -= sizeof(uint32_t);
+		}
+
+		if (len >= load_size) {
+			LOG_DBG("Adding configuration flags to keys for %s", bt_addr_le_str(&addr));
+			keys->cfg_version = STORAGE_CFG_VERSION;
+			sys_put_le24(STORAGE_CFG_FLAGS, keys->cfg_flags);
+			(void)memcpy((char *)keys + offsetof(struct bt_keys, enc_size),
+				     val, load_size);
+			/* Ensure no unsupported key types are set. */
+			keys->keys &= (BT_KEYS_IRK | BT_KEYS_LTK_P256);
+			if ((keys->keys & BT_KEYS_LTK_P256) == 0U) {
+				LOG_WRN("Dropping keys for %s, no SC LTK", bt_addr_le_str(&addr));
+				bt_keys_clear(keys);
+				return -EINVAL;
+			}
+		}
 	} else {
 		memcpy(keys->storage_start, val, len);
+	}
+
+	/* Some Kconfig options can change the size of the keys structure. This check will clear
+	 * the stored keys if the config flags are not matching between firmware updates.
+	 */
+	if ((keys->cfg_version != STORAGE_CFG_VERSION) ||
+	    (sys_get_le24(keys->cfg_flags) != STORAGE_CFG_FLAGS)) {
+		LOG_ERR("Stored keys for %s do not match current config flags or version",
+			bt_addr_le_str(&addr));
+		bt_keys_clear(keys);
+		return -EINVAL;
+	}
+
+	/* As of Core v6.2, authenticated keys are only valid for OOB or LE SC pairing
+	 * methods. This check ensures that keys are valid if a device is updated from a
+	 * previous version that did not enforce this requirement.
+	 */
+	if ((keys->flags & BT_KEYS_AUTHENTICATED) &&
+	    !((keys->flags & BT_KEYS_OOB) || (keys->flags & BT_KEYS_SC))) {
+		LOG_WRN("The keys for %s are downgraded to unauthenticated as they no longer meet "
+			"authentication requirements",
+			bt_addr_le_str(&addr));
+		keys->flags &= ~BT_KEYS_AUTHENTICATED;
 	}
 
 	LOG_DBG("Successfully restored keys for %s", bt_addr_le_str(&addr));
@@ -436,19 +515,15 @@ static int keys_set(const char *name, size_t len_rd, settings_read_cb read_cb,
 	return 0;
 }
 
-static void add_id_cb(struct k_work *work)
-{
-	bt_id_pending_keys_update();
-}
-
-static K_WORK_DEFINE(add_id_work, add_id_cb);
-
 static void id_add(struct bt_keys *keys, void *user_data)
 {
 	__ASSERT_NO_MSG(keys != NULL);
 
+	/* Only mark as pending here. Keys are added to the controller RL on
+	 * demand when advertising or scanning starts, avoiding bt_id_add()
+	 * blocking settings_load() on HCI.
+	 */
 	bt_id_pending_keys_update_set(keys, BT_KEYS_ID_PENDING_ADD);
-	k_work_submit(&add_id_work);
 }
 
 static int keys_commit(void)

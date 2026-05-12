@@ -152,7 +152,7 @@ if(CONFIG_OPENTHREAD_POWER_SUPPLY)
   set(OT_POWER_SUPPLY ${CONFIG_OPENTHREAD_POWER_SUPPLY} CACHE STRING "Power supply configuration" FORCE)
 endif()
 
-if (CONFIG_OPENTHREAD_CLI_VENDOR_EXTENSION)
+if(CONFIG_OPENTHREAD_CLI_VENDOR_EXTENSION)
   set(OT_CLI_VENDOR_EXTENSION ${CONFIG_OPENTHREAD_CLI_VENDOR_EXTENSION} CACHE STRING "Path to CMake file to define and link Openthread CLI vendor extension" FORCE)
 endif()
 
@@ -189,7 +189,7 @@ target_compile_definitions(ot-config INTERFACE ${OT_PARAM_LIST})
 # Since Mbed TLS 3.1.0 MBEDTLS_SSL_EXPORT_KEYS was removed as build symbol and
 # it's always assumed to be enabled. Corresponding kconfig was removed from
 # Zephyr as well, but OpenThread code still uses it, so we add it here.
-target_compile_definitions(ot-config INTERFACE -DMBEDTLS_SSL_EXPORT_KEYS)
+target_compile_definitions(ot-config INTERFACE MBEDTLS_SSL_EXPORT_KEYS)
 
 # Zephyr compiler options
 target_include_directories(ot-config INTERFACE

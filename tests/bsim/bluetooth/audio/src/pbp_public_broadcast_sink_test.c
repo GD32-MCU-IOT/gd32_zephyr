@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/cap.h>
@@ -28,7 +29,9 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
+#include "bap_common.h"
 #include "bap_stream_rx.h"
 #include "bstests.h"
 #include "common.h"
@@ -79,11 +82,17 @@ static struct bt_le_scan_cb broadcast_scan_cb = {
 static void base_recv_cb(struct bt_bap_broadcast_sink *sink, const struct bt_bap_base *base,
 			 size_t base_size)
 {
+	ARG_UNUSED(sink);
+	ARG_UNUSED(base);
+	ARG_UNUSED(base_size);
+
 	k_sem_give(&sem_base_received);
 }
 
 static void syncable_cb(struct bt_bap_broadcast_sink *sink, const struct bt_iso_biginfo *biginfo)
 {
+	ARG_UNUSED(biginfo);
+
 	printk("Broadcast sink %p is now syncable\n", sink);
 	k_sem_give(&sem_syncable);
 }
@@ -100,6 +109,7 @@ static void started_cb(struct bt_bap_stream *stream)
 	memset(&test_stream->last_info, 0, sizeof(test_stream->last_info));
 	test_stream->rx_cnt = 0U;
 	test_stream->valid_rx_cnt = 0U;
+	UNSET_FLAG(test_stream->flag_audio_received);
 
 	printk("Stream %p started\n", stream);
 }
@@ -114,6 +124,8 @@ static bool pa_decode_base(struct bt_data *data, void *user_data)
 	const struct bt_bap_base *base = bt_bap_base_get_base_from_ad(data);
 	uint32_t base_bis_index_bitfield = 0U;
 	int err;
+
+	ARG_UNUSED(user_data);
 
 	/* Base is NULL if the data does not contain a valid BASE */
 	if (base == NULL) {
@@ -135,12 +147,18 @@ static void broadcast_pa_recv(struct bt_le_per_adv_sync *sync,
 			const struct bt_le_per_adv_sync_recv_info *info,
 			struct net_buf_simple *buf)
 {
+	ARG_UNUSED(sync);
+	ARG_UNUSED(info);
+
 	bt_data_parse(buf, pa_decode_base, NULL);
 }
 
 static void broadcast_pa_synced(struct bt_le_per_adv_sync *sync,
 			struct bt_le_per_adv_sync_synced_info *info)
 {
+	ARG_UNUSED(sync);
+	ARG_UNUSED(info);
+
 	printk("PA synced\n");
 	k_sem_give(&sem_pa_synced);
 }
@@ -176,7 +194,6 @@ static int reset(void)
 	k_sem_reset(&sem_base_received);
 	k_sem_reset(&sem_syncable);
 	k_sem_reset(&sem_pa_sync_lost);
-	UNSET_FLAG(flag_audio_received);
 
 	broadcast_id = BT_BAP_INVALID_BROADCAST_ID;
 	bis_index_bitfield = 0U;
@@ -184,7 +201,7 @@ static int reset(void)
 
 	if (broadcast_sink != NULL) {
 		err = bt_bap_broadcast_sink_delete(broadcast_sink);
-		if (err) {
+		if (err != 0) {
 			printk("Deleting broadcast sink failed (err %d)\n", err);
 
 			return err;
@@ -207,7 +224,7 @@ static int init(void)
 	int err;
 
 	err = bt_enable(NULL);
-	if (err) {
+	if (err != 0) {
 		FAIL("Bluetooth enable failed (err %d)\n", err);
 
 		return err;
@@ -216,7 +233,7 @@ static int init(void)
 	printk("Bluetooth initialized\n");
 
 	err = bt_pacs_register(&pacs_param);
-	if (err) {
+	if (err != 0) {
 		FAIL("Could not register PACS (err %d)\n", err);
 		return err;
 	}
@@ -225,7 +242,7 @@ static int init(void)
 	bt_le_per_adv_sync_cb_register(&broadcast_sync_cb);
 
 	err = bt_pacs_cap_register(BT_AUDIO_DIR_SINK, &cap);
-	if (err) {
+	if (err != 0) {
 		printk("Capability register failed (err %d)\n", err);
 
 		return err;
@@ -268,6 +285,8 @@ static bool scan_check_and_sync_broadcast(struct bt_data *data, void *user_data)
 	struct bt_uuid_16 adv_uuid;
 	uint8_t *tmp_meta;
 	int ret;
+
+	ARG_UNUSED(user_data);
 
 	if (data->type != BT_DATA_SVC_DATA16) {
 		return true;
@@ -325,6 +344,17 @@ static void broadcast_scan_recv(const struct bt_le_scan_recv_info *info,
 	}
 }
 
+static void wait_for_data(void)
+{
+	printk("Waiting for data\n");
+	ARRAY_FOR_EACH_PTR(test_streams, test_stream) {
+		if (audio_test_stream_is_streaming(test_stream)) {
+			WAIT_FOR_FLAG(test_stream->flag_audio_received);
+		}
+	}
+	printk("Data received\n");
+}
+
 static void test_main(void)
 {
 	int count = 0;
@@ -346,7 +376,7 @@ static void test_main(void)
 		/* Start scanning */
 		printk("Starting scan\n");
 		err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, NULL);
-		if (err) {
+		if (err != 0) {
 			printk("Scan start failed (err %d)\n", err);
 			break;
 		}
@@ -391,9 +421,7 @@ static void test_main(void)
 			break;
 		}
 
-		/* Wait for data */
-		printk("Waiting for data\n");
-		WAIT_FOR_FLAG(flag_audio_received);
+		wait_for_data();
 
 		printk("Sending signal to broadcaster to stop\n");
 		backchannel_sync_send_all(); /* let the broadcast source know it can stop */

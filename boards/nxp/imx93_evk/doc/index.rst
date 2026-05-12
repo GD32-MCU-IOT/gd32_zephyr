@@ -48,12 +48,20 @@ Supported Features
 
 .. zephyr:board-supported-hw::
 
-TPM
----
+PWM(TPM)
+--------
 
-TPM2 is enabled for PWM for M33 core. Signals can be observerd with
-oscilloscope or logic analyzer.
-Connect J1005-3 and J1005-7(GND) to Oscilloscope or logic analyzer
+For M33 Core, TPM2 is enabled. Signals can be observerd with
+oscilloscope or logic analyzer. Connect J1005-3 and J1005-7(GND) to Oscilloscope or logic analyzer
+
+For A55 Core, TPM3 is enabled for :zephyr:code-sample:`pwm-blinky` application,
+the Green Colored LED in RGB LED D1001 on the board will blink with different frequency.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/basic/blinky_pwm
+   :host-os: unix
+   :board: imx93_evk/mimx9352/a55
+   :goals: build
 
 ADC
 ---
@@ -289,6 +297,59 @@ display the following console output:
     thread_a: Hello World from cpu 0 on imx93_evk!
     thread_b: Hello World from cpu 0 on imx93_evk!
 
+Option 4. Boot Zephyr by Using SPSDK Runner
+===========================================
+
+SPSDK runner leverages SPSDK tools (https://spsdk.readthedocs.io), it builds an
+bootable flash image ``flash.bin`` which includes all necessary firmware components.
+Using west flash command will download the boot image flash.bin to DDR memory, SD card
+or eMMC flash. By using flash.bin, as no U-Boot image is available, so TF-A will boot
+up Zephyr on the first Cortex-A55 Core directly.
+
+In order to use SPSDK runner, it requires fetching binary blobs, which can be achieved
+by running the following command:
+
+.. code-block:: console
+
+   west blobs fetch hal_nxp
+
+.. note::
+
+   It is recommended running the command above after :file:`west update`.
+
+SPSDK runner is enabled by configure item :kconfig:option:`CONFIG_BOARD_NXP_SPSDK_IMAGE`, currently
+it is not enabled by default for i.MX93 EVK board, so use this configuration to enable
+it, for example, with the :zephyr:code-sample:`synchronization` sample:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/synchronization
+   :host-os: unix
+   :board: imx93_evk/mimx9352/a55
+   :goals: build
+   :gen-args: -DCONFIG_BOARD_NXP_SPSDK_IMAGE=y
+
+If :kconfig:option:`CONFIG_BOARD_NXP_SPSDK_IMAGE` is available and enabled for the board variant,
+``flash.bin`` will be built automatically. The programming could be through below commands.
+Before that, onboard switch SW1301[3:0] should be configured to 0b0011 for USB download mode
+to boot, and USB1 and DBG ports should be connected to Linux host PC. There are 4 serial ports
+enumerated (115200 8n1), the fourth serial port will be used for Cortex-A55 Zephyr's Console.
+(The flasher is spsdk which already installed via scripts/requirements.txt.
+On linux host, USB device permission should be configured per Installation Guide
+of https://spsdk.readthedocs.io)
+
+.. code-block:: none
+
+   # load and run without programming. for next flashing, need to reset the board firstly
+   $ west flash -r spsdk
+
+   # program to SD card, then set SW1301[3:0]=0b0010 to reboot from SD
+   $ west flash -r spsdk --bootdevice sd
+
+   # program to emmc card, then set SW1301[3:0]=0b0000 to reboot from EMMC
+   $ west flash -r spsdk --bootdevice=emmc
+
+Then the Zephyr log will be displayed in the fourth serial port's Console.
+
 System Reboot (A55)
 ===================
 
@@ -337,6 +398,34 @@ to enable this, `imx-atf`_ can to be modified in "plat/imx/imx93/trdc_config.h".
 
 .. _imx-atf:
     https://github.com/nxp-imx/imx-atf
+
+imx-atf changes:
+
+.. code-block:: console
+
+    git diff plat/imx/imx93/trdc_config.h
+    diff --git a/plat/imx/imx93/trdc_config.h b/plat/imx/imx93/trdc_config.h
+    index 6c8b8f8fa..b155f9048 100644
+    --- a/plat/imx/imx93/trdc_config.h
+    +++ b/plat/imx/imx93/trdc_config.h
+    @@ -302,7 +302,7 @@ struct trdc_mbc_config trdc_n_mbc[] = {
+     };
+
+     struct trdc_glbac_config trdc_n_mrc_glbac[] = {
+    -       { 0, 0, SP(RW)  | SU(RW)  | NP(RW)  | NU(RW)  },
+    +       { 0, 0, SP(RWX)  | SU(RW)  | NP(RW)  | NU(RW)  },
+            { 0, 1, SP(RWX) | SU(RWX) | NP(RWX) | NU(RWX) },
+     };
+
+    @@ -356,7 +356,7 @@ struct trdc_mrc_config trdc_n_mrc[] = {
+     struct trdc_mrc_config trdc_n_mrc[] = {
+            { 0, 0, 0, 0x80000000, 0x80000000, 0, false }, /* MRC0 DRAM for S400 DID0 */
+            { 0, 1, 0, 0x80000000, 0x80000000, 0, false }, /* MRC0 DRAM for MTR DID1 */
+    -       { 0, 2, 0, 0x80000000, 0x80000000, 0, true }, /* MRC0 DRAM for M33 DID2 */
+    +       { 0, 2, 0, 0x80000000, 0x80000000, 1, true }, /* MRC0 DRAM for M33 DID2 */
+            { 0, 3, 0, 0x80000000, 0x80000000, 1, false }, /* MRC0 DRAM for A55 DID3 */
+            { 0, 5, 0, 0x80000000, 0x80000000, 0, false }, /* MRC0 DRAM for USDHC1 DID5 */
+            { 0, 6, 0, 0x80000000, 0x80000000, 0, false }, /* MRC0 DRAM for USDHC2 DID6 */
 
 Use this configuration to run basic Zephyr applications and kernel tests,
 for example, with the :zephyr:code-sample:`synchronization` sample:

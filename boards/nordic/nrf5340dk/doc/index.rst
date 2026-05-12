@@ -18,25 +18,6 @@ The ``nrf5340dk/nrf5340/cpuapp`` build target provides support for the applicati
 core on the nRF5340 SoC. The ``nrf5340dk/nrf5340/cpunet`` build target provides
 support for the network core on the nRF5340 SoC.
 
-nRF5340 SoC provides support for the following devices:
-
-* :abbr:`ADC (Analog to Digital Converter)`
-* CLOCK
-* FLASH
-* :abbr:`GPIO (General Purpose Input Output)`
-* :abbr:`IDAU (Implementation Defined Attribution Unit)`
-* :abbr:`I2C (Inter-Integrated Circuit)`
-* :abbr:`MPU (Memory Protection Unit)`
-* :abbr:`NVIC (Nested Vectored Interrupt Controller)`
-* :abbr:`PWM (Pulse Width Modulation)`
-* RADIO (Bluetooth Low Energy and 802.15.4)
-* :abbr:`RTC (nRF RTC System Clock)`
-* Segger RTT (RTT Console)
-* :abbr:`SPI (Serial Peripheral Interface)`
-* :abbr:`UARTE (Universal asynchronous receiver-transmitter)`
-* :abbr:`USB (Universal Serial Bus)`
-* :abbr:`WDT (Watchdog Timer)`
-
 More information about the board can be found at the
 `nRF5340 DK website`_.
 The `nRF5340 DK Product Specification`_
@@ -102,8 +83,8 @@ nRF5340 IDAU may configure bus accesses by the nRF5340 network core
 to have Secure attribute set; the latter allows to build and run
 Secure only applications on the nRF5340 SoC.
 
-Building Secure/Non-Secure Zephyr applications with Arm |reg| TrustZone |reg|
-=============================================================================
+Building Secure/Non-Secure Zephyr applications with Arm® TrustZone®
+===================================================================
 
 Applications on the nRF5340 may contain a Secure and a Non-Secure firmware
 image for the application core. The Secure image can be built using either
@@ -194,7 +175,7 @@ applications as usual (:ref:`build_an_application` and
 
    .. code-block:: console
 
-      west flash -H -r nrfutil --skip-rebuild
+      west flash -H -r nrfutil --no-rebuild
 
 .. note::
 

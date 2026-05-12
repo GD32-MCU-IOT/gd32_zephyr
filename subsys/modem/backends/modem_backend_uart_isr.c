@@ -6,11 +6,13 @@
 
 #include "modem_backend_uart_isr.h"
 #include "../modem_workqueue.h"
-
+#include <zephyr/pm/device_runtime.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modem_backend_uart_isr, CONFIG_MODEM_MODULES_LOG_LEVEL);
 
 #include <string.h>
+#include <zephyr/drivers/gpio.h>
 
 static void modem_backend_uart_isr_flush(struct modem_backend_uart *backend)
 {
@@ -106,13 +108,27 @@ static void modem_backend_uart_isr_irq_handler(const struct device *uart, void *
 
 static int modem_backend_uart_isr_open(void *data)
 {
+	int ret;
 	struct modem_backend_uart *backend = (struct modem_backend_uart *)data;
 
 	ring_buf_reset(&backend->isr.receive_rdb[0]);
 	ring_buf_reset(&backend->isr.receive_rdb[1]);
 	ring_buf_reset(&backend->isr.transmit_rb);
 	atomic_set(&backend->isr.transmit_buf_len, 0);
+
+	ret = pm_device_runtime_get(backend->uart);
+	if (ret < 0) {
+		LOG_ERR("Failed to power on UART: %d", ret);
+		return ret;
+	}
+	if (backend->dtr_gpio) {
+		gpio_pin_set_dt(backend->dtr_gpio, 1);
+	}
+
 	modem_backend_uart_isr_flush(backend);
+	if (backend->dtr_gpio) {
+		gpio_pin_set_dt(backend->dtr_gpio, 1);
+	}
 	uart_irq_rx_enable(backend->uart);
 	uart_irq_tx_enable(backend->uart);
 	modem_pipe_notify_opened(&backend->pipe);
@@ -232,10 +248,22 @@ static int modem_backend_uart_isr_receive(void *data, uint8_t *buf, size_t size)
 
 static int modem_backend_uart_isr_close(void *data)
 {
+	int ret;
 	struct modem_backend_uart *backend = (struct modem_backend_uart *)data;
 
+	if (backend->dtr_gpio) {
+		gpio_pin_set_dt(backend->dtr_gpio, 0);
+	}
 	uart_irq_rx_disable(backend->uart);
 	uart_irq_tx_disable(backend->uart);
+	if (backend->dtr_gpio) {
+		gpio_pin_set_dt(backend->dtr_gpio, 0);
+	}
+	ret = pm_device_runtime_put_async(backend->uart, K_NO_WAIT);
+	if (ret < 0) {
+		LOG_ERR("Failed to power off UART: %d", ret);
+		return ret;
+	}
 	modem_pipe_notify_closed(&backend->pipe);
 	return 0;
 }

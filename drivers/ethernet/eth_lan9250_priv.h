@@ -64,6 +64,8 @@
 #define LAN9250_HMAC_ADDRL    0x03
 #define LAN9250_HMAC_MII_ACC  0x06
 #define LAN9250_HMAC_MII_DATA 0x07
+#define LAN9250_HMAC_VLAN1    0x09
+#define LAN9250_HMAC_VLAN2    0x0A
 
 /* LAN9250 PHY registers */
 #define LAN9250_PHY_BASIC_CONTROL            0x00
@@ -311,15 +313,14 @@ struct lan9250_config {
 	struct gpio_dt_spec interrupt;
 	struct gpio_dt_spec reset;
 	uint8_t full_duplex;
-	int32_t timeout;
+	struct net_eth_mac_config mac_cfg;
 };
 
 struct lan9250_runtime {
 	struct net_if *iface;
-	const struct device *dev;
 
-	K_KERNEL_STACK_MEMBER(thread_stack, CONFIG_ETH_LAN9250_RX_THREAD_STACK_SIZE);
-	k_tid_t tid_int;
+	K_KERNEL_STACK_MEMBER(thread_stack,
+			      CONFIG_ETH_LAN9250_RX_THREAD_STACK_SIZE);
 	struct k_thread thread;
 
 	uint8_t mac_address[6];
@@ -327,7 +328,6 @@ struct lan9250_runtime {
 	struct k_sem tx_rx_sem;
 	struct k_sem int_sem;
 	uint8_t buf[NET_ETH_MAX_FRAME_SIZE];
-	struct k_mutex lock;
 };
 
 #endif /*_LAN9250_*/

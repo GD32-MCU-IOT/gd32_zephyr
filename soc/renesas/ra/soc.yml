@@ -1,6 +1,19 @@
 family:
   - name: renesas_ra
     series:
+      - name: ra0e1
+        socs:
+          - name: r7fa0e1053cfj
+          - name: r7fa0e1053cnh
+          - name: r7fa0e1053cnk
+          - name: r7fa0e1053cnl
+          - name: r7fa0e1053csc
+          - name: r7fa0e1073cfj
+          - name: r7fa0e1073cnh
+          - name: r7fa0e1073cnk
+          - name: r7fa0e1073cnl
+          - name: r7fa0e1073csc
+          - name: r7fa0e1073csd
       - name: ra2a1
         socs:
           - name: r7fa2a1ab3cfm
@@ -37,6 +50,18 @@ family:
       - name: ra4m3
         socs:
           - name: r7fa4m3af3cfb
+      - name: ra4t1
+        socs:
+          - name: r7fa4t1b93cfj
+          - name: r7fa4t1b93cfl
+          - name: r7fa4t1b93cfm
+          - name: r7fa4t1b93cne
+          - name: r7fa4t1b93cnh
+          - name: r7fa4t1bb3cfj
+          - name: r7fa4t1bb3cfl
+          - name: r7fa4t1bb3cfm
+          - name: r7fa4t1bb3cne
+          - name: r7fa4t1bb3cnh
       - name: ra4w1
         socs:
           - name: r7fa4w1ad2cng
@@ -51,6 +76,7 @@ family:
           - name: r7fa6m2af3cfb
       - name: ra6m3
         socs:
+          - name: r7fa6m3af2cbg
           - name: r7fa6m3ah3cfc
       - name: ra6m4
         socs:
@@ -64,6 +90,10 @@ family:
       - name: ra6e2
         socs:
           - name: r7fa6e2bb3cfm
+      - name: ra8e1
+        socs:
+          - name: r7fa8e1afdcfb
+          - name: r7fa8e1afdcfp
       - name: ra8m1
         socs:
           - name: r7fa8m1ahecbd
@@ -81,7 +111,7 @@ family:
               - name: cm33
       - name: ra8t2
         socs:
-          - name: r7ka8t2lfecac
+          - name: r7ka8t2lflcac
             cpuclusters:
               - name: cm85
               - name: cm33

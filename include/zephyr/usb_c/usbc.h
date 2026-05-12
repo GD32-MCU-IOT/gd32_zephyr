@@ -99,6 +99,10 @@ enum usbc_policy_notify_t {
 	DATA_ROLE_IS_UFP,
 	/** Data Role has been set to Downstream Facing Port (DFP) */
 	DATA_ROLE_IS_DFP,
+	/** Power Role has been set to Source */
+	POWER_ROLE_IS_SOURCE,
+	/** Power Role has been set to Sink */
+	POWER_ROLE_IS_SINK,
 	/** A PD Explicit Contract is in place */
 	PD_CONNECTED,
 	/** No PD Explicit Contract is in place */
@@ -374,7 +378,7 @@ void usbc_set_dpm_data(const struct device *dev, void *dpm_data);
  *
  * @param dev Runtime device structure
  *
- * @retval pointer to dpm data that was set with usbc_set_dpm_data
+ * @return pointer to dpm data that was set with usbc_set_dpm_data
  * @retval NULL if dpm data was not set
  */
 void *usbc_get_dpm_data(const struct device *dev);

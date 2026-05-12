@@ -1,5 +1,5 @@
 /*
- * Copyright 2022, 2024-2025 NXP
+ * Copyright 2022, 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,13 +23,24 @@
 		cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a55";
+			cpu-power-states = <&idle>;
 			reg = <0>;
 		};
 
 		cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a55";
+			cpu-power-states = <&idle>;
 			reg = <0x100>;
+		};
+	};
+
+	power-states {
+		idle: power-state-idle {
+			compatible = "zephyr,power-state";
+			power-state-name = "suspend-to-idle";
+			min-residency-us = <1000>;
+			exit-latency-us = <200>;
 		};
 	};
 
@@ -110,6 +121,18 @@
 		};
 	};
 
+	media_blk_ctrl: mediamix@4ac10000 {
+		compatible = "nxp,imx93-mediamix";
+		reg = <0x4ac10000 0x1000>;
+		status = "disabled";
+	};
+
+	video_pll: videopll@44481400 {
+		compatible = "nxp,imx93-video-pll";
+		reg = <0x44481400 0x1000>;
+		status = "disabled";
+	};
+
 	wdog3: watchdog@42490000 {
 		compatible = "nxp,wdog32";
 		reg = <0x42490000 0x1000>;
@@ -117,6 +140,7 @@
 		interrupt-parent = <&gic>;
 		/* clk-source and clocks must aligned: 0-ipg_clk, 1-lpo_clk, 2-int_clk, 3-ext_clk */
 		clocks = <&lpo_clk>;
+		clock-names = "clksrc1";
 		clk-source = <1>;
 		clk-divider = <256>;
 		status = "disabled";
@@ -129,8 +153,46 @@
 		interrupt-parent = <&gic>;
 		/* clk-source and clocks must aligned: 0-ipg_clk, 1-lpo_clk, 2-int_clk, 3-ext_clk */
 		clocks = <&lpo_clk>;
+		clock-names = "clksrc1";
 		clk-source = <1>;
 		clk-divider = <256>;
+		status = "disabled";
+	};
+
+	lcdif: display-controller@4ae30000 {
+		compatible = "nxp,imx-lcdifv3";
+		reg = <0x4ae30000 0x10000>;
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_MEDIA_DISP_PIX_CLK 0 0>,
+			 <&ccm IMX_CCM_MEDIA_AXI_CLK 0 0>,
+			 <&ccm IMX_CCM_MEDIA_APB_CLK 0 0>;
+		status = "disabled";
+	};
+
+	mipi_dsi: dsi@4ae10000 {
+		compatible = "nxp,mipi-dsi-dwc";
+		reg = <0x4ae10000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_MIPI_PHY_CFG_CLK 0 0>;
+		nxp,dc = <&lcdif>;
+		status = "disabled";
+	};
+
+	flexspi1: spi@425e0000 {
+		compatible = "nxp,imx-flexspi";
+		reg = <0x425e0000 0x10000>, <0x28000000 DT_SIZE_M(64)>;
+		reg-names = "reg_base", "ahb";
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		ahb-bufferable;
+		ahb-cacheable;
+		clocks = <&ccm IMX_CCM_FLEXSPI_CLK 0x0 0x0>;
 		status = "disabled";
 	};
 
@@ -390,7 +452,9 @@
 			     <GIC_SPI 9 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 		interrupt-names = "common", "error";
 		clocks = <&ccm IMX_CCM_CAN1_CLK 0x68 14>;
+		clock-names = "clksrc0";
 		clk-source = <0>;
+		number-of-mb = <96>;
 		status = "disabled";
 	};
 
@@ -402,7 +466,9 @@
 			     <GIC_SPI 52 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 		interrupt-names = "common", "error";
 		clocks = <&ccm IMX_CCM_CAN2_CLK 0x68 14>;
+		clock-names = "clksrc0";
 		clk-source = <0>;
+		number-of-mb = <96>;
 		status = "disabled";
 	};
 
@@ -413,6 +479,22 @@
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 128 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
 			     <GIC_SPI 128 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		#dma-cells = <2>;
+		status = "disabled";
+	};
+
+	edma4_2: edma@42000000 {
+		compatible = "nxp,mcux-edma";
+		nxp,version = <4>;
+		no-error-irq;
+		dma-requests = <159>;
+		reg = <0x42000000 0x400000>;
+		dma-channels = <4>;
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_SPI 128 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_SPI 128 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_SPI 129 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_SPI 129 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 		#dma-cells = <2>;
 		status = "disabled";
 	};
@@ -428,6 +510,24 @@
 		dai-index = <3>;
 		dmas = <&edma4 0 60>, <&edma4 1 61>;
 		dma-names = "tx", "rx";
+		status = "disabled";
+	};
+
+	sai3_2: sai@42660000 {
+		compatible = "nxp,mcux-i2s";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x42660000 DT_SIZE_K(64)>;
+		clocks = <&ccm IMX_CCM_SAI3_CLK 0x0 0x0>;
+		clock-names = "mclk1";
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_SPI 171 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		dma-names = "tx", "rx";
+		dmas = <&edma4_2 2 60>, <&edma4_2 3 61>;
+		nxp,tx-channel = <1>;
+		nxp,tx-dma-channel = <2>;
+		nxp,rx-dma-channel = <3>;
+		nxp,rx-sync-mode;
 		status = "disabled";
 	};
 
@@ -458,7 +558,7 @@
 	};
 
 	enet: enet@42890000 {
-		compatible = "nxp,enet1g";
+		compatible = "nxp,enet";
 		reg = <0x42890000 DT_SIZE_K(64)>;
 		clocks = <&ccm IMX_CCM_ENET_CLK 0 0>;
 		status = "disabled";
@@ -552,6 +652,104 @@
 		interrupt-parent = <&gic>;
 		clocks = <&ccm IMX_CCM_TPM6_CLK 0 0>;
 		prescaler = <1>;
+		status = "disabled";
+	};
+
+	pwm1: pwm@44310000 {
+		compatible = "nxp,kinetis-tpm";
+		reg = <0x44310000 DT_SIZE_K(64)>;
+		interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "irq_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_TPM1_CLK 0 0>;
+		prescaler = <1>;
+		#pwm-cells = <3>;
+		status = "disabled";
+	};
+
+	pwm2: pwm@44320000 {
+		compatible = "nxp,kinetis-tpm";
+		reg = <0x44320000 DT_SIZE_K(64)>;
+		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "irq_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_TPM2_CLK 0 0>;
+		prescaler = <1>;
+		#pwm-cells = <3>;
+		status = "disabled";
+	};
+
+	pwm3: pwm@424e0000 {
+		compatible = "nxp,kinetis-tpm";
+		reg = <0x424e0000 DT_SIZE_K(64)>;
+		interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "irq_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_TPM3_CLK 0 0>;
+		prescaler = <1>;
+		#pwm-cells = <3>;
+		status = "disabled";
+	};
+
+	pwm4: pwm@424f0000 {
+		compatible = "nxp,kinetis-tpm";
+		reg = <0x424f0000 DT_SIZE_K(64)>;
+		interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "irq_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_TPM4_CLK 0 0>;
+		prescaler = <1>;
+		#pwm-cells = <3>;
+		status = "disabled";
+	};
+
+	pwm5: pwm@42500000 {
+		compatible = "nxp,kinetis-tpm";
+		reg = <0x42500000 DT_SIZE_K(64)>;
+		interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "irq_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_TPM5_CLK 0 0>;
+		prescaler = <1>;
+		#pwm-cells = <3>;
+		status = "disabled";
+	};
+
+	pwm6: pwm@42510000 {
+		compatible = "nxp,kinetis-tpm";
+		reg = <0x42510000 DT_SIZE_K(64)>;
+		interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "irq_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_TPM6_CLK 0 0>;
+		prescaler = <1>;
+		#pwm-cells = <3>;
+		status = "disabled";
+	};
+
+	usb1: usbd@4c100000 {
+		compatible = "nxp,ehci";
+		reg = <0x4c100000 DT_SIZE_K(4)>;
+		interrupts = <GIC_SPI 187 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "usb_0";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_USB_CLK 2 3>,
+			 <&ccm IMX_CCM_USB_PHY_CLK 2 8>;
+		clock-rates = <134000000 50000000>;
+		num-bidir-endpoints = <8>;
+		status = "disabled";
+	};
+
+	usb2: usbd@4c200000 {
+		compatible = "nxp,ehci";
+		reg = <0x4c200000 DT_SIZE_K(4)>;
+		interrupts = <GIC_SPI 188 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-names = "usb_1";
+		interrupt-parent = <&gic>;
+		clocks = <&ccm IMX_CCM_USB_CLK 2 3>,
+			 <&ccm IMX_CCM_USB_PHY_CLK 2 8>;
+		clock-rates = <134000000 50000000>;
+		num-bidir-endpoints = <8>;
 		status = "disabled";
 	};
 };

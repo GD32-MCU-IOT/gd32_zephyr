@@ -37,7 +37,7 @@
 		compatible = "zephyr,memory-region";
 		reg = <0x90000000 DT_SIZE_M(64)>; /* 512 Mbits */
 		zephyr,memory-region = "EXTMEM";
-		/* The ATTR_MPU_EXTMEM attribut causing a MPU FAULT */
+		/* The ATTR_MPU_EXTMEM attribute causing a MPU FAULT */
 		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_IO)>;
 	};
 
@@ -123,26 +123,30 @@
 
 &flash0 {
 	partitions {
-		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		ranges;
 
 		boot_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
 			label = "mcuboot";
 			reg = <0x00000000 DT_SIZE_K(128)>;
 		};
 
 		slot0_partition: partition@20000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-0";
 			reg = <0x00020000 DT_SIZE_K(896)>;
 		};
 
 		slot1_partition: partition@100000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-1";
 			reg = <0x00100000 DT_SIZE_K(896)>;
 		};
 
 		storage_partition: partition@1e0000 {
+			compatible = "zephyr,mapped-partition";
 			label = "storage";
 			reg = <0x001e0000 DT_SIZE_K(128)>;
 		};
@@ -265,9 +269,10 @@ zephyr_udc0: &usbotg_hs {
 		     &quadspi_bk2_io2_pg9 &quadspi_bk2_io3_pg14>;
 	pinctrl-names = "default";
 	dual-flash;
+	ssht-enable;
 	status = "okay";
 
-	mt25ql512ab1: qspi-nor-flash-1@0 {
+	mt25ql512ab1: qspi-nor-flash@0 {
 		compatible = "st,stm32-qspi-nor";
 		reg = <0>;
 		size = <DT_SIZE_M(512)>; /* 512 Mbits */
@@ -288,9 +293,9 @@ zephyr_udc0: &usbotg_hs {
 		};
 	};
 
-	mt25ql512ab2: qspi-nor-flash-2@0 {
+	mt25ql512ab2: qspi-nor-flash@1 {
 		compatible = "st,stm32-qspi-nor";
-		reg = <0>;
+		reg = <1>;
 		size = <DT_SIZE_M(512)>; /* 512 Mbits */
 		qspi-max-frequency = <72000000>;
 		status = "okay";

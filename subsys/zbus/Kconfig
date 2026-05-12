@@ -30,8 +30,8 @@ config ZBUS_CHANNEL_PUBLISH_STATS
 	bool "Channel publishing statistics (Timestamp and count)"
 
 config ZBUS_MSG_SUBSCRIBER
-	select NET_BUF
 	bool "Message subscribers will receive all messages in sequence."
+	select NET_BUF
 
 if ZBUS_MSG_SUBSCRIBER
 
@@ -64,6 +64,21 @@ config ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC_DATA_SIZE
 endif # ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_STATIC
 
 endif # ZBUS_MSG_SUBSCRIBER
+
+config ZBUS_ASYNC_LISTENER
+	bool "Async listeners"
+	select ZBUS_MSG_SUBSCRIBER
+	help
+	  Async listeners will execute the callback asynchronously through a work queue (the
+	  system's work queue by default).
+
+if ZBUS_ASYNC_LISTENER
+
+config ZBUS_ASYNC_LISTENER_EXEC_TIMEOUT
+	int "Timeout to get a message from the fifo"
+	default 200
+
+endif # ZBUS_ASYNC_LISTENER
 
 config ZBUS_RUNTIME_OBSERVERS
 	bool "Runtime observers support."
@@ -107,6 +122,19 @@ config ZBUS_ASSERT_MOCK
 	  enabled, _ZBUS_ASSERT returns -EFAULT instead of assert. It makes it more straightforward to test invalid
 	  parameters.
 
+menuconfig ZBUS_PROXY_AGENT
+	bool "ZBus proxy agent support [EXPERIMENTAL]"
+	select ZBUS_CHANNEL_NAME
+	select EXPERIMENTAL
+	help
+	  Enables support for ZBus proxy agents. This feature allows the ZBus to work with multiple domains,
+	  enabling communication between them using proxy agents.
+
+if ZBUS_PROXY_AGENT
+
+rsource "proxy_agent/Kconfig"
+
+endif # ZBUS_PROXY_AGENT
 
 config HEAP_MEM_POOL_ADD_SIZE_ZBUS
 	int "ZBus requested heap pool size."

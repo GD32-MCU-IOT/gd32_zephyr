@@ -49,6 +49,11 @@ if(CONFIG_BT_HCI_HOST)
       gatt.c
       )
 
+    zephyr_library_sources_ifdef(
+      CONFIG_BT_GATT_GAP_SVC_VALIDATE
+      gatt_gap_svc_validate.c
+      )
+
     if(CONFIG_BT_SMP)
       zephyr_library_sources(
         smp.c
@@ -114,7 +119,7 @@ if(CONFIG_BT_CONN_DISABLE_SECURITY)
     )
 endif()
 
-zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS mbedTLS)
+zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS_BUILTIN mbedTLS)
 zephyr_library_include_directories_ifdef(CONFIG_BUILD_WITH_TFM
   $<TARGET_PROPERTY:tfm,TFM_BINARY_DIR>/api_ns/interface/include
 )
@@ -123,5 +128,5 @@ zephyr_library_include_directories_ifdef(CONFIG_BUILD_WITH_TFM
 # In order to compile Bsim tests with these test features
 # and PSA enabled, the libraries must be linked.
 if(CONFIG_BT_MESH AND CONFIG_BT_TESTING)
-  zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS mbedTLS)
+  zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS_BUILTIN mbedTLS)
 endif()

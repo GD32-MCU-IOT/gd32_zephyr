@@ -1,10 +1,10 @@
 # Kinetis K6x series default configurations
 
 # Copyright (c) 2014-2016 Wind River Systems, Inc.
-# Copyright 2024 NXP
+# Copyright 2024, 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-if SOC_SERIES_KINETIS_K6X
+if SOC_SERIES_K6X
 
 config CPU_HAS_CUSTOM_FIXED_SOC_MPU_REGIONS
 	default y
@@ -19,10 +19,17 @@ config GPIO
 config SPI
 	default n if SOC_MK64F12
 
+config CACHE_MANAGEMENT
+	default y if SOC_MK66F18
+
+choice CACHE_TYPE
+	default EXTERNAL_CACHE if SOC_MK66F18
+endchoice
+
 # The flash option register (FOPT) boot options
 # 1111 1001 - Set NMI pin/interrupts and EzPort reset default to disabled
 config KINETIS_FLASH_CONFIG_FOPT
 	default 0xF9
 	depends on KINETIS_FLASH_CONFIG
 
-endif # SOC_SERIES_KINETIS_K6X
+endif # SOC_SERIES_K6X

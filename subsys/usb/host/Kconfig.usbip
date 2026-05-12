@@ -15,6 +15,11 @@ menuconfig USBIP
 
 if USBIP
 
+config USBIP_SERVICE_PORT
+	int "Port number for USBIP service"
+	range 1 $(UINT16_MAX)
+	default 3240
+
 config USBIP_THREAD_STACK_SIZE
 	int "USBIP thread stack size"
 	default 2048
@@ -27,6 +32,21 @@ config USBIP_SUBMIT_BACKLOG_COUNT
 	default 48
 	help
 	  Number of submit commands that can be stored in the backlog.
+
+config USBIP_BUF_COUNT
+	int "Number of buffers in the USBIP pool"
+	range 16 256
+	default 64
+	help
+	  Number of USBIP request buffers in the pool.
+
+config USBIP_BUF_POOL_SIZE
+	int "Memory available for USBIP buffers"
+	range 4096 $(UINT32_MAX)
+	default 16777216 if BOARD_NATIVE_SIM
+	default 65536
+	help
+	  Total amount of memory available for USBIP buffers.
 
 config USBIP_DEVICES_COUNT
 	int "Number of devices that can be exported"

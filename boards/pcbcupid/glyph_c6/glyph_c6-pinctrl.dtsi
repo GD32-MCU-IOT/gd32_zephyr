@@ -6,7 +6,7 @@
  */
 
 #include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
-#include <dt-bindings/pinctrl/esp32c6-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/esp32c6-pinctrl.h>
 #include <zephyr/dt-bindings/pinctrl/esp32c6-gpio-sigmap.h>
 
 &pinctrl {
@@ -19,6 +19,16 @@
 		group2 {
 			pinmux = <UART0_RX_GPIO17>;
 			bias-pull-up;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SDA_GPIO4>,
+				 <I2C0_SCL_GPIO5>;
+			bias-pull-up;
+			drive-open-drain;
+			output-high;
 		};
 	};
 };

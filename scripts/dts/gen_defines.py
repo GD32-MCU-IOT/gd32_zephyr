@@ -286,8 +286,9 @@ def write_special_props(node: edtlib.Node) -> None:
     # Macros that are special to bindings inherited from Linux, which
     # we can't capture with the current bindings language.
     write_pinctrls(node)
-    write_fixed_partitions(node)
+    write_partition_data(node)
     write_gpio_hogs(node)
+    write_maps(node)
 
 
 def write_ranges(node: edtlib.Node) -> None:
@@ -369,6 +370,21 @@ def write_regs(node: edtlib.Node) -> None:
         out_dt_define(macro, val)
     for macro, val in name_vals:
         out_dt_define(macro, val)
+
+    out_dt_define(f"{path_id}_FOREACH_REG(fn)",
+                  " ".join(f"fn(DT_{path_id}, {i})" for i,reg in enumerate(node.regs)))
+
+    out_dt_define(f"{path_id}_FOREACH_REG_SEP(fn, sep)",
+                  " DT_DEBRACKET_INTERNAL sep ".join(f"fn(DT_{path_id}, {i})"
+                  for i,reg in enumerate(node.regs)))
+
+    out_dt_define(f"{path_id}_FOREACH_REG_VARGS(fn, ...)",
+                  " ".join(f"fn(DT_{path_id}, {i}, __VA_ARGS__)"
+                  for i,reg in enumerate(node.regs)))
+
+    out_dt_define(f"{path_id}_FOREACH_REG_SEP_VARGS(fn, sep, ...)",
+                  " DT_DEBRACKET_INTERNAL sep ".join(f"fn(DT_{path_id}, {i}, __VA_ARGS__)"
+                  for i,reg in enumerate(node.regs)))
 
 
 def write_interrupts(node: edtlib.Node) -> None:
@@ -484,6 +500,19 @@ def write_children(node: edtlib.Node) -> None:
 
     out_dt_define(f"{node.z_path_id}_CHILD_NUM_STATUS_OKAY", ok_nodes_num)
 
+    child_unit_addrs = {}
+    for child in node.children.values():
+        # Provide a way to query child nodes
+        if (addr := child.unit_addr) is not None:
+            child_unit_addrs.setdefault(addr, []).append(child)
+
+    for addr, children in child_unit_addrs.items():
+        if len(children) != 1:
+            # Duplicate unit addresses for different children, skip
+            continue
+
+        out_dt_define(f"{node.z_path_id}_CHILD_UNIT_ADDR_INT_{addr}", f"DT_{children[0].z_path_id}")
+
     out_dt_define(f"{node.z_path_id}_FOREACH_CHILD(fn)",
             " ".join(f"fn(DT_{child.z_path_id})" for child in
                 node.children.values()))
@@ -551,10 +580,12 @@ def write_pinctrls(node: edtlib.Node) -> None:
                           f"DT_{ph.z_path_id}")
 
 
-def write_fixed_partitions(node: edtlib.Node) -> None:
-    # Macros for child nodes of each fixed-partitions node.
+def write_partition_data(node: edtlib.Node) -> None:
+    # Macros for partition nodes (fixed-partitions, fixed-subpartitions, zephyr,mapped-partition)
 
-    if not (node.parent and ("fixed-partitions" in node.parent.compats or "fixed-subpartitions" in node.parent.compats)):
+    if not (node.parent and ("fixed-partitions" in node.parent.compats or
+        "zephyr,mapped-partition" in node.compats or
+        "fixed-subpartitions" in node.parent.compats)):
         return
 
     global flash_area_num
@@ -577,6 +608,73 @@ def write_gpio_hogs(node: edtlib.Node) -> None:
         out_dt_define(f"{macro}_NUM", len(node.gpio_hogs))
         for macro, val in macro2val.items():
             out_dt_define(macro, val)
+
+
+def write_maps(node: edtlib.Node) -> None:
+    if len(node.maps.keys()) == 0:
+        return
+
+    out_comment("Map properties:")
+
+    macro2val = {}
+
+    for bn, entries in node.maps.items():
+        basename = str2ident(bn)
+        plen = len(entries)
+        prop_id = f"{basename}_map"
+        macro = f"{node.z_path_id}_P_{basename}_map"
+
+        # _LEN and _EXISTS share the grammar with `prop` element.
+
+        macro2val[f"{macro}_LEN"] = plen
+        macro2val[f"{macro}_EXISTS"] = 1
+
+        # Map node specific definitions
+        for i, mp in enumerate(entries):
+            macro2val[f"{macro}_MAP_ENTRY_{i}_EXISTS"] = 1
+
+            macro2val[f"{macro}_MAP_ENTRY_{i}_CHILD_ADDRESS_LEN"] = len(mp.child_addresses)
+            for n, addr in enumerate(mp.child_addresses):
+                macro2val[f"{macro}_MAP_ENTRY_{i}_CHILD_ADDRESS_IDX_{n}_EXISTS"] = 1
+                macro2val[f"{macro}_MAP_ENTRY_{i}_CHILD_ADDRESS_IDX_{n}"] = addr
+
+            macro2val[f"{macro}_MAP_ENTRY_{i}_CHILD_SPECIFIER_LEN"] = len(mp.child_specifiers)
+            for n, sp in enumerate(mp.child_specifiers):
+                macro2val[f"{macro}_MAP_ENTRY_{i}_CHILD_SPECIFIER_IDX_{n}_EXISTS"] = 1
+                macro2val[f"{macro}_MAP_ENTRY_{i}_CHILD_SPECIFIER_IDX_{n}"] = sp
+
+            macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT"] = "DT_" + node_z_path_id(mp.parent)
+            macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT_ADDRESS_LEN"] = len(mp.parent_addresses)
+            for n, addr in enumerate(mp.parent_addresses):
+                macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT_ADDRESS_IDX_{n}_EXISTS"] = 1
+                macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT_ADDRESS_IDX_{n}"] = addr
+            macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT_SPECIFIER_LEN"] = len(mp.parent_specifiers)
+            for n, sp in enumerate(mp.parent_specifiers):
+                macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT_SPECIFIER_IDX_{n}_EXISTS"] = 1
+                macro2val[f"{macro}_MAP_ENTRY_{i}_PARENT_SPECIFIER_IDX_{n}"] = sp
+
+        macro2val[f"{macro}_FOREACH_MAP_ENTRY(fn)"] = ' \\\n\t'.join(
+            f'fn(DT_{node.z_path_id}, {prop_id}, {i})' for i in range(plen)
+        )
+
+        macro2val[f"{macro}_FOREACH_MAP_ENTRY_SEP(fn, sep)"] = (
+            ' DT_DEBRACKET_INTERNAL sep \\\n\t'.join(
+                f'fn(DT_{node.z_path_id}, {prop_id}, {i})' for i in range(plen)
+            )
+        )
+
+        macro2val[f"{macro}_FOREACH_MAP_ENTRY_VARGS(fn, ...)"] = ' \\\n\t'.join(
+            f'fn(DT_{node.z_path_id}, {prop_id}, {i}, __VA_ARGS__)' for i in range(plen)
+        )
+
+        macro2val[f"{macro}_FOREACH_MAP_ENTRY_SEP_VARGS(fn, sep, ...)"] = (
+            ' DT_DEBRACKET_INTERNAL sep \\\n\t'.join(
+                f'fn(DT_{node.z_path_id}, {prop_id}, {i}, __VA_ARGS__)' for i in range(plen)
+            )
+        )
+
+    for mc, val in macro2val.items():
+        out_dt_define(mc, val)
 
 
 def write_vanilla_props(node: edtlib.Node) -> None:
@@ -985,6 +1083,25 @@ def write_global_macros(edt: edtlib.EDT):
 
                         out_dt_define(macro, val)
                         out_dt_define(macro + "_EXISTS", 1)
+            elif compat == "zephyr,mapped-partition":
+                parent = node.parent
+
+                while parent and "soc-nv-flash" not in parent.compats:
+                    parent = parent.parent
+
+                if not parent:
+                    err(f"zephyr,mapped-partition node lacks soc-nv-flash parent: {node.path}")
+
+                out_comment("parent NVM identifier:")
+                out_dt_define(f"{node.z_path_id}_NVM_DEVICE", f"DT_{parent.z_path_id}")
+
+                if "label" in node.props:
+                    label = node.props["label"].val
+                    macro = f"COMPAT_{str2ident(compat)}_LABEL_{str2ident(label)}"
+                    val = f"DT_{node.z_path_id}"
+
+                    out_dt_define(macro, val)
+                    out_dt_define(macro + "_EXISTS", 1)
 
     out_comment('Macros for compatibles with status "okay" nodes\n')
     for compat, okay_nodes in edt.compat2okay.items():

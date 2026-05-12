@@ -23,17 +23,10 @@ config NET_SOCKETS_PRIORITY_DEFAULT
 	  allows to for instance prioritize offloaded socket processing during
 	  socket creation over the native one, or vice versa.
 
-config NET_SOCKETS_POLL_MAX
-	int "Max number of supported poll() entries [DEPRECATED]"
-	default 0
-	help
-	  This option is deprecated.
-	  Please use CONFIG_ZVFS_POLL_MAX instead.
-
 config NET_SOCKETS_CONNECT_TIMEOUT
 	int "Timeout value in milliseconds to CONNECT"
 	default 3000
-	range 0 60000
+	range 0 300000
 	help
 	  This variable specifies time in milliseconds after connect()
 	  API call will timeout if we have not received SYN-ACK from
@@ -85,7 +78,8 @@ config NET_SOCKET_MAX_SEND_WAIT
 
 config NET_SOCKETS_SERVICE
 	bool "Socket service support"
-	select EVENTFD
+	select ZVFS
+	select ZVFS_EVENTFD
 	help
 	  The socket service can monitor multiple sockets and save memory
 	  by only having one thread listening socket data. If data is received
@@ -94,6 +88,13 @@ config NET_SOCKETS_SERVICE
 	  so that enough sockets entries can be serviced. This depends on
 	  system needs as multiple services can be activated at the same time
 	  depending on network configuration.
+
+config ZVFS_OPEN_ADD_SIZE_SOCKETS_SERVICE
+	int "Socket service file descriptor requirements"
+	default 1
+	help
+	  The socket service opens a permanent zvfs_eventfd, which consumes a file
+	  descriptor.
 
 config NET_SOCKETS_SERVICE_THREAD_PRIO
 	int "Priority of the socket service dispatcher thread"
@@ -111,6 +112,7 @@ config NET_SOCKETS_SERVICE_THREAD_PRIO
 
 config NET_SOCKETS_SERVICE_STACK_SIZE
 	int "Stack size for the thread handling socket services"
+	default 2400 if QUIC
 	default 2400 if NET_DHCPV4_SERVER
 	default 1400 if MDNS_RESPONDER
 	default 1200
@@ -122,18 +124,19 @@ config NET_SOCKETS_SOCKOPT_TLS
 	bool "TCP TLS socket option support"
 	imply TLS_CREDENTIALS
 	select MBEDTLS if NET_NATIVE
-	imply MBEDTLS_TLS_VERSION_1_2 if !NET_L2_OPENTHREAD
-	imply MBEDTLS_MD if !NET_L2_OPENTHREAD
-	imply MBEDTLS_RSA_C if !NET_L2_OPENTHREAD
-	imply MBEDTLS_PKCS1_V15 if !NET_L2_OPENTHREAD
-	imply MBEDTLS_PKCS1_V21 if !NET_L2_OPENTHREAD
-	imply MBEDTLS_KEY_EXCHANGE_RSA_ENABLED if !NET_L2_OPENTHREAD
-	imply MBEDTLS_CIPHER_AES_ENABLED if !NET_L2_OPENTHREAD
-	imply PSA_WANT_KEY_TYPE_AES if !NET_L2_OPENTHREAD && PSA_CRYPTO_CLIENT
-	imply PSA_WANT_ALG_CBC_NO_PADDING if !NET_L2_OPENTHREAD && PSA_CRYPTO_CLIENT
+	select PSA_CRYPTO if NET_NATIVE
 	help
 	  Enable TLS socket option support which automatically establishes
 	  a TLS connection to the remote host.
+
+config NET_SOCKETS_TLS_CONNECT_TIMEOUT
+	int "Timeout value in milliseconds for TLS handshake"
+	depends on NET_SOCKETS_SOCKOPT_TLS
+	default 10000
+	range 0 300000
+	help
+	  This variable specifies the maximum time in milliseconds that a TLS
+	  handshake can take on a secure socket, before reporting a timeout.
 
 config NET_SOCKETS_TLS_PRIORITY
 	int "Default processing priority for TLS sockets"
@@ -152,7 +155,8 @@ config NET_SOCKETS_TLS_SET_MAX_FRAGMENT_LENGTH
 
 	  Maximum Fragment Length (MFL) value is automatically chosen based on
 	  MBEDTLS_SSL_OUT_CONTENT_LEN and MBEDTLS_SSL_IN_CONTENT_LEN mbed TLS
-	  macros (which are configured by CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN in
+	  macros (which are configured by CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN and
+	  CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN in
 	  case of default mbed TLS config). With DTLS, MFL value may be further
 	  limited with NET_SOCKETS_DTLS_MAX_FRAGMENT_LENGTH.
 
@@ -162,7 +166,8 @@ config NET_SOCKETS_TLS_SET_MAX_FRAGMENT_LENGTH
 config NET_SOCKETS_ENABLE_DTLS
 	bool "DTLS socket support"
 	depends on NET_SOCKETS_SOCKOPT_TLS
-	select MBEDTLS_DTLS if NET_NATIVE
+	select MBEDTLS_SSL_PROTO_TLS1_2 if NET_NATIVE
+	select MBEDTLS_SSL_PROTO_DTLS if NET_NATIVE
 	help
 	  Enable DTLS socket support. By default only TLS over TCP is supported.
 
@@ -220,6 +225,17 @@ config ZVFS_OPEN_ADD_SIZE_TLS
 	default NET_SOCKETS_TLS_MAX_CONTEXTS if NET_SOCKETS_SOCKOPT_TLS
 	default 0
 
+config NET_SOCKETS_TLS_MAX_SESSION_CONTEXTS
+	int "Maximum number of TLS/DTLS sessions"
+	default NET_SOCKETS_TLS_MAX_CONTEXTS
+	depends on NET_SOCKETS_SOCKOPT_TLS
+	help
+	  This variable specifies the maximum number of TLS/DTLS sessions that
+	  can be established at the same time. Typically one session is needed
+	  for a TLS context. DTLS server sockets may use more sessions per socket
+	  to support communication with multiple clients at the same time.
+	  The value should not be lower than NET_SOCKETS_TLS_MAX_CONTEXTS.
+
 config NET_SOCKETS_TLS_MAX_CREDENTIALS
 	int "Maximum number of TLS/DTLS credentials per socket"
 	default 4
@@ -254,6 +270,26 @@ config NET_SOCKETS_TLS_MAX_CLIENT_SESSION_COUNT
 	help
 	  This variable specifies maximum number of stored TLS/DTLS sessions,
 	  used for TLS/DTLS session resumption.
+
+config NET_SOCKETS_TLS_SESSION_CACHE_PERSISTENT
+	bool "Persistent TLS session cache across reboots"
+	depends on NET_SOCKETS_SOCKOPT_TLS
+	depends on SETTINGS
+	help
+	  Enable persistent storage of TLS/DTLS client sessions
+	  using the settings subsystem. When enabled, sessions are
+	  saved after each successful TLS handshake and restored
+	  during system initialization, allowing session resumption
+	  across device reboots.
+
+config NET_SOCKETS_TLS_SESSION_CACHE_PERSISTENT_PREFIX
+	string "Persistent TLS session cache prefix"
+	depends on NET_SOCKETS_TLS_SESSION_CACHE_PERSISTENT
+	default "tls_cache"
+	help
+	  Settings key prefix used for persistent TLS session cache
+	  entries. Change this if the default prefix conflicts with
+	  other settings keys in your application.
 
 config NET_SOCKETS_TLS_CERT_VERIFY_CALLBACK
 	bool "TLS certificate verification callback support"
@@ -327,7 +363,7 @@ config NET_SOCKETS_PACKET_DGRAM
 	  For AF_PACKET sockets with SOCK_DGRAM type, the L2 header
 	  is removed before the packet is passed to the user.  Packets sent
 	  through a SOCK_DGRAM packet socket get a suitable L2 header based
-	  on the information in the sockaddr_ll destination address before
+	  on the information in the net_sockaddr_ll destination address before
 	  they are queued.
 
 config NET_SOCKETS_INET_RAW

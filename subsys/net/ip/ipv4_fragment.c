@@ -70,7 +70,7 @@ static struct net_ipv4_reassembly *reassembly_get(uint16_t id, const uint8_t *sr
 	return &reassembly[avail];
 }
 
-static bool reassembly_cancel(uint32_t id, struct in_addr *src, struct in_addr *dst)
+static bool reassembly_cancel(uint32_t id, struct net_in_addr *src, struct net_in_addr *dst)
 {
 	int i, j;
 
@@ -144,6 +144,8 @@ static void reassemble_packet(struct net_ipv4_reassembly *reass)
 	struct net_pkt *pkt;
 	struct net_buf *last;
 	int i;
+	int ret;
+	uint16_t chksum = 0;
 
 	k_work_cancel_delayable(&reass->timer);
 
@@ -197,13 +199,23 @@ static void reassemble_packet(struct net_ipv4_reassembly *reass)
 	}
 
 	/* Fix the total length, offset and checksum of the IPv4 packet */
-	ipv4_hdr->len = htons(net_pkt_get_len(pkt));
+	ipv4_hdr->len = net_htons(net_pkt_get_len(pkt));
 	ipv4_hdr->offset[0] = 0;
 	ipv4_hdr->offset[1] = 0;
 	ipv4_hdr->chksum = 0;
-	ipv4_hdr->chksum = net_calc_chksum_ipv4(pkt);
 
-	net_pkt_set_data(pkt, &ipv4_access);
+	ret = net_calc_chksum_ipv4(pkt, &chksum);
+	if (ret < 0) {
+		goto error;
+	}
+
+	ipv4_hdr->chksum = chksum;
+
+	ret = net_pkt_set_data(pkt, &ipv4_access);
+	if (ret < 0) {
+		goto error;
+	}
+
 	net_pkt_set_ip_reassembled(pkt, true);
 
 	LOG_DBG("New pkt %p IPv4 len is %zd bytes", pkt, net_pkt_get_len(pkt));
@@ -328,14 +340,8 @@ enum net_verdict net_ipv4_handle_fragment_hdr(struct net_pkt *pkt, struct net_ip
 	int ret;
 	int i;
 
-	flag = ntohs(*((uint16_t *)&hdr->offset));
-	id = ntohs(*((uint16_t *)&hdr->id));
-
-	reass = reassembly_get(id, hdr->src, hdr->dst, hdr->proto);
-	if (!reass) {
-		LOG_ERR("Cannot get reassembly slot, dropping pkt %p", pkt);
-		goto drop;
-	}
+	flag = net_ntohs(*((uint16_t *)&hdr->offset));
+	id = net_ntohs(*((uint16_t *)&hdr->id));
 
 	more = (flag & NET_IPV4_MORE_FRAG_MASK) ? true : false;
 	net_pkt_set_ipv4_fragment_flags(pkt, flag);
@@ -346,6 +352,12 @@ enum net_verdict net_ipv4_handle_fragment_hdr(struct net_pkt *pkt, struct net_ip
 		 */
 		net_icmpv4_send_error(pkt, NET_ICMPV4_BAD_IP_HEADER,
 				      NET_ICMPV4_BAD_IP_HEADER_LENGTH);
+		goto drop;
+	}
+
+	reass = reassembly_get(id, hdr->src, hdr->dst, hdr->proto);
+	if (!reass) {
+		LOG_ERR("Cannot get reassembly slot, dropping pkt %p", pkt);
 		goto drop;
 	}
 
@@ -428,10 +440,11 @@ static int send_ipv4_fragment(struct net_pkt *pkt, uint16_t rand_id, uint16_t fi
 	struct net_pkt_cursor cur;
 	struct net_pkt_cursor cur_pkt;
 	uint16_t offset_pkt;
+	uint16_t chksum = 0;
 
 	frag_pkt = net_pkt_alloc_with_buffer(net_pkt_iface(pkt), fit_len +
 					     net_pkt_ip_hdr_len(pkt),
-					     AF_INET, 0, NET_BUF_TIMEOUT);
+					     NET_AF_INET, 0, NET_BUF_TIMEOUT);
 	if (!frag_pkt) {
 		return -ENOMEM;
 	}
@@ -480,14 +493,23 @@ static int send_ipv4_fragment(struct net_pkt *pkt, uint16_t rand_id, uint16_t fi
 	}
 
 	sys_put_be16(offset_pkt, ipv4_hdr->offset);
-	ipv4_hdr->len = htons((fit_len + net_pkt_ip_hdr_len(pkt)));
+	ipv4_hdr->len = net_htons((fit_len + net_pkt_ip_hdr_len(pkt)));
 
 	ipv4_hdr->chksum = 0;
-	ipv4_hdr->chksum = net_calc_chksum_ipv4(frag_pkt);
+
+	ret = net_calc_chksum_ipv4(frag_pkt, &chksum);
+	if (ret < 0) {
+		goto fail;
+	}
+
+	ipv4_hdr->chksum = chksum;
 
 	net_pkt_set_chksum_done(frag_pkt, true);
 
-	net_pkt_set_data(frag_pkt, &ipv4_access);
+	ret = net_pkt_set_data(frag_pkt, &ipv4_access);
+	if (ret < 0) {
+		goto fail;
+	}
 
 	net_pkt_set_overwrite(frag_pkt, false);
 	net_pkt_cursor_restore(frag_pkt, &cur);
@@ -532,7 +554,7 @@ int net_ipv4_send_fragmented_pkt(struct net_if *iface, struct net_pkt *pkt,
 	}
 
 	/* Check if the DF (Don't Fragment) flag is set, if so, we cannot fragment the packet */
-	flag = ntohs(*((uint16_t *)&frag_hdr->offset));
+	flag = net_ntohs(*((uint16_t *)&frag_hdr->offset));
 
 	if (flag & NET_IPV4_DO_NOT_FRAG_MASK) {
 		/* This packet cannot be fragmented */
@@ -566,16 +588,19 @@ int net_ipv4_send_fragmented_pkt(struct net_if *iface, struct net_pkt *pkt,
 		struct net_pkt_cursor backup;
 
 		net_pkt_cursor_backup(pkt, &backup);
-		net_pkt_acknowledge_data(pkt, &frag_access);
+		ret = net_pkt_acknowledge_data(pkt, &frag_access);
+		if (ret < 0) {
+			return ret;
+		}
 
 		switch (frag_hdr->proto) {
-		case IPPROTO_ICMP:
+		case NET_IPPROTO_ICMP:
 			ret = net_icmpv4_finalize(pkt, true);
 			break;
-		case IPPROTO_TCP:
+		case NET_IPPROTO_TCP:
 			ret = net_tcp_finalize(pkt, true);
 			break;
-		case IPPROTO_UDP:
+		case NET_IPPROTO_UDP:
 			ret = net_udp_finalize(pkt, true);
 			break;
 		default:
@@ -630,12 +655,12 @@ enum net_verdict net_ipv4_prepare_for_send_fragment(struct net_pkt *pkt)
 		uint16_t mtu;
 
 		if (IS_ENABLED(CONFIG_NET_IPV4_PMTU)) {
-			struct sockaddr_in dst = {
-				.sin_family = AF_INET,
-				.sin_addr = *((struct in_addr *)ip_hdr->dst),
+			struct net_sockaddr_in dst = {
+				.sin_family = NET_AF_INET,
+				.sin_addr = *((struct net_in_addr *)ip_hdr->dst),
 			};
 
-			ret = net_pmtu_get_mtu((struct sockaddr *)&dst);
+			ret = net_pmtu_get_mtu((struct net_sockaddr *)&dst);
 			if (ret <= 0) {
 				goto use_interface_mtu;
 			}

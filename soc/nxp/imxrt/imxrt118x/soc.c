@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,7 +17,9 @@
 #include <fsl_pmu.h>
 #include <fsl_dcdc.h>
 #include <fsl_ele_base_api.h>
-#include <fsl_trdc.h>
+
+extern void imxrt118x_trdc_enable_all_access(void);
+
 #if defined(CONFIG_WDT_MCUX_RTWDOG)
 #include <fsl_soc_src.h>
 #endif
@@ -26,18 +28,100 @@
 
 LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
 
-#if defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)
-#if !defined(CONFIG_CM7_BOOT_FROM_FLASH)
-#include <zephyr_image_info.h>
-/* Memcpy macro to copy segments from secondary core image stored in flash
- * to RAM section that secondary core boots from.
- * n is the segment number, as defined in zephyr_image_info.h
+/*
+ * RT118x ELE requires ping every 24 hours, which is mandatory,
+ * otherwise soc may reset.
+ *
+ * Note:
+ *   1. This is generic rule for all RT118x demos.
+ *   2. We ping ELE every 23 (but not 24) hours, in case of any clock inaccuracy.
+ *   3. This requirement comes from RT1180 SRM section 3.11 "ELE active timer".
+ *      Refer to the SRM for more details.
  */
-#define MEMCPY_SEGMENT(n, _)							\
-	memcpy((uint32_t *)(((SEGMENT_LMA_ADDRESS_ ## n) - ADJUSTED_LMA) + 0x303C0000),	\
-		(uint32_t *)(SEGMENT_LMA_ADDRESS_ ## n),			\
-		(SEGMENT_SIZE_ ## n))
-#endif /* !defined(CONFIG_CM7_BOOT_FROM_FLASH) */
+#define ELE_PING_INTERVAL_HOURS 23U
+#define ELE_PING_INTERVAL_MS    (ELE_PING_INTERVAL_HOURS * 60UL * 60UL * 1000UL)
+
+/* Software timer for ELE ping */
+static struct k_timer ele_ping_timer;
+
+/* ELE ping timer callback function */
+static void ele_ping_timer_handler(struct k_timer *timer)
+{
+	ARG_UNUSED(timer);
+
+	status_t status;
+
+	/* Ping ELE to prevent SOC reset */
+	status = ELE_BaseAPI_Ping(MU_RT_S3MUA);
+
+	if (status == kStatus_Success) {
+		LOG_DBG("ELE ping successful");
+	} else {
+		LOG_ERR("ELE ping failed with status: %d", status);
+	}
+}
+
+/* Initialize ELE ping timer */
+static int ele_ping_timer_init(void)
+{
+	/* Initialize the timer */
+	k_timer_init(&ele_ping_timer, ele_ping_timer_handler, NULL);
+
+	/* Start the periodic timer with 23-hour interval */
+	k_timer_start(&ele_ping_timer, K_MSEC(ELE_PING_INTERVAL_MS),
+		      K_MSEC(ELE_PING_INTERVAL_MS));
+
+	LOG_DBG("ELE ping timer initialized, interval: %u hours", ELE_PING_INTERVAL_HOURS);
+
+	return 0;
+}
+
+/* Initialize ELE ping timer at POST_KERNEL level to ensure kernel services are available */
+SYS_INIT(ele_ping_timer_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+
+#if defined(CONFIG_NXP_IMXRT_BOOT_HEADER) && defined(CONFIG_CPU_CORTEX_M33)
+#include <fsl_flexspi_nor_boot.h>
+
+extern char __start[];
+extern char _flash_used[];
+extern char __rom_region_start[];
+const __imx_boot_container_section container boot_header = {
+	.hdr = {
+		CNT_VERSION,
+		CNT_SIZE,
+		CNT_TAG_HEADER,
+		CNT_FLAGS,
+		CNT_SW_VER,
+		CNT_FUSE_VER,
+		CNT_NUM_IMG,
+		sizeof(cnt_hdr) + CNT_NUM_IMG * sizeof(image_entry),
+		0
+	},
+	.array = {
+		{
+			(uint32_t)CONFIG_CONTAINER_USER_IMAGE_OFFSET,
+			(uint32_t)(_flash_used - CONFIG_CONTAINER_USER_IMAGE_OFFSET -
+				CONFIG_IMAGE_CONTAINER_OFFSET),
+			(uint32_t)_vector_start,
+			0x00000000,
+			(uint32_t)__start,
+			0x00000000,
+			IMG_FLAGS,
+			0x0,
+			{0},
+			{0}
+		},
+	},
+	.sign_block = {
+		SGNBK_VERSION,
+		SGNBK_SIZE,
+		SGNBK_TAG,
+		0x0,
+		0x0,
+		0x0,
+		0x0
+	},
+};
 #endif
 
 /*
@@ -54,14 +138,8 @@ LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
 #define ELE_IS_FAILED(x) false
 #endif
 
-#define ELE_TRDC_AON_ID    0x74
-#define ELE_TRDC_WAKEUP_ID 0x78
-#define ELE_CORE_CM33_ID   0x1
-#define ELE_CORE_CM7_ID    0x2
-#define EDMA_DID           0x7U
-
 /* When CM33 sets TRDC, CM7 must NOT require TRDC ownership from ELE */
-#if defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_SOC_MIMXRT1189_CM7)
+#if defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M7)
 /* When CONFIG_SECOND_CORE_MCUX then TRDC(AON/WAKEUP) ownership cannot be released
  * to CM33 and CM7 both in one ELE reset cycle.
  * Only CM33 will set TRDC.
@@ -72,27 +150,32 @@ LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
 #endif
 
 #if (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33))
-/* Handle CM7 core initialization based on execution mode */
-#if !defined(CONFIG_CM7_BOOT_FROM_FLASH)
-#define CM7_BOOT_ADDRESS (0)
-#else
 /* Get CM7 partition address from device tree */
 #define CM7_PARTITION_NODE DT_CHOSEN(zephyr_code_m7_partition)
 #define CM7_FLASH_ADDR     DT_REG_ADDR(CM7_PARTITION_NODE)
+
+/* Handle CM7 core initialization based on execution mode */
+#if !defined(CONFIG_CM7_BOOT_FROM_FLASH)
+#define CM7_BOOT_ADDRESS   (CM7_FLASH_ADDR + CONFIG_CM7_FLEXSPI_OFFSET - ADJUSTED_LMA)
+#else
 #define CM7_BOOT_ADDRESS   (CM7_FLASH_ADDR + CONFIG_CM7_FLEXSPI_OFFSET)
 #endif /* defined(CONFIG_CM7_BOOT_FROM_FLASH) */
 #endif /* (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)) */
 
 #ifdef CONFIG_INIT_ARM_PLL
+#define ARM_PLL_NODE DT_COMPAT_GET_ANY_STATUS_OKAY(nxp_imxrt118x_arm_pll)
+#define ARM_PLL_LOOP_DIV DT_PROP(ARM_PLL_NODE, loop_div)
+#define ARM_PLL_POST_DIV DT_PROP(ARM_PLL_NODE, post_div)
+
+#define ARM_PLL_POST_DIV_ENUM \
+	((ARM_PLL_POST_DIV == 1) ? kCLOCK_PllPostDiv1 : \
+	(ARM_PLL_POST_DIV == 2) ? kCLOCK_PllPostDiv2 : \
+	(ARM_PLL_POST_DIV == 4) ? kCLOCK_PllPostDiv4 : \
+	kCLOCK_PllPostDiv8)
+
 static const clock_arm_pll_config_t armPllConfig_BOARD_BootClockRUN = {
-#if defined(CONFIG_SOC_MIMXRT1189_CM33) || defined(CONFIG_SOC_MIMXRT1189_CM7)
-	/* Post divider, 0 - DIV by 2, 1 - DIV by 4, 2 - DIV by 8, 3 - DIV by 1 */
-	.postDivider = kCLOCK_PllPostDiv2,
-	/* PLL Loop divider, Fout = Fin * ( loopDivider / ( 2 * postDivider ) ) */
-	.loopDivider = 132,
-#else
-#error "Unknown SOC, no pll configuration defined"
-#endif
+	.postDivider = ARM_PLL_POST_DIV_ENUM,
+	.loopDivider = ARM_PLL_LOOP_DIV,
 };
 #endif
 
@@ -160,8 +243,8 @@ __weak void clock_init(void)
 #endif
 
 #if CONFIG_CPU_CORTEX_M7
-	DCDC_SetVDD1P0BuckModeTargetVoltage(DCDC, kDCDC_CORE0, kDCDC_1P0Target1P1V);
-	DCDC_SetVDD1P0BuckModeTargetVoltage(DCDC, kDCDC_CORE1, kDCDC_1P0Target1P1V);
+	DCDC_SetVDD1P0BuckModeTargetVoltage(DCDC, kDCDC_CORE0, kDCDC_1P0Target1P125V);
+	DCDC_SetVDD1P0BuckModeTargetVoltage(DCDC, kDCDC_CORE1, kDCDC_1P0Target1P125V);
 	/* FBB need to be enabled in OverDrive(OD) mode */
 	PMU_EnableFBB(ANADIG_PMU, true);
 #endif
@@ -189,6 +272,12 @@ __weak void clock_init(void)
 	board_flexspi_clock_safe_config();
 
 #ifdef CONFIG_INIT_ARM_PLL
+	BUILD_ASSERT((ARM_PLL_POST_DIV == 1) || (ARM_PLL_POST_DIV == 2) ||
+		     (ARM_PLL_POST_DIV == 4) || (ARM_PLL_POST_DIV == 8),
+		     "ARM PLL post-div must be 1, 2, 4, or 8");
+	BUILD_ASSERT(ARM_PLL_LOOP_DIV >= 104 && ARM_PLL_LOOP_DIV <= 208,
+		     "ARM PLL loop-div must be in range 104-208");
+
 	/* Init Arm Pll. */
 	CLOCK_InitArmPll(&armPllConfig_BOARD_BootClockRUN);
 #endif
@@ -223,7 +312,7 @@ __weak void clock_init(void)
 	/* DeInit Audio Pll. */
 	CLOCK_DeinitAudioPll();
 
-#if defined(CONFIG_SOC_MIMXRT1189_CM7)
+#if defined(CONFIG_CPU_CORTEX_M7)
 	/* Module clock root configurations. */
 	/* Configure M7 using ARM_PLL_CLK */
 	rootCfg.mux = kCLOCK_M7_ClockRoot_MuxArmPllOut;
@@ -231,7 +320,7 @@ __weak void clock_init(void)
 	CLOCK_SetRootClock(kCLOCK_Root_M7, &rootCfg);
 #endif
 
-#if defined(CONFIG_SOC_MIMXRT1189_CM33)
+#if defined(CONFIG_CPU_CORTEX_M33)
 	/* Configure M33 using SYS_PLL3_CLK */
 	rootCfg.mux = kCLOCK_M33_ClockRoot_MuxSysPll3Out;
 	rootCfg.div = 2;
@@ -537,12 +626,20 @@ __weak void clock_init(void)
 
 #endif /* CONFIG_MCUX_LPTMR_TIMER || CONFIG_COUNTER_MCUX_LPTMR */
 
-#if !(DT_NODE_HAS_COMPAT(DT_PARENT(DT_CHOSEN(zephyr_flash)), nxp_imx_flexspi_nor)) &&  \
+#if !(DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_flash_controller), nxp_imx_flexspi_nor)) &&  \
 	defined(CONFIG_MEMC_MCUX_FLEXSPI) && DT_NODE_HAS_STATUS(DT_NODELABEL(flexspi), okay)
 	/* Configure FLEXSPI1 using SYS_PLL3_PFD0_CLK */
 	rootCfg.mux = kCLOCK_FLEXSPI1_ClockRoot_MuxSysPll3Pfd0;
 	rootCfg.div = 3;
 	CLOCK_SetRootClock(kCLOCK_Root_Flexspi1, &rootCfg);
+#endif
+
+#if !(DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_flash_controller), nxp_imx_flexspi_nor)) &&  \
+	defined(CONFIG_MEMC_MCUX_FLEXSPI) && DT_NODE_HAS_STATUS(DT_NODELABEL(flexspi2), okay)
+	/* Configure FLEXSPI2 using SYS_PLL3_PFD2_CLK */
+	rootCfg.mux = kCLOCK_FLEXSPI2_ClockRoot_MuxSysPll3Pfd2;
+	rootCfg.div = 2;
+	CLOCK_SetRootClock(kCLOCK_Root_Flexspi2, &rootCfg);
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(tpm2), okay)
@@ -687,114 +784,7 @@ void imxrt_audio_codec_pll_init(uint32_t clock_name, uint32_t clk_src, uint32_t 
  */
 static ALWAYS_INLINE void trdc_enable_all_access(void)
 {
-	status_t sts;
-	uint8_t i, j;
-
-	/* Get ELE FW status */
-	do {
-		uint32_t ele_fw_sts;
-
-		sts = ELE_BaseAPI_GetFwStatus(MU_RT_S3MUA, &ele_fw_sts);
-	} while (sts != kStatus_Success);
-
-#if defined(CONFIG_SOC_MIMXRT1189_CM33)
-	/* Release TRDC AON to CM33 core */
-	sts = ELE_BaseAPI_ReleaseRDC(MU_RT_S3MUA, ELE_TRDC_AON_ID, ELE_CORE_CM33_ID);
-#elif defined(CONFIG_SOC_MIMXRT1189_CM7)
-	/* Release TRDC AON to CM7 core */
-	sts = ELE_BaseAPI_ReleaseRDC(MU_RT_S3MUA, ELE_TRDC_AON_ID, ELE_CORE_CM7_ID);
-#endif
-	if (sts != kStatus_Success) {
-		LOG_WRN("warning: TRDC AON permission get failed. If core don't get TRDC "
-			"AON permission, AON domain permission can't be configured.");
-	}
-
-#if defined(CONFIG_SOC_MIMXRT1189_CM33)
-	/* Release TRDC Wakeup to CM33 core */
-	sts = ELE_BaseAPI_ReleaseRDC(MU_RT_S3MUA, ELE_TRDC_WAKEUP_ID, ELE_CORE_CM33_ID);
-#elif defined(CONFIG_SOC_MIMXRT1189_CM7)
-	/* Release TRDC Wakeup to CM7 core */
-	sts = ELE_BaseAPI_ReleaseRDC(MU_RT_S3MUA, ELE_TRDC_WAKEUP_ID, ELE_CORE_CM7_ID);
-#endif
-	if (sts != kStatus_Success) {
-		LOG_WRN("warning: TRDC Wakeup permission get failed. If core don't get TRDC "
-			"Wakeup permission, Wakeup domain permission can't be configured.");
-	}
-
-	/* Set the master domain access configuration for eDMA3/eDMA4 */
-	trdc_non_processor_domain_assignment_t edmaAssignment;
-
-	/* By default, EDMA access is done in privilege and security mode,
-	 * However, the NSE bit reset value in TRDC is 0, so that TRDC does
-	 * not allow nonsecurity access to other memory by default.
-	 * So by DAC module, EDMA access mode is changed to security/privilege
-	 * mode by the DAC module
-	 */
-	(void)memset(&edmaAssignment, 0, sizeof(edmaAssignment));
-	edmaAssignment.domainId       = EDMA_DID;
-	edmaAssignment.privilegeAttr  = kTRDC_MasterPrivilege;
-	edmaAssignment.secureAttr     = kTRDC_ForceSecure;
-	edmaAssignment.bypassDomainId = true;
-	edmaAssignment.lock           = false;
-
-	TRDC_SetNonProcessorDomainAssignment(TRDC1, kTRDC1_MasterDMA3, &edmaAssignment);
-	TRDC_SetNonProcessorDomainAssignment(TRDC2, kTRDC2_MasterDMA4, &edmaAssignment);
-
-	/* Enable all access modes for MBC and MRC of TRDCA and TRDCW */
-	trdc_hardware_config_t hwConfig;
-	trdc_memory_access_control_config_t memAccessConfig;
-
-	(void)memset(&memAccessConfig, 0, sizeof(memAccessConfig));
-	memAccessConfig.nonsecureUsrX  = 1U;
-	memAccessConfig.nonsecureUsrW  = 1U;
-	memAccessConfig.nonsecureUsrR  = 1U;
-	memAccessConfig.nonsecurePrivX = 1U;
-	memAccessConfig.nonsecurePrivW = 1U;
-	memAccessConfig.nonsecurePrivR = 1U;
-	memAccessConfig.secureUsrX     = 1U;
-	memAccessConfig.secureUsrW     = 1U;
-	memAccessConfig.secureUsrR     = 1U;
-	memAccessConfig.securePrivX    = 1U;
-	memAccessConfig.securePrivW    = 1U;
-	memAccessConfig.securePrivR    = 1U;
-
-	TRDC_GetHardwareConfig(TRDC1, &hwConfig);
-	for (i = 0U; i < hwConfig.mrcNumber; i++) {
-		/* Set TRDC1(A) secure access for eDMA domain, MRC i, all region for i memory */
-		TRDC_MrcDomainNseClear(TRDC1, i, 1UL << EDMA_DID);
-
-		for (j = 0U; j < 8; j++) {
-			TRDC_MrcSetMemoryAccessConfig(TRDC1, &memAccessConfig, i, j);
-		}
-	}
-
-	for (i = 0U; i < hwConfig.mbcNumber; i++) {
-		/* Set TRDC1(A) secure access for eDMA domain, MBC i, all memory blocks */
-		TRDC_MbcNseClearAll(TRDC1, i, 1UL << EDMA_DID, 0xF);
-
-		for (j = 0U; j < 8; j++) {
-			TRDC_MbcSetMemoryAccessConfig(TRDC1, &memAccessConfig, i, j);
-		}
-	}
-
-	TRDC_GetHardwareConfig(TRDC2, &hwConfig);
-	for (i = 0U; i < hwConfig.mrcNumber; i++) {
-		/* Set TRDC2(W) secure access for eDMA domain, MRC i, all region for i memory */
-		TRDC_MrcDomainNseClear(TRDC2, i, 1UL << EDMA_DID);
-
-		for (j = 0U; j < 8; j++) {
-			TRDC_MrcSetMemoryAccessConfig(TRDC2, &memAccessConfig, i, j);
-		}
-	}
-
-	for (i = 0U; i < hwConfig.mbcNumber; i++) {
-		/* Set TRDC2(W) secure access for eDMA domain, MBC i, all memory blocks */
-		TRDC_MbcNseClearAll(TRDC2, i, 1UL << EDMA_DID, 0xF);
-
-		for (j = 0U; j < 8; j++) {
-			TRDC_MbcSetMemoryAccessConfig(TRDC2, &memAccessConfig, i, j);
-		}
-	}
+	imxrt118x_trdc_enable_all_access();
 }
 
 /**
@@ -834,6 +824,26 @@ void soc_early_init_hook(void)
 
 #if (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33))
 #if !defined(CONFIG_CM7_BOOT_FROM_FLASH)
+#include <zephyr_image_info.h>
+
+/* Determine if CM33 needs to adjust the address to access CM7 memory */
+#if ((CM7_BOOT_ADDRESS >= 0U) && (CM7_BOOT_ADDRESS <= 0x1FFFFU))
+	/* Adjust to CM33 address to access CM7 ITCM */
+	#define MEMMAP_ADJUST 0x303C0000U
+#else
+	#define MEMMAP_ADJUST 0U /* No adjustment needed */
+#endif
+
+/* Memcpy macro to copy segments from secondary core image stored in flash
+ * to RAM section that secondary core boots from.
+ * n is the segment number, as defined in zephyr_image_info.h
+ */
+#define MEMCPY_SEGMENT(n, _)						\
+	memcpy((uint32_t *)(((SEGMENT_LMA_ADDRESS_ ## n)		\
+			- ADJUSTED_LMA) + MEMMAP_ADJUST),		\
+		(uint32_t *)(SEGMENT_LMA_ADDRESS_ ## n),		\
+		(SEGMENT_SIZE_ ## n))
+
 	/**
 	 * Copy CM7 core from flash to memory. Note that depending on where the
 	 * user decided to store CM7 code, this is likely going to read from the
@@ -844,8 +854,8 @@ void soc_early_init_hook(void)
 	 * ensure the data is written directly to RAM (since the M4 core will use it)
 	 */
 	LISTIFY(SEGMENT_NUM, MEMCPY_SEGMENT, (;));
-#endif /* (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)) */
 #endif /* !defined(CONFIG_CM7_BOOT_FROM_FLASH) */
+#endif /* (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)) */
 
 	/* Enable data cache */
 	sys_cache_data_enable();
@@ -886,10 +896,16 @@ static int second_core_boot(void)
 	result1 = MU_RT_S3MUA->RR[0];
 	result2 = MU_RT_S3MUA->RR[1];
 
+	/* Disable M7 clock before clearing CPU_WAIT bit */
+	CLOCK_DisableClock(kCLOCK_M7);
+
 	/* Deassert Wait */
 	BLK_CTRL_S_AONMIX->M7_CFG =
 		(BLK_CTRL_S_AONMIX->M7_CFG & (~BLK_CTRL_S_AONMIX_M7_CFG_WAIT_MASK)) |
 		BLK_CTRL_S_AONMIX_M7_CFG_WAIT(0);
+
+	/* Re-enable M7 clock again */
+	CLOCK_EnableClock(kCLOCK_M7);
 
 	return 0;
 }

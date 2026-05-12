@@ -11,6 +11,7 @@
 #include <zephyr/dt-bindings/regulator/axp192.h>
 #include <zephyr/dt-bindings/mipi_dbi/mipi_dbi.h>
 #include <espressif/partitions_0x1000_amp.dtsi>
+#include <zephyr/dt-bindings/display/panel.h>
 
 / {
 	model = "M5StickC Plus PROCPU";
@@ -88,14 +89,14 @@
 			vdvs = <0x20>;
 			mdac = <0x00>;
 			gamma = <0x01>;
-			colmod = <0x55>;
+			pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
 			lcm = <0x2c>;
 			porch-param = [0c 0c 00 33 33];
 			cmd2en-param = [5a 69 02 00];
 			pwctrl1-param = [a4 a1];
 			pvgam-param = [d0 00 02 07 0a 28 32 44 42 06 0e 12 14 17];
 			nvgam-param = [d0 00 02 07 0a 28 31 54 47 0e 1c 17 1b 1e];
-			ram-param = [00 F0];
+			ram-param = [00 f0];
 			rgb-param = [40 02 14];
 			mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
 		};

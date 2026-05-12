@@ -358,12 +358,14 @@ static int transceive(const struct device *dev, const struct spi_config *config,
 		ra_spi_b_transceive_data(data);
 	} while (ra_spi_b_transfer_ongoing(data));
 
-	/* Wait for transmision complete */
+	/* Wait for transmission complete */
 	while (p_spi_reg->SPSR_b.IDLNF) {
 	}
 
 	/* Disable the SPI Transfer. */
 	p_spi_reg->SPCR_b.SPE = 0;
+
+	spi_context_cs_control(&data->ctx, false);
 #endif
 #ifdef CONFIG_SPI_SLAVE
 	if (spi_context_is_slave(&data->ctx) && !ret) {

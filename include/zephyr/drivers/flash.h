@@ -268,10 +268,7 @@ static inline int z_impl_flash_read(const struct device *dev, off_t offset,
 				    void *data,
 				    size_t len)
 {
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
-
-	return api->read(dev, offset, data, len);
+	return DEVICE_API_GET(flash, dev)->read(dev, offset, data, len);
 }
 
 /**
@@ -299,13 +296,7 @@ __syscall int flash_write(const struct device *dev, off_t offset,
 static inline int z_impl_flash_write(const struct device *dev, off_t offset,
 				     const void *data, size_t len)
 {
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
-	int rc;
-
-	rc = api->write(dev, offset, data, len);
-
-	return rc;
+	return DEVICE_API_GET(flash, dev)->write(dev, offset, data, len);
 }
 
 /**
@@ -343,8 +334,7 @@ static inline int z_impl_flash_erase(const struct device *dev, off_t offset,
 {
 	int rc = -ENOSYS;
 
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
+	const struct flash_driver_api *api = DEVICE_API_GET(flash, dev);
 
 	if (api->erase != NULL) {
 		rc = api->erase(dev, offset, size);
@@ -371,7 +361,7 @@ __syscall int flash_get_size(const struct device *dev, uint64_t *size);
 static inline int z_impl_flash_get_size(const struct device *dev, uint64_t *size)
 {
 	int rc = -ENOSYS;
-	const struct flash_driver_api *api = (const struct flash_driver_api *)dev->api;
+	const struct flash_driver_api *api = DEVICE_API_GET(flash, dev);
 
 	if (api->get_size != NULL) {
 		rc = api->get_size(dev, size);
@@ -525,7 +515,7 @@ void flash_page_foreach(const struct device *dev, flash_page_cb cb,
  *
  * @retval 0 on success
  * @retval -ENOTSUP if the flash driver does not support SFDP access
- * @retval negative values for other errors.
+ * @retval <0 negative values for other errors.
  */
 __syscall int flash_sfdp_read(const struct device *dev, off_t offset,
 			      void *data, size_t len);
@@ -535,8 +525,7 @@ static inline int z_impl_flash_sfdp_read(const struct device *dev,
 					 void *data, size_t len)
 {
 	int rv = -ENOTSUP;
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
+	const struct flash_driver_api *api = DEVICE_API_GET(flash, dev);
 
 	if (api->sfdp_read != NULL) {
 		rv = api->sfdp_read(dev, offset, data, len);
@@ -553,7 +542,7 @@ static inline int z_impl_flash_sfdp_read(const struct device *dev,
  *
  * @retval 0 on successful store of 3-byte JEDEC id
  * @retval -ENOTSUP if flash driver doesn't support this function
- * @retval negative values for other errors
+ * @retval <0 negative values for other errors
  */
 __syscall int flash_read_jedec_id(const struct device *dev, uint8_t *id);
 
@@ -561,8 +550,7 @@ static inline int z_impl_flash_read_jedec_id(const struct device *dev,
 					     uint8_t *id)
 {
 	int rv = -ENOTSUP;
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
+	const struct flash_driver_api *api = DEVICE_API_GET(flash, dev);
 
 	if (api->read_jedec_id != NULL) {
 		rv = api->read_jedec_id(dev, id);
@@ -586,10 +574,7 @@ __syscall size_t flash_get_write_block_size(const struct device *dev);
 
 static inline size_t z_impl_flash_get_write_block_size(const struct device *dev)
 {
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
-
-	return api->get_parameters(dev)->write_block_size;
+	return DEVICE_API_GET(flash, dev)->get_parameters(dev)->write_block_size;
 }
 
 
@@ -608,10 +593,7 @@ __syscall const struct flash_parameters *flash_get_parameters(const struct devic
 
 static inline const struct flash_parameters *z_impl_flash_get_parameters(const struct device *dev)
 {
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
-
-	return api->get_parameters(dev);
+	return DEVICE_API_GET(flash, dev)->get_parameters(dev);
 }
 
 /**
@@ -637,7 +619,7 @@ static inline const struct flash_parameters *z_impl_flash_get_parameters(const s
  *  @retval 0 on success.
  *  @retval -ENOTSUP if given device doesn't support extended operation.
  *  @retval -ENOSYS if support for extended operations is not enabled in Kconfig
- *  @retval negative value on extended operation errors.
+ *  @retval <0 negative value on extended operation errors.
  */
 __syscall int flash_ex_op(const struct device *dev, uint16_t code,
 			  const uintptr_t in, void *out);
@@ -697,14 +679,40 @@ enum flash_ex_op_types {
 	 * Reset flash device.
 	 */
 	FLASH_EX_OP_RESET = 0,
+
+	/**
+	 * Checks whether a block is marked as bad. As input it takes the address of the block
+	 * (off_t *). As output it returns @ref flash_block_status (enum flash_block_status *).
+	 */
+	FLASH_EX_OP_IS_BAD_BLOCK = 1,
+
+	/**
+	 * Marks a block as bad. As input it takes the address of the block (off_t *). There is no
+	 * output.
+	 */
+	FLASH_EX_OP_MARK_BAD_BLOCK = 2,
+};
+
+/**
+ * @brief Enumeration for flash block status.
+ */
+enum flash_block_status {
+	/**
+	 * Block is functional.
+	 */
+	FLASH_BLOCK_GOOD = 0,
+
+	/**
+	 * Block is marked as bad.
+	 */
+	FLASH_BLOCK_BAD = 1,
 };
 
 static inline int z_impl_flash_ex_op(const struct device *dev, uint16_t code,
 				     const uintptr_t in, void *out)
 {
 #if defined(CONFIG_FLASH_EX_OP_ENABLED)
-	const struct flash_driver_api *api =
-		(const struct flash_driver_api *)dev->api;
+	const struct flash_driver_api *api = DEVICE_API_GET(flash, dev);
 
 	if (api->ex_op == NULL) {
 		return -ENOTSUP;

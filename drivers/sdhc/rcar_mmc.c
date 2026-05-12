@@ -407,7 +407,7 @@ static int rcar_mmc_enable_clock(const struct device *dev, bool enable)
  *
  * @param response_type SDHC response type without SPI flags
  *
- * @retval positiv number (partial configuration of CMD register) on
+ * @retval positive number (partial configuration of CMD register) on
  *         success, negative errno code otherwise
  */
 static int32_t rcar_mmc_convert_sd_to_mmc_resp(uint32_t response_type)
@@ -1206,7 +1206,7 @@ static int rcar_mmc_set_bus_width(const struct device *dev, struct sdhc_io *ios)
 		reg_width = RCAR_MMC_OPTION_WIDTH_1;
 		break;
 	case SDHC_BUS_WIDTH4BIT:
-		if (data->props.host_caps.bus_4_bit_support) {
+		if (data->props.bus_4_bit_support) {
 			reg_width = RCAR_MMC_OPTION_WIDTH_4;
 		} else {
 			LOG_ERR("SDHC I/O: 4-bits bus width isn't supported");
@@ -1331,7 +1331,7 @@ static int rcar_mmc_set_timings(const struct device *dev, struct sdhc_io *ios)
 		}
 		break;
 	case SDHC_TIMING_HS400:
-		if (!data->props.host_caps.hs400_support) {
+		if (!data->props.hs400_support) {
 			LOG_ERR("SDHC I/O: HS400 timing isn't supported");
 			return -ENOTSUP;
 		}
@@ -1347,7 +1347,7 @@ static int rcar_mmc_set_timings(const struct device *dev, struct sdhc_io *ios)
 		data->ddr_mode = 1;
 		break;
 	case SDHC_TIMING_HS200:
-		if (!data->props.host_caps.hs200_support) {
+		if (!data->props.hs200_support) {
 			LOG_ERR("SDHC I/O: HS200 timing isn't supported");
 			return -ENOTSUP;
 		}
@@ -1579,7 +1579,7 @@ static const uint8_t tun_block_8_bits_bus[] = {
 
 /*
  * In 4 bit mode the same pattern is used as shown above,
- * but only first 4 bits least significant from every byte is used, examle:
+ * but only first 4 bits least significant from every byte is used, example:
  *    8-bits pattern: 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00 ...
  *                       f     f     0     f     f     f     0     0 ...
  *    4-bits pattern:      0xff        0x0f        0xff        0x00  ...
@@ -1684,7 +1684,7 @@ static int rcar_mmc_execute_tuning(const struct device *dev)
 	 * two runs is better for detecting TAP ok cases like next:
 	 *   - one burn: 0b10000011
 	 *   - two burns: 0b1000001110000011
-	 * it is more easly to detect 3 OK taps in a row
+	 * it is more easily to detect 3 OK taps in a row
 	 */
 	for (tap_idx = 0; tap_idx < 2 * RENESAS_TAPNUM; tap_idx++) {
 		/* clear flags */
@@ -1947,7 +1947,7 @@ static void rcar_mmc_init_host_props(const struct device *dev)
 	case SDHC_BUS_WIDTH8BIT:
 		host_caps->bus_8_bit_support = 1;
 	case SDHC_BUS_WIDTH4BIT:
-		host_caps->bus_4_bit_support = 1;
+		props->bus_4_bit_support = 1;
 	default:
 		break;
 	}
@@ -1958,9 +1958,9 @@ static void rcar_mmc_init_host_props(const struct device *dev)
 	host_caps->sdr50_support = cfg->uhs_support;
 	/* neither Linux nor U-boot support DDR50 mode, that's why we don't support it too */
 	host_caps->ddr50_support = 0;
-	host_caps->hs200_support = cfg->mmc_hs200_1_8v;
+	props->hs200_support = cfg->mmc_hs200_1_8v;
 	/* TODO: add support */
-	host_caps->hs400_support = 0;
+	props->hs400_support = 0;
 #endif
 
 	host_caps->vol_330_support =

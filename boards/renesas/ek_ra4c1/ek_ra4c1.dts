@@ -6,8 +6,8 @@
 /dts-v1/;
 
 #include <renesas/ra/ra4/r7fa4c1bd3cfp.dtsi>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/adc/adc.h>
 #include "ek_ra4c1-pinctrl.dtsi"
 
@@ -164,7 +164,7 @@
 	pinctrl-names = "default";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <DT_FREQ_M(1)>;
+	clock-frequency = <I2C_BITRATE_FAST>;
 	interrupts = <13 1>, <14 1>, <15 1>, <16 1>;
 	interrupt-names = "rxi", "txi", "tei", "eri";
 	status = "okay";

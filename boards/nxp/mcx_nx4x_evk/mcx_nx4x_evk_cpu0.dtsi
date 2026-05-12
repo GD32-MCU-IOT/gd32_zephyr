@@ -23,6 +23,7 @@
 		zephyr,shell-uart = &flexcomm4_lpuart4;
 		zephyr,canbus = &flexcan0;
 		zephyr,code-cpu1-partition = &slot1_partition;
+		zephyr,system-timer-companion = &lptmr0;
 	};
 
 	aliases {
@@ -100,6 +101,19 @@
 
 &flexcomm2_lpi2c2 {
 	status = "okay";
+	pinctrl-0 = <&pinmux_flexcomm2_i2c>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	audio_codec: da7212@1a {
+		compatible = "dlg,da7212";
+		reg = <0x1a>;
+		clocks = <&syscon MCUX_SAI1_CLK>;
+		clock-source = "MCLK";
+		clock-names = "mclk";
+	};
 };
 
 /*
@@ -127,6 +141,10 @@
 };
 
 &flexspi {
+	status = "okay";
+};
+
+&ext_flash_ctrl {
 	status = "okay";
 };
 
@@ -232,5 +250,17 @@ zephyr_udc0: &usb1 {
 };
 
 &sai1 {
+	status = "okay";
+};
+
+&flexpwm0_pwm0 {
+	status = "okay";
+};
+
+&flexpwm0_pwm1 {
+	status = "okay";
+};
+
+&flexpwm0_pwm2 {
 	status = "okay";
 };

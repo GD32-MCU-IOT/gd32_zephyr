@@ -77,10 +77,10 @@ static inline int mxicy_mx25r_post_switch_mode(const struct device *dev)
 	}
 
 	/* Write status and config registers */
-	set_up_xfer(dev, MSPI_TX);
+	set_up_xfer(dev, MSPI_TX, dev_config->control_xfer_mode);
 	dev_data->packet.data_buf  = mxicy_mx25r_hp_payload;
 	dev_data->packet.num_bytes = sizeof(mxicy_mx25r_hp_payload);
-	rc = perform_xfer(dev, SPI_NOR_CMD_WRSR, false);
+	rc = perform_xfer(dev, SPI_NOR_CMD_WRSR);
 	if (rc < 0) {
 		return rc;
 	}
@@ -98,10 +98,10 @@ static inline int mxicy_mx25r_post_switch_mode(const struct device *dev)
 	}
 
 	/* Verify configuration registers */
-	set_up_xfer(dev, MSPI_RX);
+	set_up_xfer(dev, MSPI_RX, dev_config->control_xfer_mode);
 	dev_data->packet.num_bytes = sizeof(config);
 	dev_data->packet.data_buf  = config;
-	rc = perform_xfer(dev, SPI_NOR_CMD_RDCR, false);
+	rc = perform_xfer(dev, SPI_NOR_CMD_RDCR);
 	if (rc < 0) {
 		return rc;
 	}
@@ -154,12 +154,12 @@ static inline int mxicy_mx25u_post_switch_mode(const struct device *dev)
 	}
 
 	/* Write config register 2 */
-	set_up_xfer(dev, MSPI_TX);
+	set_up_xfer(dev, MSPI_TX, dev_config->control_xfer_mode);
 	dev_data->xfer.addr_length = 4;
 	dev_data->packet.address   = 0;
 	dev_data->packet.data_buf  = &opi_enable;
 	dev_data->packet.num_bytes = sizeof(opi_enable);
-	return perform_xfer(dev, SPI_NOR_CMD_WR_CFGREG2, false);
+	return perform_xfer(dev, SPI_NOR_CMD_WR_CFGREG2);
 }
 
 static int mxicy_mx25u_pre_init(const struct device *dev)
@@ -187,12 +187,12 @@ static int mxicy_mx25u_pre_init(const struct device *dev)
 	 */
 
 	/* Read configured number of dummy cycles for memory reading commands. */
-	set_up_xfer(dev, MSPI_RX);
+	set_up_xfer(dev, MSPI_RX, dev_config->control_xfer_mode);
 	dev_data->xfer.addr_length = 4;
 	dev_data->packet.address   = 0x300;
 	dev_data->packet.data_buf  = &cfg_reg;
 	dev_data->packet.num_bytes = sizeof(cfg_reg);
-	rc = perform_xfer(dev, SPI_NOR_CMD_RD_CFGREG2, false);
+	rc = perform_xfer(dev, SPI_NOR_CMD_RD_CFGREG2);
 	if (rc < 0) {
 		LOG_ERR("Failed to read Dummy Cycle from CFGREG2");
 		return rc;

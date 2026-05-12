@@ -143,6 +143,14 @@
 			status = "disabled";
 		};
 
+		wdog1: wdog@30280000 {
+			compatible = "nxp,imx-wdog";
+			reg = <0x30280000 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			status = "disabled";
+		};
+
 		gpt1: gpt@302d0000 {
 			compatible = "nxp,imx-gpt";
 			reg = <0x302d0000 DT_SIZE_K(64)>;
@@ -150,7 +158,7 @@
 			interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			gptfreq = <24000000>;
-			clocks = <&ccm IMX_CCM_GPT_IPG_CLK 0x6C 20>;
+			clocks = <&ccm IMX_CCM_GPT_IPG_CLK 0x6c 20>;
 			status = "disabled";
 		};
 
@@ -173,7 +181,7 @@
 			interrupt-parent = <&gic>;
 			clocks = <&ccm IMX_CCM_UART2_CLK 0x6c 24>;
 			rdc = <(RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW) |
-			       RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
+				RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
 			status = "disabled";
 		};
 
@@ -185,7 +193,7 @@
 			interrupt-parent = <&gic>;
 			clocks = <&ccm IMX_CCM_UART4_CLK 0x6c 24>;
 			rdc = <(RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW) |
-			       RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
+				RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
 			status = "disabled";
 		};
 
@@ -197,9 +205,11 @@
 				     <GIC_SPI 143 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "common", "error";
 			clocks = <&ccm IMX_CCM_CAN1_CLK 0x68 14>;
+			clock-names = "clksrc0";
 			clk-source = <0>;
+			number-of-mb = <64>;
 			rdc = <(RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW) |
-			       RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
+				RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
 			status = "disabled";
 		};
 
@@ -211,9 +221,11 @@
 				     <GIC_SPI 145 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "common", "error";
 			clocks = <&ccm IMX_CCM_CAN2_CLK 0x68 14>;
+			clock-names = "clksrc0";
 			clk-source = <0>;
+			number-of-mb = <64>;
 			rdc = <(RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW) |
-			       RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
+				RDC_DOMAIN_PERM(M7_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
 			status = "disabled";
 		};
 
@@ -290,7 +302,7 @@
 		};
 
 		enet: enet@30be0000 {
-			compatible = "nxp,enet1g";
+			compatible = "nxp,enet";
 			reg = <0x30be0000 DT_SIZE_K(64)>;
 			clocks = <&ccm IMX_CCM_ENET_CLK 0 0>;
 			rdc = <RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW)>;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024 Nordic Semiconductor ASA
+ * Copyright 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -31,6 +32,7 @@ static void test_before(void *f)
 
 	k_sem_reset(&test_sem);
 	zassert_ok(gpio_pin_set_dt(&test_pin, 0));
+	k_msleep(1);
 	zassert_ok(comparator_set_trigger(test_dev, COMPARATOR_TRIGGER_NONE));
 	zassert_ok(comparator_set_trigger_callback(test_dev, NULL, NULL));
 	zassert_between_inclusive(comparator_trigger_is_pending(test_dev), 0, 1);
@@ -91,7 +93,14 @@ ZTEST(comparator_gpio_loopback, test_trigger_falling_edge_pending)
 
 ZTEST(comparator_gpio_loopback, test_trigger_both_edges_pending)
 {
-	zassert_ok(comparator_set_trigger(test_dev, COMPARATOR_TRIGGER_BOTH_EDGES));
+	int rc = comparator_set_trigger(test_dev, COMPARATOR_TRIGGER_BOTH_EDGES);
+
+	if (rc == -ENOTSUP) {
+		/* If driver explicitly doesn't support BOTH — skip the test. */
+		ztest_test_skip();
+	}
+
+	zassert_ok(rc);
 	k_msleep(1);
 	zassert_equal(comparator_trigger_is_pending(test_dev), 0);
 	zassert_ok(gpio_pin_set_dt(&test_pin, 1));

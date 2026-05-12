@@ -1,5 +1,5 @@
 /*
- * Copyright 2017,2021,2023-2025 NXP
+ * Copyright 2017,2021,2023-2026 NXP
  * Copyright (c) 2020 Softube
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -24,6 +24,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util_macro.h>
 
+#include <zephyr/sys/device_mmio.h>
 #include <fsl_lpuart.h>
 #if CONFIG_NXP_LP_FLEXCOMM
 #include <zephyr/drivers/mfd/nxp_lp_flexcomm.h>
@@ -60,7 +61,7 @@ struct lpuart_dma_config {
 #endif /* LPUART_ASYNC_ENABLE */
 
 struct mcux_lpuart_config {
-	LPUART_Type *base;
+	DEVICE_MMIO_ROM;
 	const struct device *clock_dev;
 	const struct pinctrl_dev_config *pincfg;
 	clock_control_subsys_t clock_subsys;
@@ -120,6 +121,7 @@ enum mcux_lpuart_api {
 #endif
 
 struct mcux_lpuart_data {
+	DEVICE_MMIO_RAM;
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_callback_user_data_t callback;
 	void *cb_data;
@@ -138,6 +140,11 @@ struct mcux_lpuart_data {
 #endif
 };
 
+static inline LPUART_Type *get_base(const struct device *dev)
+{
+	return (LPUART_Type *)DEVICE_MMIO_GET(dev);
+}
+
 #ifdef CONFIG_PM
 static void mcux_lpuart_pm_policy_state_lock_get(const struct device *dev)
 {
@@ -146,6 +153,7 @@ static void mcux_lpuart_pm_policy_state_lock_get(const struct device *dev)
 	if (!data->pm_state_lock_on) {
 		data->pm_state_lock_on = true;
 		pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
+		pm_policy_state_lock_get(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 	}
 }
 
@@ -156,18 +164,18 @@ static void mcux_lpuart_pm_policy_state_lock_put(const struct device *dev)
 	if (data->pm_state_lock_on) {
 		data->pm_state_lock_on = false;
 		pm_policy_state_lock_put(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
+		pm_policy_state_lock_put(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 	}
 }
 #endif /* CONFIG_PM */
 
 static int mcux_lpuart_poll_in(const struct device *dev, unsigned char *c)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-	uint32_t flags = LPUART_GetStatusFlags(config->base);
+	uint32_t flags = LPUART_GetStatusFlags(get_base(dev));
 	int ret = -1;
 
 	if (flags & kLPUART_RxDataRegFullFlag) {
-		*c = LPUART_ReadByte(config->base);
+		*c = LPUART_ReadByte(get_base(dev));
 		ret = 0;
 	}
 
@@ -176,13 +184,12 @@ static int mcux_lpuart_poll_in(const struct device *dev, unsigned char *c)
 
 static void mcux_lpuart_poll_out(const struct device *dev, unsigned char c)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	unsigned int key;
 #ifdef CONFIG_PM
 	struct mcux_lpuart_data *data = dev->data;
 #endif
 
-	while (!(LPUART_GetStatusFlags(config->base)
+	while (!(LPUART_GetStatusFlags(get_base(dev))
 		& LPUART_STAT_TDRE_MASK)) {
 	}
 	/* Lock interrupts while we send data */
@@ -198,20 +205,19 @@ static void mcux_lpuart_poll_out(const struct device *dev, unsigned char c)
 		data->tx_poll_stream_on = true;
 		mcux_lpuart_pm_policy_state_lock_get(dev);
 		/* Enable TC interrupt */
-		LPUART_EnableInterrupts(config->base,
+		LPUART_EnableInterrupts(get_base(dev),
 			kLPUART_TransmissionCompleteInterruptEnable);
 
 	}
 #endif /* CONFIG_PM */
 
-	LPUART_WriteByte(config->base, c);
+	LPUART_WriteByte(get_base(dev), c);
 	irq_unlock(key);
 }
 
 static int mcux_lpuart_err_check(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-	uint32_t flags = LPUART_GetStatusFlags(config->base);
+	uint32_t flags = LPUART_GetStatusFlags(get_base(dev));
 	int err = 0;
 
 	if (flags & kLPUART_RxOverrunFlag) {
@@ -230,7 +236,7 @@ static int mcux_lpuart_err_check(const struct device *dev)
 		err |= UART_ERROR_PARITY;
 	}
 
-	LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag |
+	LPUART_ClearStatusFlags(get_base(dev), kLPUART_RxOverrunFlag |
 					      kLPUART_ParityErrorFlag |
 					      kLPUART_FramingErrorFlag |
 						  kLPUART_NoiseErrorFlag);
@@ -243,14 +249,13 @@ static int mcux_lpuart_fifo_fill(const struct device *dev,
 				 const uint8_t *tx_data,
 				 int len)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	int num_tx = 0U;
 
 	while ((len - num_tx > 0) &&
-	       (LPUART_GetStatusFlags(config->base)
+	       (LPUART_GetStatusFlags(get_base(dev))
 		& LPUART_STAT_TDRE_MASK)) {
 
-		LPUART_WriteByte(config->base, tx_data[num_tx++]);
+		LPUART_WriteByte(get_base(dev), tx_data[num_tx++]);
 	}
 	return num_tx;
 }
@@ -258,14 +263,13 @@ static int mcux_lpuart_fifo_fill(const struct device *dev,
 static int mcux_lpuart_fifo_read(const struct device *dev, uint8_t *rx_data,
 				 const int len)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	int num_rx = 0U;
 
 	while ((len - num_rx > 0) &&
-	       (LPUART_GetStatusFlags(config->base)
+	       (LPUART_GetStatusFlags(get_base(dev))
 		& kLPUART_RxDataRegFullFlag)) {
 
-		rx_data[num_rx++] = LPUART_ReadByte(config->base);
+		rx_data[num_rx++] = LPUART_ReadByte(get_base(dev));
 	}
 
 	return num_rx;
@@ -273,7 +277,6 @@ static int mcux_lpuart_fifo_read(const struct device *dev, uint8_t *rx_data,
 
 static void mcux_lpuart_irq_tx_enable(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_TxDataRegEmptyInterruptEnable;
 #ifdef CONFIG_PM
 	struct mcux_lpuart_data *data = dev->data;
@@ -285,12 +288,12 @@ static void mcux_lpuart_irq_tx_enable(const struct device *dev)
 	data->tx_poll_stream_on = false;
 	data->tx_int_stream_on = true;
 	/* Transmission complete interrupt no longer required */
-	LPUART_DisableInterrupts(config->base,
+	LPUART_DisableInterrupts(get_base(dev),
 		kLPUART_TransmissionCompleteInterruptEnable);
 	/* Do not allow system to sleep while UART tx is ongoing */
 	mcux_lpuart_pm_policy_state_lock_get(dev);
 #endif
-	LPUART_EnableInterrupts(config->base, mask);
+	LPUART_EnableInterrupts(get_base(dev), mask);
 #ifdef CONFIG_PM
 	irq_unlock(key);
 #endif
@@ -298,7 +301,6 @@ static void mcux_lpuart_irq_tx_enable(const struct device *dev)
 
 static void mcux_lpuart_irq_tx_disable(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_TxDataRegEmptyInterruptEnable;
 #ifdef CONFIG_PM
 	struct mcux_lpuart_data *data = dev->data;
@@ -307,7 +309,7 @@ static void mcux_lpuart_irq_tx_disable(const struct device *dev)
 	key = irq_lock();
 #endif
 
-	LPUART_DisableInterrupts(config->base, mask);
+	LPUART_DisableInterrupts(get_base(dev), mask);
 #ifdef CONFIG_PM
 	data->tx_int_stream_on = false;
 	/*
@@ -321,73 +323,65 @@ static void mcux_lpuart_irq_tx_disable(const struct device *dev)
 
 static int mcux_lpuart_irq_tx_complete(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-	uint32_t flags = LPUART_GetStatusFlags(config->base);
+	uint32_t flags = LPUART_GetStatusFlags(get_base(dev));
 
 	return (flags & kLPUART_TransmissionCompleteFlag) != 0U;
 }
 
 static int mcux_lpuart_irq_tx_ready(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_TxDataRegEmptyInterruptEnable;
-	uint32_t flags = LPUART_GetStatusFlags(config->base);
+	uint32_t flags = LPUART_GetStatusFlags(get_base(dev));
 
-	return (LPUART_GetEnabledInterrupts(config->base) & mask)
+	return (LPUART_GetEnabledInterrupts(get_base(dev)) & mask)
 		&& (flags & LPUART_STAT_TDRE_MASK);
 }
 
 static void mcux_lpuart_irq_rx_enable(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_RxDataRegFullInterruptEnable | kLPUART_RxOverrunInterruptEnable;
 
-	LPUART_EnableInterrupts(config->base, mask);
+	LPUART_EnableInterrupts(get_base(dev), mask);
 }
 
 static void mcux_lpuart_irq_rx_disable(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_RxDataRegFullInterruptEnable | kLPUART_RxOverrunInterruptEnable;
 
-	LPUART_DisableInterrupts(config->base, mask);
+	LPUART_DisableInterrupts(get_base(dev), mask);
 }
 
 static int mcux_lpuart_irq_rx_full(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-	uint32_t flags = LPUART_GetStatusFlags(config->base);
+	uint32_t flags = LPUART_GetStatusFlags(get_base(dev));
 
 	return (flags & kLPUART_RxDataRegFullFlag) != 0U;
 }
 
 static int mcux_lpuart_irq_rx_pending(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_RxDataRegFullInterruptEnable;
 
-	return (LPUART_GetEnabledInterrupts(config->base) & mask)
+	return (LPUART_GetEnabledInterrupts(get_base(dev)) & mask)
 		&& mcux_lpuart_irq_rx_full(dev);
 }
 
 static void mcux_lpuart_irq_err_enable(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_NoiseErrorInterruptEnable |
 			kLPUART_FramingErrorInterruptEnable |
 			kLPUART_ParityErrorInterruptEnable;
 
-	LPUART_EnableInterrupts(config->base, mask);
+	LPUART_EnableInterrupts(get_base(dev), mask);
 }
 
 static void mcux_lpuart_irq_err_disable(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_NoiseErrorInterruptEnable |
 			kLPUART_FramingErrorInterruptEnable |
 			kLPUART_ParityErrorInterruptEnable;
 
-	LPUART_DisableInterrupts(config->base, mask);
+	LPUART_DisableInterrupts(get_base(dev), mask);
 }
 
 static int mcux_lpuart_irq_is_pending(const struct device *dev)
@@ -468,19 +462,37 @@ static void async_evt_rx_rdy(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = dev->data;
 	struct mcux_lpuart_rx_dma_params *dma_params = &data->async.rx_dma_params;
+	unsigned int key;
+	uint8_t *buf;
+	size_t counter;
+	size_t offset;
+	size_t len;
+
+	/*
+	 * Snapshot buf/counter/offset under irq_lock() (ISR + workqueue update rx_dma_params).
+	 * Locals ensure len = counter - offset uses a consistent view (prevents underflow).
+	 * Keep lock short: snapshot + offset update only; log/callback outside critical section.
+	 */
+	key = irq_lock();
+	buf = dma_params->buf;
+	counter = dma_params->counter;
+	offset = dma_params->offset;
+
+	len = counter - offset;
+
+	/* Update the current pos for new data */
+	dma_params->offset = counter;
+	irq_unlock(key);
 
 	struct uart_event event = {
 		.type = UART_RX_RDY,
-		.data.rx.buf = dma_params->buf,
-		.data.rx.len = dma_params->counter - dma_params->offset,
-		.data.rx.offset = dma_params->offset
+		.data.rx.buf = buf,
+		.data.rx.len = len,
+		.data.rx.offset = offset
 	};
 
-	LOG_DBG("RX Ready: (len: %d off: %d buf: %x)", event.data.rx.len, event.data.rx.offset,
-		(uint32_t)event.data.rx.buf);
-
-	/* Update the current pos for new data */
-	dma_params->offset = dma_params->counter;
+	LOG_DBG("RX Ready: (len: %zu off: %zu buf: %p)", event.data.rx.len,
+		event.data.rx.offset, event.data.rx.buf);
 
 	/* Only send event for new data */
 	if (event.data.rx.len > 0) {
@@ -500,16 +512,33 @@ static void async_evt_rx_buf_request(const struct device *dev)
 static void async_evt_rx_buf_release(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
+	unsigned int key;
+	uint8_t *released_buf;
+
+	/* Snapshot the buffer pointer atomically for the event payload. */
+	key = irq_lock();
+	released_buf = data->async.rx_dma_params.buf;
+	irq_unlock(key);
+
 	struct uart_event evt = {
 		.type = UART_RX_BUF_RELEASED,
-		.data.rx_buf.buf = data->async.rx_dma_params.buf,
+		.data.rx_buf.buf = released_buf,
 	};
 
 	async_user_callback(dev, &evt);
-	data->async.rx_dma_params.buf = NULL;
-	data->async.rx_dma_params.buf_len = 0U;
-	data->async.rx_dma_params.offset = 0U;
-	data->async.rx_dma_params.counter = 0U;
+
+	/*
+	 * Clear RX state, but avoid clobbering a new buffer if RX was restarted or
+	 * swapped concurrently.
+	 */
+	key = irq_lock();
+	if (data->async.rx_dma_params.buf == released_buf) {
+		data->async.rx_dma_params.buf = NULL;
+		data->async.rx_dma_params.buf_len = 0U;
+		data->async.rx_dma_params.offset = 0U;
+		data->async.rx_dma_params.counter = 0U;
+	}
+	irq_unlock(key);
 }
 
 static void mcux_lpuart_async_rx_flush(const struct device *dev)
@@ -523,14 +552,36 @@ static void mcux_lpuart_async_rx_flush(const struct device *dev)
 						     &status);
 
 	if (get_status_result == 0) {
-		const size_t rx_rcv_len = data->async.rx_dma_params.buf_len -
-					  status.pending_length;
+		size_t buf_len;
+		size_t counter;
+		size_t rx_rcv_len;
+		bool notify = false;
+		unsigned int key;
 
-		if (rx_rcv_len > data->async.rx_dma_params.counter && status.pending_length) {
-			data->async.rx_dma_params.counter = rx_rcv_len;
+		key = irq_lock();
+		buf_len = data->async.rx_dma_params.buf_len;
+		counter = data->async.rx_dma_params.counter;
+		irq_unlock(key);
+
+		if (buf_len >= status.pending_length) {
+			rx_rcv_len = buf_len - status.pending_length;
+
+			if (status.pending_length && rx_rcv_len > counter) {
+				key = irq_lock();
+				if (rx_rcv_len > data->async.rx_dma_params.counter) {
+					data->async.rx_dma_params.counter = rx_rcv_len;
+					notify = true;
+				}
+				irq_unlock(key);
+			}
+		} else {
+			LOG_WRN("RX DMA status pending_length > buf_len (%u > %zu)",
+				status.pending_length, buf_len);
+		}
+
+		if (notify) {
 			async_evt_rx_rdy(dev);
 		}
-		LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag);
 	} else {
 		LOG_ERR("Error getting DMA status");
 	}
@@ -541,13 +592,21 @@ static int mcux_lpuart_rx_disable(const struct device *dev)
 	LOG_INF("Disabling UART RX DMA");
 	const struct mcux_lpuart_config *config = dev->config;
 	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 	const unsigned int key = irq_lock();
 
 	LPUART_EnableRx(lpuart, false);
 	(void)k_work_cancel_delayable(&data->async.rx_dma_params.timeout_work);
-	LPUART_DisableInterrupts(lpuart, kLPUART_IdleLineInterruptEnable);
-	LPUART_ClearStatusFlags(lpuart, kLPUART_IdleLineFlag);
+	LPUART_DisableInterrupts(lpuart, kLPUART_IdleLineInterruptEnable |
+					 kLPUART_RxOverrunInterruptEnable |
+					 kLPUART_NoiseErrorInterruptEnable |
+					 kLPUART_FramingErrorInterruptEnable |
+					 kLPUART_ParityErrorInterruptEnable);
+	LPUART_ClearStatusFlags(lpuart, kLPUART_IdleLineFlag |
+					kLPUART_RxOverrunFlag |
+					kLPUART_ParityErrorFlag |
+					kLPUART_FramingErrorFlag |
+					kLPUART_NoiseErrorFlag);
 	LPUART_EnableRxDMA(lpuart, false);
 
 	/* No active RX buffer, cannot disable */
@@ -564,6 +623,7 @@ static int mcux_lpuart_rx_disable(const struct device *dev)
 			/* Release the next buffer as well */
 			async_evt_rx_buf_release(dev);
 		}
+		data->async.rx_dma_params.buf = NULL;
 	}
 	const int ret = dma_stop(config->rx_dma_config.dma_dev,
 				 config->rx_dma_config.dma_channel);
@@ -584,8 +644,7 @@ static int mcux_lpuart_rx_disable(const struct device *dev)
 static void prepare_rx_dma_block_config(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
-	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 	struct mcux_lpuart_rx_dma_params *rx_dma_params = &data->async.rx_dma_params;
 
 	assert(rx_dma_params->buf != NULL);
@@ -626,7 +685,7 @@ static int uart_mcux_lpuart_dma_replace_rx_buffer(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
 	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 
 	LOG_DBG("Replacing RX buffer, new length: %d", data->async.next_rx_buffer_len);
 	/* There must be a buffer to replace this one with */
@@ -650,7 +709,7 @@ static void dma_callback(const struct device *dma_dev, void *callback_arg, uint3
 {
 	struct device *dev = (struct device *)callback_arg;
 	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
 
 	LOG_DBG("DMA call back on channel %d", channel);
@@ -737,20 +796,26 @@ static int mcux_lpuart_tx(const struct device *dev, const uint8_t *buf, size_t l
 {
 	struct mcux_lpuart_data *data = dev->data;
 	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 
 	unsigned int key = irq_lock();
 
-	/* Check for an ongiong transfer and abort if it is pending */
+	/* If a previous transfer is still in progress, the async UART API requires -EBUSY. */
 	struct dma_status status;
 	const int get_status_result = dma_get_status(config->tx_dma_config.dma_dev,
 						     config->tx_dma_config.dma_channel,
 						     &status);
 
-	if (get_status_result < 0 || status.busy) {
+	if (get_status_result < 0) {
 		irq_unlock(key);
-		LOG_ERR("Unable to submit UART DMA Transfer.");
-		return get_status_result < 0 ? get_status_result : -EBUSY;
+		LOG_ERR("Failed to get DMA(Tx) status (%d)", get_status_result);
+		return get_status_result;
+	}
+
+	if (status.busy) {
+		irq_unlock(key);
+		LOG_DBG("UART TX busy (DMA ch %u)", config->tx_dma_config.dma_channel);
+		return -EBUSY;
 	}
 
 	int ret;
@@ -791,7 +856,7 @@ static int mcux_lpuart_tx_abort(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = dev->data;
 	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 
 	LPUART_EnableTxDMA(lpuart, false);
 	(void)k_work_cancel_delayable(&data->async.tx_dma_params.timeout_work);
@@ -826,7 +891,7 @@ static int mcux_lpuart_rx_enable(const struct device *dev, uint8_t *buf, const s
 	LOG_DBG("Enabling UART RX DMA");
 	struct mcux_lpuart_data *data = dev->data;
 	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = config->base;
+	LPUART_Type *lpuart = get_base(dev);
 
 	struct mcux_lpuart_rx_dma_params *rx_dma_params = &data->async.rx_dma_params;
 
@@ -836,19 +901,31 @@ static int mcux_lpuart_rx_enable(const struct device *dev, uint8_t *buf, const s
 						     config->rx_dma_config.dma_channel,
 						     &status);
 
-	if (get_status_result < 0 || status.busy) {
-		LOG_ERR("Unable to start receive on UART.");
+	if (get_status_result < 0) {
 		irq_unlock(key);
-		return get_status_result < 0 ? get_status_result : -EBUSY;
+		LOG_ERR("Failed to get DMA(Rx) status (%d)", get_status_result);
+		return get_status_result;
+	}
+
+	if (status.busy) {
+		irq_unlock(key);
+		LOG_DBG("UART RX busy (DMA ch %u)", config->rx_dma_config.dma_channel);
+		return -EBUSY;
 	}
 
 	rx_dma_params->timeout_us = timeout_us;
 	rx_dma_params->buf = buf;
 	rx_dma_params->buf_len = len;
+	rx_dma_params->offset = 0U;
+	rx_dma_params->counter = 0U;
 	data->async.next_rx_buffer = NULL;
 	data->async.next_rx_buffer_len = 0U;
 
-	LPUART_EnableInterrupts(config->base, kLPUART_IdleLineInterruptEnable);
+	LPUART_EnableInterrupts(get_base(dev), kLPUART_IdleLineInterruptEnable |
+					      kLPUART_RxOverrunInterruptEnable |
+					      kLPUART_NoiseErrorInterruptEnable |
+					      kLPUART_FramingErrorInterruptEnable |
+					      kLPUART_ParityErrorInterruptEnable);
 	prepare_rx_dma_block_config(dev);
 	const int ret = configure_and_start_rx_dma(config, data, lpuart);
 
@@ -856,7 +933,7 @@ static int mcux_lpuart_rx_enable(const struct device *dev, uint8_t *buf, const s
 	async_evt_rx_buf_request(dev);
 
 	/* Clear these status flags as they can prevent the UART device from receiving data */
-	LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag |
+	LPUART_ClearStatusFlags(get_base(dev), kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag |
 							kLPUART_FramingErrorFlag |
 							kLPUART_NoiseErrorFlag);
 	LPUART_EnableRx(lpuart, true);
@@ -923,23 +1000,58 @@ static inline void mcux_lpuart_irq_driven_isr(const struct device *dev,
 	}
 
 	if (status & kLPUART_RxOverrunFlag) {
-		LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag);
+		LPUART_ClearStatusFlags(get_base(dev), kLPUART_RxOverrunFlag);
 	}
 }
 #endif
 
 #if LPUART_ASYNC_ENABLE
-static inline void mcux_lpuart_async_isr(struct mcux_lpuart_data *data,
-					      const struct mcux_lpuart_config *config,
-					      const uint32_t status) {
+static inline void mcux_lpuart_async_isr(const struct device *dev,
+					 struct mcux_lpuart_data *data,
+					 const struct mcux_lpuart_config *config,
+					 const uint32_t status) {
+	/*
+	 * Handle RX errors first — they stop reception, making idle-line
+	 * processing pointless.  Per the async UART API contract,
+	 * UART_RX_STOPPED must be followed by UART_RX_BUF_RELEASED (for
+	 * each buffer) and UART_RX_DISABLED.  mcux_lpuart_rx_disable()
+	 * provides that full teardown sequence.
+	 */
+	if (status & (kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag |
+		      kLPUART_FramingErrorFlag | kLPUART_NoiseErrorFlag)) {
+		enum uart_rx_stop_reason reason = 0;
+
+		if (status & kLPUART_RxOverrunFlag) {
+			reason |= UART_ERROR_OVERRUN;
+		}
+		if (status & kLPUART_ParityErrorFlag) {
+			reason |= UART_ERROR_PARITY;
+		}
+		if (status & kLPUART_FramingErrorFlag) {
+			reason |= UART_ERROR_FRAMING;
+		}
+		if (status & kLPUART_NoiseErrorFlag) {
+			reason |= UART_ERROR_NOISE;
+		}
+
+		LPUART_ClearStatusFlags(get_base(dev), kLPUART_RxOverrunFlag |
+						      kLPUART_ParityErrorFlag |
+						      kLPUART_FramingErrorFlag |
+						      kLPUART_NoiseErrorFlag);
+
+		struct uart_event event = {
+			.type = UART_RX_STOPPED,
+			.data.rx_stop.reason = reason,
+		};
+		async_user_callback(dev, &event);
+		mcux_lpuart_rx_disable(dev);
+		return;
+	}
+
 	if (status & kLPUART_IdleLineFlag) {
 		async_timer_start(&data->async.rx_dma_params.timeout_work,
 				  data->async.rx_dma_params.timeout_us);
-		LPUART_ClearStatusFlags(config->base, kLPUART_IdleLineFlag);
-	}
-
-	if (status & kLPUART_RxOverrunFlag) {
-		LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag);
+		LPUART_ClearStatusFlags(get_base(dev), kLPUART_IdleLineFlag);
 	}
 }
 #endif
@@ -947,15 +1059,18 @@ static inline void mcux_lpuart_async_isr(struct mcux_lpuart_data *data,
 static void mcux_lpuart_isr(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = dev->data;
+	const uint32_t status = LPUART_GetStatusFlags(get_base(dev));
+
+#if LPUART_ASYNC_ENABLE || defined(CONFIG_UART_INTERRUPT_DRIVEN)
 	const struct mcux_lpuart_config *config = dev->config;
-	const uint32_t status = LPUART_GetStatusFlags(config->base);
+#endif
 
 #if CONFIG_PM
 	if (status & kLPUART_TransmissionCompleteFlag) {
 
 		if (data->tx_poll_stream_on) {
 			/* Poll transmission complete. Allow system to sleep */
-			LPUART_DisableInterrupts(config->base,
+			LPUART_DisableInterrupts(get_base(dev),
 				kLPUART_TransmissionCompleteInterruptEnable);
 			data->tx_poll_stream_on = false;
 			mcux_lpuart_pm_policy_state_lock_put(dev);
@@ -967,12 +1082,12 @@ static void mcux_lpuart_isr(const struct device *dev)
 	if (data->api_type == LPUART_IRQ_DRIVEN) {
 		mcux_lpuart_irq_driven_isr(dev, data, config, status);
 	} else if (data->api_type == LPUART_ASYNC) {
-		mcux_lpuart_async_isr(data, config, status);
+		mcux_lpuart_async_isr(dev, data, config, status);
 	}
 #elif defined(CONFIG_UART_INTERRUPT_DRIVEN)
 	mcux_lpuart_irq_driven_isr(dev, data, config, status);
 #elif LPUART_ASYNC_ENABLE
-	mcux_lpuart_async_isr(data, config, status);
+	mcux_lpuart_async_isr(dev, data, config, status);
 #endif /* API */
 }
 #endif /* CONFIG_UART_MCUX_LPUART_ISR_SUPPORT */
@@ -1107,7 +1222,6 @@ static int mcux_lpuart_configure_basic(const struct device *dev, const struct ua
 #if LPUART_ASYNC_ENABLE
 static int mcux_lpuart_configure_async(const struct device *dev)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	struct mcux_lpuart_data *data = dev->data;
 	lpuart_config_t uart_config;
 	int ret;
@@ -1134,8 +1248,8 @@ static int mcux_lpuart_configure_async(const struct device *dev)
 	 */
 	uart_config.enableRx = false;
 	/* Clearing the fifo of any junk received before the async rx enable was called */
-	while (LPUART_GetRxFifoCount(config->base) > 0) {
-		LPUART_ReadByte(config->base);
+	while (LPUART_GetRxFifoCount(get_base(dev)) > 0) {
+		LPUART_ReadByte(get_base(dev));
 	}
 
 	return 0;
@@ -1154,9 +1268,14 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 		return -ENODEV;
 	}
 
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
-				   &clock_freq)) {
-		return -EINVAL;
+	ret = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
+	if (ret != 0) {
+		/* Check if error is due to lack of support */
+		if (ret != -ENOSYS) {
+			/* Real error occurred */
+			LOG_ERR("Failed to configure clock: %d", ret);
+			return ret;
+		}
 	}
 
 	LPUART_GetDefaultConfig(&uart_config);
@@ -1166,26 +1285,38 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 		return ret;
 	}
 
-	LPUART_Init(config->base, &uart_config, clock_freq);
+	ret = clock_control_on(config->clock_dev, config->clock_subsys);
+	if (ret) {
+		return ret;
+	}
+
+	ret = clock_control_get_rate(config->clock_dev, config->clock_subsys,
+								&clock_freq);
+	if (ret) {
+		LOG_ERR("Failed to get clock rate: %d", ret);
+		return -EINVAL;
+	}
+
+	LPUART_Init(get_base(dev), &uart_config, clock_freq);
 
 #ifdef LPUART_HAS_MODEM
 	if (cfg->flow_ctrl == UART_CFG_FLOW_CTRL_RS485) {
 		/* Set the LPUART into RS485 mode (tx driver enable using RTS) */
-		config->base->MODIR |= LPUART_MODIR_TXRTSE(true);
+		get_base(dev)->MODIR |= LPUART_MODIR_TXRTSE(true);
 		if (!config->rs485_de_active_low) {
-			config->base->MODIR |= LPUART_MODIR_TXRTSPOL(1);
+			get_base(dev)->MODIR |= LPUART_MODIR_TXRTSPOL(1);
 		}
 	}
 #endif
 
 	/* Now can enable tx */
-	config->base->CTRL |= LPUART_CTRL_TE(true);
+	get_base(dev)->CTRL |= LPUART_CTRL_TE(true);
 
 
 	if (config->loopback_en) {
 		/* Set the LPUART into loopback mode */
-		config->base->CTRL |= LPUART_CTRL_LOOPS_MASK;
-		config->base->CTRL &= ~LPUART_CTRL_RSRC_MASK;
+		get_base(dev)->CTRL |= LPUART_CTRL_LOOPS_MASK;
+		get_base(dev)->CTRL &= ~LPUART_CTRL_RSRC_MASK;
 	} else if (config->single_wire) {
 		/* Enable the single wire / half-duplex mode, only possible when
 		 * loopback is disabled. We need a critical section to prevent
@@ -1193,20 +1324,20 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 		 */
 		unsigned int key = irq_lock();
 
-		config->base->CTRL |= (LPUART_CTRL_LOOPS_MASK | LPUART_CTRL_RSRC_MASK);
+		get_base(dev)->CTRL |= (LPUART_CTRL_LOOPS_MASK | LPUART_CTRL_RSRC_MASK);
 		irq_unlock(key);
 	} else {
 #ifdef LPUART_CTRL_TXINV
 		/* Only invert TX in full-duplex mode */
 		if (config->tx_invert) {
-			config->base->CTRL |= LPUART_CTRL_TXINV(1);
+			get_base(dev)->CTRL |= LPUART_CTRL_TXINV(1);
 		}
 #endif
 	}
 
 #ifdef LPUART_STAT_RXINV
 	if (config->rx_invert) {
-		config->base->STAT |= LPUART_STAT_RXINV(1);
+		get_base(dev)->STAT |= LPUART_STAT_RXINV(1);
 	}
 #endif
 
@@ -1227,13 +1358,11 @@ static int mcux_lpuart_config_get(const struct device *dev, struct uart_config *
 static int mcux_lpuart_configure(const struct device *dev,
 				 const struct uart_config *cfg)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-
 	/* Make sure that RSRC is de-asserted otherwise deinit will hang. */
-	config->base->CTRL &= ~LPUART_CTRL_RSRC_MASK;
+	get_base(dev)->CTRL &= ~LPUART_CTRL_RSRC_MASK;
 
 	/* disable LPUART */
-	LPUART_Deinit(config->base);
+	LPUART_Deinit(get_base(dev));
 
 	int ret = mcux_lpuart_configure_init(dev, cfg);
 	if (ret) {
@@ -1251,24 +1380,23 @@ static int mcux_lpuart_configure(const struct device *dev,
 #if LPUART_HAS_MODEM
 static void mcux_lpuart_line_ctrl_set_rts(const struct device *dev, uint32_t val)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-	uint32_t old_ctrl = config->base->CTRL;
+	uint32_t old_ctrl = get_base(dev)->CTRL;
 
 	/* Disable Transmitter and Receiver */
-	config->base->CTRL &= ~(LPUART_CTRL_TE_MASK | LPUART_CTRL_RE_MASK);
+	get_base(dev)->CTRL &= ~(LPUART_CTRL_TE_MASK | LPUART_CTRL_RE_MASK);
 
 	if (val >= 1U) {
 		/* Reset TXRTS to set RXRTSE bit, this provides high-level on RTS line */
-		config->base->MODIR &= ~(LPUART_MODIR_TXRTSPOL_MASK | LPUART_MODIR_TXRTSE_MASK);
-		config->base->MODIR |= LPUART_MODIR_RXRTSE_MASK;
+		get_base(dev)->MODIR &= ~(LPUART_MODIR_TXRTSPOL_MASK | LPUART_MODIR_TXRTSE_MASK);
+		get_base(dev)->MODIR |= LPUART_MODIR_RXRTSE_MASK;
 	} else {
 		/* Set TXRTSE to reset RXRTSE bit,this provide low-level on RTS line*/
-		config->base->MODIR &= ~(LPUART_MODIR_RXRTSE_MASK);
-		config->base->MODIR |= (LPUART_MODIR_TXRTSPOL_MASK | LPUART_MODIR_TXRTSE_MASK);
+		get_base(dev)->MODIR &= ~(LPUART_MODIR_RXRTSE_MASK);
+		get_base(dev)->MODIR |= (LPUART_MODIR_TXRTSPOL_MASK | LPUART_MODIR_TXRTSE_MASK);
 	}
 
 	/* Restore Transmitter and Receiver */
-	config->base->CTRL = old_ctrl;
+	get_base(dev)->CTRL = old_ctrl;
 }
 #else
 #define mcux_lpuart_line_ctrl_set_rts(dev, val) ret = -ENOTSUP
@@ -1277,14 +1405,12 @@ static void mcux_lpuart_line_ctrl_set_rts(const struct device *dev, uint32_t val
 #if LPUART_HAS_MCR
 static void mcux_lpuart_set_dtr(const struct device *dev, uint32_t val)
 {
-	const struct mcux_lpuart_config *config = dev->config;
-
 	if (val >= 1U) {
 		/* assert DTR_b */
-		config->base->MCR &= ~LPUART_MCR_DTR_MASK;
+		get_base(dev)->MCR &= ~LPUART_MCR_DTR_MASK;
 	} else {
 		/* deassert DTR_b */
-		config->base->MCR |= LPUART_MCR_DTR_MASK;
+		get_base(dev)->MCR |= LPUART_MCR_DTR_MASK;
 	}
 }
 #else
@@ -1316,16 +1442,15 @@ static int mcux_lpuart_line_ctrl_set(const struct device *dev,
 static int mcux_lpuart_line_ctrl_get(const struct device *dev,
 	uint32_t ctrl, uint32_t *val)
 {
-	const struct mcux_lpuart_config *config = dev->config;
 	int ret = 0;
 
 	switch (ctrl) {
 	case UART_LINE_CTRL_DSR:
-		*val = (config->base->MSR & LPUART_MSR_DSR_MASK) >> LPUART_MSR_DSR_SHIFT;
+		*val = (get_base(dev)->MSR & LPUART_MSR_DSR_MASK) >> LPUART_MSR_DSR_SHIFT;
 		break;
 
 	case UART_LINE_CTRL_DCD:
-		*val = (config->base->MSR & LPUART_MSR_DCD_MASK) >> LPUART_MSR_DCD_SHIFT;
+		*val = (get_base(dev)->MSR & LPUART_MSR_DCD_MASK) >> LPUART_MSR_DCD_SHIFT;
 		break;
 
 	default:
@@ -1349,6 +1474,8 @@ static int mcux_lpuart_init(const struct device *dev)
 	struct mcux_lpuart_data *data = dev->data;
 	struct uart_config *uart_api_config = &data->uart_config;
 	int err;
+
+	DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
 
 	uart_api_config->baudrate = config->baud_rate;
 	uart_api_config->parity = config->parity;
@@ -1516,9 +1643,11 @@ static DEVICE_API(uart, mcux_lpuart_driver_api) = {
 
 #define LPUART_MCUX_DECLARE_CFG(n)                                      \
 static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
-	.base = (LPUART_Type *) DT_INST_REG_ADDR(n),                          \
+	DEVICE_MMIO_ROM_INIT(DT_DRV_INST(n)),                                 \
 	.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                   \
-	.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),	\
+	.clock_subsys = (clock_control_subsys_t)COND_CODE_1(                  \
+		DT_PHA_HAS_CELL(DT_DRV_INST(n), clocks, name),                \
+		(DT_INST_CLOCKS_CELL(n, name)), (0U)),                        \
 	.baud_rate = DT_INST_PROP(n, current_speed),                          \
 	.flow_ctrl = FLOW_CONTROL(n),                                         \
 	.parity = DT_INST_ENUM_IDX(n, parity),                                \

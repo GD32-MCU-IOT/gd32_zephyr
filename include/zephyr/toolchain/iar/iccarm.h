@@ -77,6 +77,19 @@
 #include <zephyr/toolchain/common.h>
 #include <stdbool.h>
 
+/* common.h defines ALWAYS_INLINE as inline __attribute__((always_inline)).
+ * IAR emits Go004 ("function cannot be inlined") for ALWAYS_INLINE functions
+ * when optimization is disabled (e.g. debug builds). This is expected and
+ * unavoidable. Override the macro here to silence Go004 at each call site
+ * via the C99 _Pragma operator, removing the need for per-function guard
+ * pairs throughout the codebase.
+ */
+#ifndef CONFIG_COVERAGE
+#undef ALWAYS_INLINE
+#define ALWAYS_INLINE \
+	_Pragma("diag_suppress=Go004") inline __attribute__((always_inline))
+#endif
+
 #define ALIAS_OF(of) __attribute__((alias(#of)))
 
 #define FUNC_ALIAS(real_func, new_alias, return_type) \
@@ -121,10 +134,14 @@ do {                                                                    \
 				"." Z_STRINGIFY(c))))
 #define __in_section(a, b, c) ___in_section(a, b, c)
 
-#define __in_section_unique(seg) ___in_section(seg, __FILE__, __COUNTER__)
+#define ___in_section_unique(a, b) \
+	__attribute__((section("." Z_STRINGIFY(a)		\
+				"." __FILE__			\
+				"." Z_STRINGIFY(b))))
 
-#define __in_section_unique_named(seg, name) \
-	___in_section(seg, __FILE__, name)
+#define __in_section_unique(seg) ___in_section_unique(seg, __COUNTER__)
+
+#define __in_section_unique_named(seg, name) ___in_section_unique(seg, name)
 
 /* When using XIP, using '__ramfunc' places a function into RAM instead
  * of FLASH. Make sure '__ramfunc' is defined only when
@@ -248,7 +265,7 @@ do {                                                                    \
 #define __WARN1(s) __PRAGMA(message = #s)
 
 /* Generic message */
-#ifndef CONFIG_DEPRECATION_TEST
+#if !(defined(CONFIG_DEPRECATION_TEST) || !defined(CONFIG_WARN_DEPRECATED))
 #define __DEPRECATED_MACRO __WARN("Macro is deprecated")
 #else
 #define __DEPRECATED_MACRO

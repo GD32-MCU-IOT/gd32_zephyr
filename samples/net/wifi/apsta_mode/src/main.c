@@ -34,7 +34,7 @@ BUILD_ASSERT(sizeof(CONFIG_WIFI_SAMPLE_AP_SSID) > 1,
 BUILD_ASSERT(sizeof(CONFIG_WIFI_SAMPLE_SSID) > 1,
 	     "CONFIG_WIFI_SAMPLE_SSID is empty. Please set it in conf file.");
 
-#if WIFI_SAMPLE_DHCPV4_START
+#if CONFIG_WIFI_SAMPLE_DHCPV4_START
 BUILD_ASSERT(sizeof(CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS) > 1,
 	     "CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS is empty. Please set it in conf file.");
 
@@ -85,15 +85,15 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt
 #if CONFIG_WIFI_SAMPLE_DHCPV4_START
 static void enable_dhcpv4_server(void)
 {
-	static struct in_addr addr;
-	static struct in_addr netmaskAddr;
+	static struct net_in_addr addr;
+	static struct net_in_addr netmaskAddr;
 
-	if (net_addr_pton(AF_INET, CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS, &addr)) {
+	if (net_addr_pton(NET_AF_INET, CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS, &addr)) {
 		LOG_ERR("Invalid address: %s", CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS);
 		return;
 	}
 
-	if (net_addr_pton(AF_INET, CONFIG_WIFI_SAMPLE_AP_NETMASK, &netmaskAddr)) {
+	if (net_addr_pton(NET_AF_INET, CONFIG_WIFI_SAMPLE_AP_NETMASK, &netmaskAddr)) {
 		LOG_ERR("Invalid netmask: %s", CONFIG_WIFI_SAMPLE_AP_NETMASK);
 		return;
 	}

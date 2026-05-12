@@ -109,11 +109,24 @@ config LOG_DICTIONARY_SUPPORT
 
 	  This should be selected by the backend automatically.
 
+config LOG_DOMAIN_NAME_PREFIX
+	bool "Domain name prefix"
+	help
+		Enable support for prefixing the log source with the domain name.
+
 config LOG_THREAD_ID_PREFIX
 	bool "Thread ID prefix"
 	help
 	  Enable support for prefixing log message with thread name or ID.
 	  Thread name is used if THREAD_NAME is enabled.
+
+config LOG_CORE_ID_PREFIX
+	bool "Core ID prefix"
+	depends on SMP || MP_MAX_NUM_CPUS > 1
+	help
+	  Enable support for prefixing log message with core/processor ID.
+	  This is useful for multicore systems to identify which CPU core
+	  generated each log message.
 
 config LOG_CUSTOM_FORMAT_SUPPORT
 	bool "Custom format support"
@@ -225,5 +238,20 @@ config LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP
 	  It will be applied to all backends except the syslog net backend.
 
 endchoice
+
+config LOG_BACKEND_CRLF_NONE
+	bool "Prevent adding CR and LF in logger"
+	help
+	  When enabled, selected backend prints do not add CR and LF to log
+
+config LOG_BACKEND_CRLF_LFONLY
+	bool "Force a single LF for line breaks in logger"
+	help
+	  When enabled, selected backend prints use single LF for line breaks in log
+
+config LOG_BACKEND_SKIP_SOURCE
+	bool "Skip logging the source"
+	help
+	  When enabled, selected backend prints do not add the source to log
 
 endmenu

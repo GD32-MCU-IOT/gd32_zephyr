@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (c) 2024 Nordic Semiconductor ASA
+ * Copyright (c) 2024-2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,10 +12,12 @@
 #include <stdio.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/tbs.h>
 #include <zephyr/bluetooth/audio/ccp.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_string_conv.h>
+#include <zephyr/toolchain.h>
 
 static struct bt_ccp_call_control_server_bearer
 	*bearers[CONFIG_BT_CCP_CALL_CONTROL_SERVER_BEARER_COUNT];
@@ -23,6 +25,9 @@ static struct bt_ccp_call_control_server_bearer
 static int cmd_ccp_call_control_server_init(const struct shell *sh, size_t argc, char *argv[])
 {
 	static bool registered;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	if (registered) {
 		shell_info(sh, "Already initialized");
@@ -36,8 +41,8 @@ static int cmd_ccp_call_control_server_init(const struct shell *sh, size_t argc,
 		.uri_schemes_supported = "tel,skype",
 		.gtbs = true,
 		.authorization_required = false,
-		.technology = BT_TBS_TECHNOLOGY_3G,
-		.supported_features = CONFIG_BT_TBS_SUPPORTED_FEATURES,
+		.technology = BT_BEARER_TECH_3G,
+		.supported_features = BT_TBS_FEATURE_HOLD | BT_TBS_FEATURE_JOIN,
 	};
 	int err;
 
@@ -59,8 +64,8 @@ static int cmd_ccp_call_control_server_init(const struct shell *sh, size_t argc,
 			.gtbs = false,
 			.authorization_required = false,
 			/* Set different technologies per bearer */
-			.technology = (i % BT_TBS_TECHNOLOGY_WCDMA) + 1,
-			.supported_features = CONFIG_BT_TBS_SUPPORTED_FEATURES,
+			.technology = (i % BT_BEARER_TECH_WCDMA) + 1,
+			.supported_features = BT_TBS_FEATURE_HOLD | BT_TBS_FEATURE_JOIN,
 		};
 
 		snprintf(prov_name, sizeof(prov_name), "Telephone Bearer #%d", i);
@@ -111,7 +116,7 @@ static int cmd_ccp_call_control_server_set_bearer_name(const struct shell *sh, s
 	if (argc > 2) {
 		index = validate_and_get_index(sh, argv[1]);
 		if (index < 0) {
-			return index;
+			return -ENOEXEC;
 		}
 	}
 
@@ -132,18 +137,19 @@ static int cmd_ccp_call_control_server_set_bearer_name(const struct shell *sh, s
 static int cmd_ccp_call_control_server_get_bearer_name(const struct shell *sh, size_t argc,
 						       char *argv[])
 {
-	const char *name;
+	char name[CONFIG_BT_CCP_CALL_CONTROL_SERVER_PROVIDER_NAME_MAX_LENGTH + 1];
 	int index = 0;
 	int err = 0;
 
 	if (argc > 1) {
 		index = validate_and_get_index(sh, argv[1]);
 		if (index < 0) {
-			return index;
+			return -ENOEXEC;
 		}
 	}
 
-	err = bt_ccp_call_control_server_get_bearer_provider_name(bearers[index], &name);
+	err = bt_ccp_call_control_server_get_bearer_provider_name(bearers[index], name,
+								  sizeof(name));
 	if (err != 0) {
 		shell_error(sh, "Failed to get bearer[%d] name: %d", index, err);
 
@@ -151,6 +157,32 @@ static int cmd_ccp_call_control_server_get_bearer_name(const struct shell *sh, s
 	}
 
 	shell_print(sh, "Bearer[%d] name: %s", index, name);
+
+	return 0;
+}
+
+static int cmd_ccp_call_control_server_get_bearer_uci(const struct shell *sh, size_t argc,
+						      char *argv[])
+{
+	char uci[BT_TBS_MAX_UCI_SIZE];
+	int index = 0;
+	int err = 0;
+
+	if (argc > 1) {
+		index = validate_and_get_index(sh, argv[1]);
+		if (index < 0) {
+			return -ENOEXEC;
+		}
+	}
+
+	err = bt_ccp_call_control_server_get_bearer_uci(bearers[index], uci);
+	if (err != 0) {
+		shell_error(sh, "Failed to get bearer[%d] UCI: %d", index, err);
+
+		return -ENOEXEC;
+	}
+
+	shell_print(sh, "Bearer[%d] UCI: %s", index, uci);
 
 	return 0;
 }
@@ -174,6 +206,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(ccp_call_control_server_cmds,
 					     cmd_ccp_call_control_server_set_bearer_name, 2, 1),
 			       SHELL_CMD_ARG(get_bearer_name, NULL, "Get bearer name [index]",
 					     cmd_ccp_call_control_server_get_bearer_name, 1, 1),
+			       SHELL_CMD_ARG(get_bearer_uci, NULL, "Get bearer UCI [index]",
+					     cmd_ccp_call_control_server_get_bearer_uci, 1, 1),
 			       SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_ARG_REGISTER(ccp_call_control_server, &ccp_call_control_server_cmds,

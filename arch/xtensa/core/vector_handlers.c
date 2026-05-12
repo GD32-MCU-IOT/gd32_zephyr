@@ -16,7 +16,6 @@
 #include <zephyr/zsr.h>
 #include <zephyr/arch/common/exc_handle.h>
 
-#include <kernel_internal.h>
 #include <xtensa_internal.h>
 #include <xtensa_stack.h>
 
@@ -243,6 +242,10 @@ static void print_fatal_exception(void *print_stack, bool is_dblexc, uint32_t de
 	 */
 	if (xtensa_is_outside_stack_bounds((uintptr_t)bsa, sizeof(*bsa), UINT32_MAX)) {
 		EXCEPTION_DUMP(" ** VADDR %p Invalid SP %p", (void *)bsa->excvaddr, print_stack);
+		/* Do not waste hook bandwidth on broken records. */
+#if defined(CONFIG_EXCEPTION_DUMP_HOOK)
+		arch_exception_call_drain_hook(true);
+#endif
 		return;
 	}
 
@@ -468,7 +471,7 @@ __unused static void xtensa_handle_irq_lvl(int irq_lvl)
 
 #if XCHAL_NUM_INTERRUPTS > 64
 	__asm__ volatile("rsr.interrupt2 %0" : "=r"(irq_mask));
-	__asm__ volatile("rsr.intenable2 %0" : "=r"(intenable2));
+	__asm__ volatile("rsr.intenable2 %0" : "=r"(intenable));
 	irq_mask &= intenable;
 	irq_mask &= xtensa_lvl_mask[irq_lvl - 1][2];
 	while (irq_mask) {
@@ -632,17 +635,24 @@ void *xtensa_excint1_c(void *esf)
 		break;
 #endif /* CONFIG_XTENSA_LAZY_HIFI_SHARING */
 #if defined(CONFIG_XTENSA_MMU) && defined(CONFIG_USERSPACE)
+	case EXCCAUSE_ITLB_MULTIHIT:
+		xtensa_exc_itlb_multihit_handle((void *)bsa->excvaddr);
+		goto return_to_interrupted;
 	case EXCCAUSE_DTLB_MULTIHIT:
-		xtensa_exc_dtlb_multihit_handle();
+		xtensa_exc_dtlb_multihit_handle((void *)bsa->excvaddr);
+		goto return_to_interrupted;
 		break;
 	case EXCCAUSE_LOAD_STORE_RING:
 		if (!xtensa_exc_load_store_ring_error_check(bsa)) {
-			break;
+			goto return_to_interrupted;
 		}
 		__fallthrough;
 #endif /* CONFIG_XTENSA_MMU && CONFIG_USERSPACE */
 	default:
 		reason = K_ERR_CPU_EXCEPTION;
+
+		/* Default for exception */
+		is_fatal_error = true;
 
 		/* If the BSA area is invalid, we cannot trust anything coming out of it. */
 		if (xtensa_is_outside_stack_bounds((uintptr_t)bsa, sizeof(*bsa), UINT32_MAX)) {
@@ -651,9 +661,6 @@ void *xtensa_excint1_c(void *esf)
 
 		ps = bsa->ps;
 		pc = (void *)bsa->pc;
-
-		/* Default for exception */
-		is_fatal_error = true;
 
 		/* We need to distinguish between an ill in xtensa_arch_except,
 		 * e.g for k_panic, and any other ill. For exceptions caused by
@@ -705,23 +712,6 @@ skip_checks:
 		break;
 	}
 
-#ifdef CONFIG_XTENSA_MMU
-	switch (cause) {
-	case EXCCAUSE_LEVEL1_INTERRUPT:
-#ifndef CONFIG_USERSPACE
-	case EXCCAUSE_SYSCALL:
-#endif /* !CONFIG_USERSPACE */
-#ifdef CONFIG_XTENSA_LAZY_HIFI_SHARING
-	case EXCCAUSE_CP_DISABLED(XCHAL_CP_ID_AUDIOENGINELX):
-#endif /* CONFIG_XTENSA_LAZY_HIFI_SHARING */
-		is_fatal_error = false;
-		break;
-	default:
-		is_fatal_error = true;
-		break;
-	}
-#endif /* CONFIG_XTENSA_MMU */
-
 	if (is_dblexc || is_fatal_error) {
 		uint32_t ignore;
 
@@ -757,7 +747,22 @@ skip_checks:
 	}
 #endif /* CONFIG_XTENSA_MMU */
 
+#if defined(CONFIG_EXCEPTION_DUMP_HOOK)
+	arch_exception_call_drain_hook(false);
+#endif
 	return return_to(interrupted_stack);
+
+#if defined(CONFIG_XTENSA_MMU) && defined(CONFIG_USERSPACE)
+return_to_interrupted:
+	if (is_dblexc) {
+		XTENSA_WSR(ZSR_DEPC_SAVE_STR, 0);
+	}
+
+#if defined(CONFIG_EXCEPTION_DUMP_HOOK)
+	arch_exception_call_drain_hook(false);
+#endif
+	return interrupted_stack;
+#endif /* CONFIG_XTENSA_MMU && CONFIG_USERSPACE */
 }
 
 #if defined(CONFIG_GDBSTUB)

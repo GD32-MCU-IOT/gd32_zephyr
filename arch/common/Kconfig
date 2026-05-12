@@ -6,7 +6,7 @@
 
 config SEMIHOST
 	bool "Semihosting support for ARM, RISC-V and Xtensa targets"
-	depends on ARM || ARM64 || RISCV || (XTENSA && !SIMULATOR_XTENSA)
+	depends on ARM || ARM64 || RISCV || XTENSA
 	help
 	  Semihosting is a mechanism that enables code running on an ARM, RISC-V
 	  or Xtensa target to communicate and use the Input/Output facilities on
@@ -32,6 +32,19 @@ config ARCH_SUPPORTS_ROM_OFFSET
 	  Hidden option to enable support for ROM offset within the linker
 	  script, which will place a block of 0x0 of size
 	  CONFIG_ROM_START_OFFSET at the start of the ROM region.
+
+config EXCEPTION_DUMP_HOOK
+	bool "Exceptions printing hooks"
+	help
+	  Enables hook for configuring an additional method for delivering
+	  exeption prints through similar interface as printk or LOG.
+
+config EXCEPTION_DUMP_HOOK_ONLY
+	bool "Do not send exception prints to logs or printk if hook is set"
+	depends on EXCEPTION_DUMP_HOOK
+	help
+	  Do not send exception prints to logs or printk if the exception
+	  hook is set.
 
 config ARM_MPU
 	bool "ARM MPU Support"
@@ -79,7 +92,8 @@ config ARM_MPU
 config ARM_PAC_PER_THREAD
 	bool "Set cryptographically secure PAC key per thread"
 	depends on ARM_PAC
-	depends on ENTROPY_DEVICE_RANDOM_GENERATOR || TIMER_RANDOM_GENERATOR
+	select CSPRNG_NEEDED
+	imply TEST_RANDOM_GENERATOR if !CSPRNG_ENABLED
 	help
 	  Select this option to generate and use unique keys per thread to generate Pointer
 	  Authentication Code.
@@ -99,18 +113,28 @@ config ARM_PAC
 
 config ARM_BTI
 	bool
+	depends on MINIMAL_LIBC || PICOLIBC_USE_MODULE
 	help
 	  This option signifies that Branch Target Identification is enabled.
+
+	  Note: BTI requires that the C library be compiled with
+	  -mbranch-protection to include BTI landing pads. Newlib from
+	  toolchains lacks this support, so only minimal libc or picolibc
+	  built from source (PICOLIBC_USE_MODULE) can be used with BTI.
 
 choice ARM_PACBTI
 	prompt "Pointer Authentication and Branch Target Identification (PACBTI)"
 	default ARM_PACBTI_NONE
-	depends on ARMV8_1_M_MAINLINE
+	depends on ARMV8_1_M_MAINLINE || ARMV8_A || ARMV9_A
 	help
 	  Select a PACBTI configuration to enable the compiler to insert the required
 	  Pointer Authentication and Branch Target Identification (PACBTI) instructions.
 	  This also sets the necessary configuration options to enable PACBTI bits
 	  in hardware.
+
+	  On ARM32, PACBTI is available on ARMv8.1-M Mainline processors.
+	  On ARM64, PAC requires ARMv8.3-A or later and BTI requires
+	  ARMv8.5-A or later. ARMv9-A includes both as mandatory features.
 
 config ARM_PACBTI_STANDARD
 	bool "Standard (PACRET + LEAF + BTI)"
@@ -168,3 +192,4 @@ config ARM_PACBTI_NONE
 	This option instructs the compiler to generate code without branch protection or return
 	address signing
 endchoice
+source "arch/common/acpi/Kconfig"

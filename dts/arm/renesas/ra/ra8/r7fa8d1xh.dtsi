@@ -10,12 +10,16 @@
 
 / {
 	soc {
-		sdram: sdram-controller@40002000 {
-			compatible = "renesas,ra-sdram";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <0x40002000 0xFFF>;
-			status = "disabled";
+		itcm: memory@0 {
+			compatible = "zephyr,memory-region", "arm,itcm";
+			reg = <0x0 DT_SIZE_K(64)>;
+			zephyr,memory-region = "ITCM";
+		};
+
+		dtcm: memory@20000000 {
+			compatible = "zephyr,memory-region", "arm,dtcm";
+			reg = <0x20000000 DT_SIZE_K(64)>;
+			zephyr,memory-region = "DTCM";
 		};
 
 		lcdif: display-controller@40342000 {
@@ -36,6 +40,22 @@
 			interrupt-names = "sq0", "sq1", "vm", "rcv", "ferr", "ppi";
 			clocks = <&lcdclk MSTPC 10>;
 			status = "disabled";
+		};
+
+		usbhs: usbhs@40351000 {
+			compatible = "renesas,ra-usbhs";
+			reg = <0x40351000 0x2000>;
+			interrupts = <54 12>;
+			interrupt-names = "usbhs-ir";
+			num-bidir-endpoints = <10>;
+			phys = <&usbhs_phy>;
+			phys-clock = <&uclk>, <&u60clk>;
+			status = "disabled";
+
+			udc {
+				compatible = "renesas,ra-udc";
+				status = "disabled";
+			};
 		};
 	};
 
@@ -207,6 +227,8 @@
 			bclk: bclk {
 				compatible = "renesas,ra-cgc-pclk";
 				div = <4>;
+				#clock-cells = <2>;
+				status = "okay";
 
 				bclkout: bclkout {
 					compatible = "renesas,ra-cgc-busclk";
@@ -214,8 +236,6 @@
 					sdclk = <1>;
 					#clock-cells = <0>;
 				};
-				#clock-cells = <2>;
-				status = "okay";
 			};
 
 			fclk: fclk {
@@ -278,31 +298,6 @@
 				#clock-cells = <2>;
 				status = "disabled";
 			};
-		};
-	};
-
-	soc {
-		usbhs: usbhs@40351000 {
-			compatible = "renesas,ra-usbhs";
-			reg = <0x40351000 0x2000>;
-			interrupts = <54 12>;
-			interrupt-names = "usbhs-ir";
-			num-bidir-endpoints = <10>;
-			phys = <&usbhs_phy>;
-			phys-clock = <&uclk>, <&u60clk>;
-			status = "disabled";
-
-			udc {
-				compatible = "renesas,ra-udc";
-				status = "disabled";
-			};
-		};
-
-		ceu: ceu@40348000 {
-			compatible = "renesas,ra-ceu";
-			reg = <0x40348000 0x8000>;
-			clocks = <&pclka MSTPC 16>;
-			status = "disabled";
 		};
 	};
 

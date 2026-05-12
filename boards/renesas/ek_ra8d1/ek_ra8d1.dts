@@ -7,8 +7,8 @@
 
 #include <renesas/ra/ra8/r7fa8d1bhecbd.dtsi>
 #include <zephyr/dt-bindings/flash_controller/xspi.h>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 #include <zephyr/dt-bindings/memory-controller/renesas,ra-sdram.h>
 #include <zephyr/dt-bindings/adc/adc.h>
@@ -319,7 +319,7 @@
 
 		storage_partition: partition@0 {
 			label = "storage";
-			reg = <0X0 DT_SIZE_K(12)>;
+			reg = <0x0 DT_SIZE_K(12)>;
 		};
 	};
 };
@@ -361,13 +361,13 @@
 &iic1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <DT_FREQ_M(1)>;
+	clock-frequency = <I2C_BITRATE_FAST_PLUS>;
 	pinctrl-0 = <&iic1_default>;
 	pinctrl-names = "default";
 };
 
 &eth {
-	local-mac-address = [74 90 50 B0 5D E9];
+	local-mac-address = [74 90 50 b0 5d e9];
 	status = "okay";
 	phy-handle = <&phy>;
 };
@@ -425,11 +425,11 @@
 	pinctrl-0 = <&sdram_default>;
 	pinctrl-names = "default";
 	status = "okay";
-	auto-refresh-interval = <SDRAM_AUTO_REFREDSH_INTERVEL_10CYCLES>;
-	auto-refresh-count = <SDRAM_AUTO_REFREDSH_COUNT_8TIMES>;
+	auto-refresh-interval = <SDRAM_AUTO_REFRESH_INTERVAL_10CYCLES>;
+	auto-refresh-count = <SDRAM_AUTO_REFRESH_COUNT_8TIMES>;
 	precharge-cycle-count = <SDRAM_AUTO_PRECHARGE_CYCLE_3CYCLES>;
 	multiplex-addr-shift = "10-bit";
-	edian-mode = "little-endian";
+	endian-mode = "little-endian";
 	continuous-access;
 	bus-width = "16-bit";
 
@@ -535,6 +535,12 @@ dvp_20pin_interface: &ceu {};
 			};
 		};
 	};
+};
+
+&drw {
+	interrupts = <90 12>;
+	interrupt-names = "drw";
+	status = "okay";
 };
 
 &crc {

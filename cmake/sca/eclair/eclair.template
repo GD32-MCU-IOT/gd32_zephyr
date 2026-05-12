@@ -18,11 +18,12 @@ foreach(i RANGE ${end_of_options} ${CMAKE_ARGC})
 endforeach()
 
 list(APPEND ECLAIR_ARGS +incremental
+                        +no_default_aliases
                         -project_name=@ECLAIR_PROJECT_NAME@
                         -project_root=@ECLAIR_PROJECT_ROOT@
                         -eval_file=@ECLAIR_ECL_DIR@/analysis.ecl
                         -eval_file=@ECLAIR_ANALYSIS_ECL_DIR@/analysis_@ECLAIR_RULESET@.ecl
-                        @ECLAIR_ENV_ADDITIONAL_OPTIONS@)
+                        @ECLAIR_ENV_ADDITIONAL_OPTIONS_STR@)
 
 execute_process(
   COMMAND @CMAKE_COMMAND@ -E env

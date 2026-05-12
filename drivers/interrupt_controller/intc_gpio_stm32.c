@@ -40,6 +40,11 @@ struct stm32_exti_range {
 #define EXTI_NUM_LINES_TOTAL	DT_PROP(EXTI_NODE, num_lines)
 #define NUM_EXTI_LINES		DT_PROP(EXTI_NODE, num_gpio_lines)
 
+#if defined(CONFIG_SOC_SERIES_STM32N6X)
+/* Index 8 of CR stands for PORTN instead of PORTI */
+#define STM32_PORT_GAP		(STM32_PORTN - STM32_PORTI)
+#endif
+
 BUILD_ASSERT(EXTI_NUM_LINES_TOTAL >= NUM_EXTI_LINES,
 	"The total number of EXTI lines must be greater or equal than the number of GPIO lines");
 
@@ -70,7 +75,11 @@ static inline uint32_t stm32_exti_linenum_to_src_cfg_line(gpio_pin_t linenum)
 	return ((linenum % 4 * 4) << 16) | (linenum / 4);
 #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32g0_exti) || \
 	defined(CONFIG_SOC_SERIES_STM32MP2X)
+#if defined(CONFIG_STM32_HAL2)
+	return (linenum & 0xF) | ((linenum / 4) << LL_EXTI_CR_REGISTER_SHIFT);
+#else /* CONFIG_STM32_HAL2 */
 	return ((linenum & 0x3) << (16 + 3)) | (linenum >> 2);
+#endif /* CONFIG_STM32_HAL2 */
 #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7rs_exti)
 	/* Gives the LL_SBS_EXTI_LINEn corresponding to the line number */
 	return (((linenum % 4 * 4) << LL_SBS_REGISTER_PINPOS_SHFT) | (linenum / 4));
@@ -84,6 +93,9 @@ static inline uint32_t stm32_exti_linenum_to_src_cfg_line(gpio_pin_t linenum)
  */
 static inline gpio_pin_t ll_exti_line_to_linenum(stm32_gpio_irq_line_t line)
 {
+	__ASSERT(IS_POWER_OF_TWO(line), "Invalid/corrupted LL_EXTI_LINE_n value");
+	__ASSERT_NO_MSG(LOG2(line) < NUM_EXTI_LINES);
+
 	return LOG2(line);
 }
 
@@ -186,8 +198,6 @@ void stm32_gpio_intc_enable_line(stm32_gpio_irq_line_t line)
 	unsigned int irqnum;
 	uint32_t line_num = ll_exti_line_to_linenum(line);
 
-	__ASSERT_NO_MSG(line_num < NUM_EXTI_LINES);
-
 	/* Get matching exti irq provided line thanks to irq_table */
 	irqnum = exti_irq_table[line_num];
 	__ASSERT_NO_MSG(irqnum != 0xFF);
@@ -284,14 +294,25 @@ void stm32_exti_set_line_src_port(gpio_pin_t line, uint32_t port)
 {
 	uint32_t ll_line = stm32_exti_linenum_to_src_cfg_line(line);
 
-#if defined(CONFIG_SOC_SERIES_STM32L0X) && defined(LL_SYSCFG_EXTI_PORTH)
 	/*
-	 * Ports F and G are not present on some STM32L0 parts, so
-	 * for these parts port H external interrupt should be enabled
-	 * by writing value 0x5 instead of 0x7.
+	 * On some series, or specific parts, it may happen that a discontinuity
+	 * exists in the indexes of port used in configuration registers.
+	 * Fix those case by case
 	 */
+#if defined(CONFIG_SOC_SERIES_STM32L0X) && defined(LL_SYSCFG_EXTI_PORTH)
 	if (port == STM32_PORTH) {
+		/* Port H (index 7) uses value 5 */
 		port = LL_SYSCFG_EXTI_PORTH;
+	}
+#elif defined(CONFIG_SOC_SERIES_STM32MP1X)
+	if (port == STM32_PORTZ) {
+		/* Port Z (index 25) uses value 11 */
+		port = LL_EXTI_CONFIG_PORTZ;
+	}
+#elif defined(CONFIG_SOC_SERIES_STM32N6X)
+	if (port >= STM32_PORTN) {
+		/* Ports N and above (starting index 13) use value 8 and higher */
+		port = port - STM32_PORT_GAP;
 	}
 #endif
 
@@ -329,14 +350,25 @@ uint32_t stm32_exti_get_line_src_port(gpio_pin_t line)
 	port = LL_SYSCFG_GetEXTISource(ll_line);
 #endif
 
-#if defined(CONFIG_SOC_SERIES_STM32L0X) && defined(LL_SYSCFG_EXTI_PORTH)
 	/*
-	 * Ports F and G are not present on some STM32L0 parts, so
-	 * for these parts port H external interrupt is enabled
-	 * by writing value 0x5 instead of 0x7.
+	 * On some series, or specific parts, it may happen that a discontinuity
+	 * exists in the indexes of port used in configuration registers.
+	 * Fix those case by case.
 	 */
+#if defined(CONFIG_SOC_SERIES_STM32L0X) && defined(LL_SYSCFG_EXTI_PORTH)
 	if (port == LL_SYSCFG_EXTI_PORTH) {
+		/* Value 7 is for port H */
 		port = STM32_PORTH;
+	}
+#elif defined(CONFIG_SOC_SERIES_STM32MP1X)
+	if (port == LL_EXTI_CONFIG_PORTZ) {
+		/* Value 11 is for port Z */
+		port = STM32_PORTZ;
+	}
+#elif defined(CONFIG_SOC_SERIES_STM32N6X)
+	if (port >= STM32_PORTN) {
+		/* Value 8 and higher are for ports N and above */
+		port = port + STM32_PORT_GAP;
 	}
 #endif
 

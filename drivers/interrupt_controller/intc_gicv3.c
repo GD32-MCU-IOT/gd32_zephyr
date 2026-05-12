@@ -1,7 +1,7 @@
 /*
  * Copyright 2020 Broadcom
  * Copyright 2024-2025 NXP
- * Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * Copyright 2025-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -572,7 +572,6 @@ static void gicv3_dist_init(void)
 	 * the GIC single security state mode is supported.
 	 * Make sure GICD_CTRL_NS is 1.
 	 */
-	sys_set_bit(GICD_CTLR, GICD_CTRL_NS);
 	__ASSERT(sys_test_bit(GICD_CTLR, GICD_CTRL_NS),
 		 "Current GIC does not support single security state");
 #endif
@@ -672,6 +671,11 @@ static bool arm_gic_aff_matching(uint64_t gicr_aff, uint64_t aff)
 #if defined(CONFIG_GIC_V3_RDIST_MATCHING_AFF0_ONLY)
 	uint64_t mask = BIT64_MASK(8);
 
+	return (gicr_aff & mask) == (aff & mask);
+#elif defined(CONFIG_ARM)
+	uint64_t mask = BIT64_MASK(24);
+
+	/* For ARM (AArch32), only compare aff2:aff1:aff0 (lower 24 bits) */
 	return (gicr_aff & mask) == (aff & mask);
 #else
 	return gicr_aff == aff;

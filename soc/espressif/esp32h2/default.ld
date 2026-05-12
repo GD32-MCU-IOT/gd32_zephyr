@@ -16,7 +16,7 @@
  * If no bootloader is used, we can extend it to gain more user ram.
  */
 #ifdef CONFIG_ESP_SIMPLE_BOOT
-user_sram_end = DRAM_BUFFERS_START;
+user_sram_end = DRAM_SHARED_BUFFERS_END;
 #else
 user_sram_end = BOOTLOADER_IRAM_LOADER_SEG_START;
 #endif
@@ -67,8 +67,8 @@ MEMORY
   irom0_0_seg(RX): org = IROM_SEG_ORG, len = IROM_SEG_LEN
   drom0_0_seg(R):  org = DROM_SEG_ORG, len = DROM_SEG_LEN
 
-  lp_ram_seg(RW):    org = LPSRAM_IRAM_START,
-                     len = LPSRAM_SIZE - CONFIG_RESERVE_RTC_MEM
+  lp_ram_seg(RW):  org = LPSRAM_IRAM_START,
+                   len = LPSRAM_SIZE - CONFIG_RESERVE_RTC_MEM
 
   /* We reduced the size of lp_ram_seg by CONFIG_RESERVE_RTC_MEM value.
      It reserves the amount of LP memory that we use for this memory segment.
@@ -78,8 +78,8 @@ MEMORY
      The aim of this is to keep data that will not be moved around and have a fixed address.
   */
 #if (CONFIG_RESERVE_RTC_MEM > 0)
-  lp_reserved_seg(RW) :  org = LPSRAM_IRAM_START + LPSRAM_SIZE - CONFIG_RESERVE_RTC_MEM,
-                         len = CONFIG_RESERVE_RTC_MEM
+  lp_reserved_seg(RW): org = LPSRAM_IRAM_START + LPSRAM_SIZE - CONFIG_RESERVE_RTC_MEM,
+                       len = CONFIG_RESERVE_RTC_MEM
 #endif
 
 #ifdef CONFIG_GEN_ISR_TABLES
@@ -102,7 +102,7 @@ REGION_ALIAS("rtc_data_location", rtc_iram_seg );
 ENTRY(CONFIG_KERNEL_ENTRY)
 
 /* Heap size calculations */
-_heap_sentry = DRAM_RESERVED_START;
+_heap_sentry = DRAM_USER_END;
 _libc_heap_size = _heap_sentry - _end;
 
 SECTIONS
@@ -165,9 +165,9 @@ SECTIONS
      * 15. Flash offset (LMA) for start of IROM region
      * 16. Size of IROM region
      */
-    LONG(ADDR(.flash.text))
-    LONG(LOADADDR(.flash.text))
-    LONG(SIZEOF(.flash.text))
+    LONG(ADDR(.text))
+    LONG(LOADADDR(.text))
+    LONG(SIZEOF(.text))
 
     /* DROM metadata:
      * 17. Destination address (VMA) for DROM region
@@ -181,10 +181,7 @@ SECTIONS
 #endif /* CONFIG_BOOTLOADER_MCUBOOT */
 
   #include <zephyr/linker/rel-sections.ld>
-
-#ifdef CONFIG_LLEXT
   #include <zephyr/linker/llext-sections.ld>
-#endif
 
   /* --- START OF RTC --- */
   .rtc.text :
@@ -269,6 +266,9 @@ SECTIONS
     *(.rtc_timer_data_in_rtc_mem .rtc_timer_data_in_rtc_mem.*)
     _rtc_reserved_end = ABSOLUTE(.);
   } GROUP_LINK_IN(lp_reserved_seg)
+  _rtc_reserved_length = (_rtc_reserved_end - _rtc_reserved_start);
+#else
+  _rtc_reserved_length = 0;
 #endif
 
   /* Get size of rtc slow data based on rtc_data_location alias */
@@ -376,6 +376,8 @@ SECTIONS
     *libzephyr.a:flash_brownout_hook.*(.literal .literal.* .text .text.*)
     *libzephyr.a:spi_flash_wrap.*(.literal .literal.* .text .text.*)
     *libzephyr.a:flash_ops.*(.literal .literal.* .text .text.*)
+    *libzephyr.a:spi_flash_os_func_app.*(.literal .literal.* .text .text.*)
+    *libzephyr.a:spi_flash_os_func_noos.*(.literal .literal.* .text .text.*)
     *libzephyr.a:flash_mmap.*(.literal .text .literal.* .text.*)
     *libzephyr.a:esp_flash_api.*(.literal .text .literal.* .text.*)
 
@@ -383,6 +385,8 @@ SECTIONS
     *libzephyr.a:reset_reason.*(.literal .literal.* .text .text.*)
     *libzephyr.a:esp_err.*(.literal .literal.* .text .text.*)
     *(.literal.esp_system_abort .text.esp_system_abort)
+    *(.literal.esp_restart_noos .text.esp_restart_noos)
+    *(.literal.esp_system_reset_modules_on_exit .text.esp_system_reset_modules_on_exit)
 
     /* [mapping:esp_hw_support] */
     *(.literal.esp_cpu_stall .text.esp_cpu_stall)
@@ -419,9 +423,14 @@ SECTIONS
     *libzephyr.a:esp_rom_regi2c_esp32h2.*(.literal .literal.* .text .text.*)
 
     /* [mapping:esp_mm] */
-    *libzephyr.a:esp_cache.*(.literal .literal.* .text .text.*)
+    *libzephyr.a:esp_cache_utils.*(.literal .literal.* .text .text.*)
+    *libzephyr.a:esp_cache_msync.*(.literal .literal.* .text .text.*)
     *libzephyr.a:cache_utils.*(.literal .text .literal.* .text.*)
 
+    *libcoexist.a:(.coexiram .coexiram.* .coexsleepiram .coexsleepiram.*)
+
+    *libbtbb.a:(.iram1 .iram1.*)
+    *libbtbb.a:(.high_perf_code_iram1 .high_perf_code_iram1.*)
     *libble_app.a:(.high_perf_code_iram1 .high_perf_code_iram1.*)
     *libble_app.a:(.bt_iram_text .bt_iram_text.*)
 
@@ -585,11 +594,14 @@ SECTIONS
     *libzephyr.a:spi_flash_wrap.*(.rodata .rodata.* .srodata .srodata.*)
     *libzephyr.a:flash_ops.*(.rodata .rodata.* .sdata2 .sdata2.* .srodata .srodata.*)
     *libzephyr.a:flash_qio_mode.*(.rodata .rodata.* .srodata .srodata.*)
+    *libzephyr.a:spi_flash_os_func_app.*(.rodata .rodata.* .srodata .srodata.*)
+    *libzephyr.a:spi_flash_os_func_noos.*(.rodata .rodata.* .srodata .srodata.*)
     *libzephyr.a:flash_mmap.*(.rodata .rodata.* .srodata .srodata.*)
     *libzephyr.a:esp_flash_api.*(.rodata .rodata.* .srodata .srodata.*)
 
     /* [mapping:esp_mm] */
-    *libzephyr.a:esp_cache.*(.rodata .rodata.* .srodata .srodata.*)
+    *libzephyr.a:esp_cache_utils.*(.rodata .rodata.* .srodata .srodata.*)
+    *libzephyr.a:esp_cache_msync.*(.rodata .rodata.* .srodata .srodata.*)
 
     /* [mapping:esp_hw_support] */
     *(.rodata.esp_cpu_stall)
@@ -613,6 +625,8 @@ SECTIONS
     *libzephyr.a:reset_reason.*(.rodata .rodata.*)
     *libzephyr.a:esp_err.*(.rodata .rodata.*)
     *(.rodata.esp_system_abort)
+    *(.rodata.esp_restart_noos)
+    *(.rodata.esp_system_reset_modules_on_exit)
 
     /* [mapping:esp_rom] */
     *libzephyr.a:esp_rom_crc.*(.rodata .rodata.* .srodata .srodata.*)
@@ -662,8 +676,8 @@ SECTIONS
   } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 #endif /* CONFIG_ESP_SIMPLE_BOOT */
 
-  #include <snippets-data-sections.ld>
   #include <zephyr/linker/common-ram.ld>
+  #include <snippets-data-sections.ld>
   #include <snippets-ram-sections.ld>
   #include <zephyr/linker/cplusplus-ram.ld>
 
@@ -686,6 +700,11 @@ SECTIONS
     . = ALIGN(4);
     *(.noinit)
     *(.noinit.*)
+#if defined(CONFIG_LLEXT) && !defined(CONFIG_LLEXT_CUSTOM_HEAP_PLACEMENT)
+    *(.llext_heap)
+    *(.llext_ext_heap)
+    *(.llext_metadata_heap)
+#endif /* CONFIG_LLEXT && !CONFIG_LLEXT_CUSTOM_HEAP_PLACEMENT */
     . = ALIGN(4);
   } GROUP_LINK_IN(RAMABLE_REGION)
 
@@ -735,7 +754,7 @@ SECTIONS
 
   /* --- END OF DRAM --- */
 
-  /* --- START OF .flash.text --- */
+  /* --- START OF .text --- */
 
   .flash.align_text (NOLOAD):
   {
@@ -744,11 +763,11 @@ SECTIONS
   } GROUP_LINK_IN(ROMABLE_REGION)
 
   /* Symbols used during the application memory mapping */
-  _image_irom_start = LOADADDR(.flash.text);
-  _image_irom_size = SIZEOF(.flash.text);
-  _image_irom_vaddr = ADDR(.flash.text);
+  _image_irom_start = LOADADDR(.text);
+  _image_irom_size = SIZEOF(.text);
+  _image_irom_vaddr = ADDR(.text);
 
-  .flash.text : ALIGN(0x10)
+  .text : ALIGN(0x10)
   {
     _stext = .;
     _instruction_reserved_start = ABSOLUTE(.);
@@ -760,6 +779,7 @@ SECTIONS
     *(.literal .text .literal.* .text.*)
     *(.stub .gnu.warning .gnu.linkonce.literal.* .gnu.linkonce.t.*.literal .gnu.linkonce.t.*)
     *(.irom0.text) /* catch stray ICACHE_RODATA_ATTR */
+    *(.adv_fast_execute_code_iram1 .adv_fast_execute_code_iram1.*)
 
     *(.fini.literal)
     *(.fini)
@@ -782,7 +802,7 @@ SECTIONS
 
   } GROUP_DATA_LINK_IN(FLASH_CODE_REGION, ROMABLE_REGION)
 
-  /* --- END OF .flash.text --- */
+  /* --- END OF .text --- */
 
   /* --- START OF .rodata --- */
 
@@ -865,7 +885,8 @@ SECTIONS
    * This is used to calculate the size of the _image_drom_size variable */
   .flash.rodata_end : ALIGN(0x10)
   {
-    . = ALIGN(4);
+    /* Enforce flash segment size alignment */
+    LONG(0);
     _rodata_reserved_end = ABSOLUTE(.);
     _image_rodata_end = ABSOLUTE(.);
   } GROUP_DATA_LINK_IN(RODATA_REGION, ROMABLE_REGION)

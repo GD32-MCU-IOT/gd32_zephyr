@@ -93,7 +93,7 @@
 
 			gpio6x7x: gpio@5000000c {
 				compatible = "ene,kb106x-gpio";
-				reg = <0x5000000C 0x04>, <0x5001000C 0x04>;
+				reg = <0x5000000c 0x04>, <0x5001000c 0x04>;
 				interrupts = <8 3>, <9 3>;
 				gpio-controller;
 				#gpio-cells = <2>;
@@ -162,6 +162,30 @@
 			compatible = "ene,kb106x-watchdog";
 			reg = <0x40060000 0x100>;
 			interrupts = <0 0>;
+			status = "disabled";
+		};
+
+		tach0: tach@40100000 {
+			compatible = "ene,kb106x-tach";
+			reg = <0x40100000 0x10>;
+			status = "disabled";
+		};
+
+		tach1: tach@40100010 {
+			compatible = "ene,kb106x-tach";
+			reg = <0x40100010 0x10>;
+			status = "disabled";
+		};
+
+		tach2: tach@40100020 {
+			compatible = "ene,kb106x-tach";
+			reg = <0x40100020 0x10>;
+			status = "disabled";
+		};
+
+		tach3: tach@40100030 {
+			compatible = "ene,kb106x-tach";
+			reg = <0x40100030 0x10>;
 			status = "disabled";
 		};
 	};

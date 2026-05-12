@@ -17,7 +17,7 @@ LOG_MODULE_REGISTER(spi_sam);
 #include <zephyr/spinlock.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/spi.h>
-#include <zephyr/drivers/spi/rtio.h>
+#include "spi_rtio.h"
 #include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control/atmel_sam_pmc.h>
@@ -115,9 +115,9 @@ static int spi_sam_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	if (config->slave > (SAM_SPI_CHIP_SELECT_COUNT - 1)) {
+	if (spi_csr_idx > (SAM_SPI_CHIP_SELECT_COUNT - 1)) {
 		LOG_ERR("Slave %d is greater than %d",
-			config->slave, SAM_SPI_CHIP_SELECT_COUNT - 1);
+			spi_csr_idx, SAM_SPI_CHIP_SELECT_COUNT - 1);
 		return -EINVAL;
 	}
 

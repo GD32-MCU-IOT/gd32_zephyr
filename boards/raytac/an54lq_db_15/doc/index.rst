@@ -29,7 +29,7 @@ internal or external capacitors.
 - A recommended 3rd-party module by Nordic Semiconductor.
 - Intended for Bluetooth specification BT6
 - Intended for FCC, IC, CE, Telec (MIC), KC, SRRC, NCC, RCM, WPC
-- 128 MHz ARM® Cortex™-M33 processor with TrustZone® technology
+- 128 MHz ARM® Cortex®-M33 processor with TrustZone® technology
 - 128 MHz RISC-V coprocessor with TrustZone® technology
 - 1.5MB Flash Memory / 256KB RAM
 - RoHS & Reach Compliant.

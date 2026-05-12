@@ -1057,7 +1057,7 @@ static int emmc_set_io(const struct device *dev, struct sdhc_io *ios)
 		LOG_DBG("signal_voltage: %d", ios->signal_voltage);
 		ret = emmc_set_voltage(dev, ios->signal_voltage);
 		if (ret) {
-			LOG_ERR("Set signal volatge failed:%d", ret);
+			LOG_ERR("Set signal voltage failed:%d", ret);
 			return ret;
 		}
 		host_io->signal_voltage = ios->signal_voltage;
@@ -1168,9 +1168,9 @@ static int emmc_get_host_props(const struct device *dev, struct sdhc_host_props 
 	props->host_caps.sdr104_support = (bool)(cap & BIT(33u));
 	props->host_caps.sdr50_support = (bool)(cap & BIT(32u));
 	props->host_caps.bus_8_bit_support = true;
-	props->host_caps.bus_4_bit_support = true;
-	props->host_caps.hs200_support = (bool)config->hs200_mode;
-	props->host_caps.hs400_support = (bool)config->hs400_mode;
+	props->bus_4_bit_support = true;
+	props->hs200_support = (bool)config->hs200_mode;
+	props->hs400_support = (bool)config->hs400_mode;
 
 	emmc->props = *props;
 

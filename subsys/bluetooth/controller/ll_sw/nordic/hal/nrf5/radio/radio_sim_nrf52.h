@@ -23,7 +23,7 @@
 /* TXEN->TXIDLE + TXIDLE->TX (with fast Radio ramp-up mode)
  * in microseconds for LE 1M PHY.
  */
-#define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_1M_FAST_NS 41000
+#define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_1M_FAST_NS 40000
 #define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_1M_FAST_US \
 	HAL_RADIO_NS2US_ROUND(HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_1M_FAST_NS)
 
@@ -67,7 +67,7 @@
 /* TXEN->TXIDLE + TXIDLE->TX (with fast Radio ramp-up mode)
  * in microseconds for LE CODED PHY [S2].
  */
-#define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S2_FAST_NS 42000
+#define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S2_FAST_NS 40000
 #define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S2_FAST_US \
 	HAL_RADIO_NS2US_ROUND(HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S2_FAST_NS)
 
@@ -90,7 +90,7 @@
 /* TXEN->TXIDLE + TXIDLE->TX (with fast Radio ramp-up mode)
  * in microseconds for LE CODED PHY [S8].
  */
-#define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S8_FAST_NS 42000
+#define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S8_FAST_NS 40000
 #define HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S8_FAST_US \
 	HAL_RADIO_NS2US_ROUND(HAL_RADIO_NRF52833_TXEN_TXIDLE_TX_S8_FAST_NS)
 /* TXEN->TXIDLE + TXIDLE->TX (with default Radio ramp-up mode)
@@ -368,15 +368,17 @@
 
 static inline void hal_radio_reset(void)
 {
+	/* Nothing to be done for this target */
 }
 
 static inline void hal_radio_stop(void)
 {
+	/* Nothing to be done for this target */
 }
 
 static inline void hal_radio_ram_prio_setup(void)
 {
-
+	/* Nothing to be done for this target */
 }
 
 static inline uint32_t hal_radio_phy_mode_get(uint8_t phy, uint8_t flags)
@@ -385,8 +387,8 @@ static inline uint32_t hal_radio_phy_mode_get(uint8_t phy, uint8_t flags)
 	uint32_t mode;
 
 	switch (phy) {
-	case BIT(0):
 	default:
+	case BIT(0):
 		mode = RADIO_MODE_MODE_Ble_1Mbit;
 		break;
 
@@ -408,71 +410,128 @@ static inline uint32_t hal_radio_phy_mode_get(uint8_t phy, uint8_t flags)
 	return mode;
 }
 
-static inline uint32_t hal_radio_tx_power_min_get(void)
+static inline int8_t hal_radio_tx_power_min_get(void)
 {
-	return RADIO_TXPOWER_TXPOWER_Neg40dBm;
+	return -40; /* -40 dBm */
 }
 
-static inline uint32_t hal_radio_tx_power_max_get(void)
+static inline int8_t hal_radio_tx_power_max_get(void)
 {
-	return RADIO_TXPOWER_TXPOWER_Pos8dBm;
+	return 8; /* +8 dBm */
 }
 
-static inline uint32_t hal_radio_tx_power_floor(int8_t tx_power_lvl)
+static inline int8_t hal_radio_tx_power_floor(int8_t tx_power_lvl)
 {
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos8dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos8dBm;
+	if (tx_power_lvl >= 8) {
+		return 8;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos7dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos7dBm;
+	if (tx_power_lvl >= 7) {
+		return 7;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos6dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos6dBm;
+	if (tx_power_lvl >= 6) {
+		return 6;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos5dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos5dBm;
+	if (tx_power_lvl >= 5) {
+		return 5;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos4dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos4dBm;
+	if (tx_power_lvl >= 4) {
+		return 4;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos3dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos3dBm;
+	if (tx_power_lvl >= 3) {
+		return 3;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Pos2dBm) {
-		return RADIO_TXPOWER_TXPOWER_Pos2dBm;
+	if (tx_power_lvl >= 2) {
+		return 2;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_0dBm) {
-		return RADIO_TXPOWER_TXPOWER_0dBm;
+	if (tx_power_lvl >= 0) {
+		return 0;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Neg4dBm) {
-		return RADIO_TXPOWER_TXPOWER_Neg4dBm;
+	if (tx_power_lvl >= -4) {
+		return -4;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Neg8dBm) {
-		return RADIO_TXPOWER_TXPOWER_Neg8dBm;
+	if (tx_power_lvl >= -8) {
+		return -8;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Neg12dBm) {
-		return RADIO_TXPOWER_TXPOWER_Neg12dBm;
+	if (tx_power_lvl >= -12) {
+		return -12;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Neg16dBm) {
-		return RADIO_TXPOWER_TXPOWER_Neg16dBm;
+	if (tx_power_lvl >= -16) {
+		return -16;
 	}
 
-	if (tx_power_lvl >= (int8_t)RADIO_TXPOWER_TXPOWER_Neg20dBm) {
-		return RADIO_TXPOWER_TXPOWER_Neg20dBm;
+	if (tx_power_lvl >= -20) {
+		return -20;
 	}
 
 	/* Note: The -30 dBm power level is deprecated so ignore it! */
+	return -40;
+}
+
+static inline uint32_t hal_radio_tx_power_value(int8_t tx_power_lvl)
+{
+	if (tx_power_lvl >= 8) {
+		return RADIO_TXPOWER_TXPOWER_Pos8dBm;
+	}
+
+	if (tx_power_lvl >= 7) {
+		return RADIO_TXPOWER_TXPOWER_Pos7dBm;
+	}
+
+	if (tx_power_lvl >= 6) {
+		return RADIO_TXPOWER_TXPOWER_Pos6dBm;
+	}
+
+	if (tx_power_lvl >= 5) {
+		return RADIO_TXPOWER_TXPOWER_Pos5dBm;
+	}
+
+	if (tx_power_lvl >= 4) {
+		return RADIO_TXPOWER_TXPOWER_Pos4dBm;
+	}
+
+	if (tx_power_lvl >= 3) {
+		return RADIO_TXPOWER_TXPOWER_Pos3dBm;
+	}
+
+	if (tx_power_lvl >= 2) {
+		return RADIO_TXPOWER_TXPOWER_Pos2dBm;
+	}
+
+	if (tx_power_lvl >= 0) {
+		return RADIO_TXPOWER_TXPOWER_0dBm;
+	}
+
+	if (tx_power_lvl >= -4) {
+		return RADIO_TXPOWER_TXPOWER_Neg4dBm;
+	}
+
+	if (tx_power_lvl >= -8) {
+		return RADIO_TXPOWER_TXPOWER_Neg8dBm;
+	}
+
+	if (tx_power_lvl >= -12) {
+		return RADIO_TXPOWER_TXPOWER_Neg12dBm;
+	}
+
+	if (tx_power_lvl >= -16) {
+		return RADIO_TXPOWER_TXPOWER_Neg16dBm;
+	}
+
+	if (tx_power_lvl >= -20) {
+		return RADIO_TXPOWER_TXPOWER_Neg20dBm;
+	}
+
 	return RADIO_TXPOWER_TXPOWER_Neg40dBm;
 }
 

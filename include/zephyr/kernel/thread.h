@@ -52,15 +52,12 @@ struct _thread_base {
 	};
 
 	/* wait queue on which the thread is pended (needed only for
-	 * trees, not dumb lists)
+	 * trees, not simple lists)
 	 */
 	_wait_q_t *pended_on;
 
-	/* user facing 'thread options'; values defined in include/kernel.h */
-	uint8_t user_options;
-
-	/* thread state */
-	uint8_t thread_state;
+	/* user facing 'thread options'; values defined in include/zephyr/kernel.h */
+	uint16_t user_options;
 
 	/*
 	 * scheduler lock count and thread priority
@@ -97,11 +94,14 @@ struct _thread_base {
 	uint32_t order_key;
 #endif
 
+	/* thread state */
+	uint8_t thread_state;
+
 #ifdef CONFIG_SMP
 	/* True for the per-CPU idle threads */
 	uint8_t is_idle;
 
-	/* CPU index on which thread was last run */
+	/* Identify CPU on which thread is (or was last) executing */
 	uint8_t cpu;
 
 	/* Recursive count of irq_lock() calls */
@@ -111,11 +111,7 @@ struct _thread_base {
 
 #ifdef CONFIG_SCHED_CPU_MASK
 	/* "May run on" bits for each CPU */
-#if CONFIG_MP_MAX_NUM_CPUS <= 8
-	uint8_t cpu_mask;
-#else
 	uint16_t cpu_mask;
-#endif /* CONFIG_MP_MAX_NUM_CPUS */
 #endif /* CONFIG_SCHED_CPU_MASK */
 
 	/* data returned by APIs */
@@ -140,6 +136,13 @@ struct _thread_base {
 typedef struct _thread_base _thread_base_t;
 
 #if defined(CONFIG_THREAD_STACK_INFO)
+
+#if defined(CONFIG_THREAD_RUNTIME_STACK_SAFETY)
+struct _thread_stack_usage {
+	size_t unused_threshold; /* Threshold below which to trigger hook */
+};
+#endif
+
 /* Contains the stack information of a thread */
 struct _thread_stack_info {
 	/* Stack start - Represents the start address of the thread-writable
@@ -171,6 +174,10 @@ struct _thread_stack_info {
 		size_t sz;
 	} mapped;
 #endif /* CONFIG_THREAD_STACK_MEM_MAPPED */
+
+#if defined(CONFIG_THREAD_RUNTIME_STACK_SAFETY)
+	struct _thread_stack_usage usage;
+#endif
 };
 
 typedef struct _thread_stack_info _thread_stack_info_t;
@@ -267,13 +274,21 @@ struct k_thread {
 #endif /* CONFIG_POLL */
 
 #if defined(CONFIG_EVENTS)
+#if defined(CONFIG_WAITQ_SCALABLE)
+	/*
+	 * Used to build a list of threads that are
+	 * pending on a k_event and should be woken
+	 * up due to a k_event_post/set() call.
+	 *
+	 * Needed only when red-black tree is used for
+	 * wait queues because it is forbidden to mutate
+	 * an rbtree waitq while walking it.
+	 */
 	struct k_thread *next_event_link;
+#endif /* CONFIG_WAITQ_SCALABLE */
 
 	uint32_t   events; /* dual purpose - wait on and then received */
 	uint32_t   event_options;
-
-	/** true if timeout should not wake the thread */
-	bool no_wake_on_timeout;
 #endif /* CONFIG_EVENTS */
 
 #if defined(CONFIG_THREAD_MONITOR)

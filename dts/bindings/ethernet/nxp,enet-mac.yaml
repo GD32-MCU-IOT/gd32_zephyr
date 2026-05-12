@@ -5,7 +5,7 @@ description: NXP ENET MAC/L2 Device
 
 compatible: "nxp,enet-mac"
 
-include: ["ethernet-controller.yaml", "pinctrl-device.yaml"]
+include: ["ethernet-controller.yaml"]
 
 properties:
   interrupts:
@@ -34,3 +34,33 @@ properties:
     description: |
       Use the MAC address from fuse shadow register.
       Not all platforms have a fusable MAC address.
+
+      Deprecated, use an NVMEM cell instead, like in the example.
+
+examples:
+  - |
+    &enet_mac {
+            status = "okay";
+
+            phy-handle = <&phy>;
+            phy-connection-type = "rmii";
+
+            nvmem-cells = <&mac_address0>;
+            nvmem-cell-names = "mac-address";
+    };
+
+    &ocotp {
+            status = "okay";
+
+            nvmem-layout {
+                    compatible = "fixed-layout";
+
+                    #address-cells = <1>;
+                    #size-cells = <1>;
+
+                    mac_address0: mac-address@88 {
+                            reg = <0x88 0x6>;
+                            #nvmem-cell-cells = <0>;
+                    };
+            };
+    };

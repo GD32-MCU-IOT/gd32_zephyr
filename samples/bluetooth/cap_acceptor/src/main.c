@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/cap.h>
@@ -26,6 +27,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_core.h>
+#include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 
@@ -35,10 +37,10 @@ LOG_MODULE_REGISTER(cap_acceptor, LOG_LEVEL_INF);
 
 #define SUPPORTED_DURATION (BT_AUDIO_CODEC_CAP_DURATION_7_5 | BT_AUDIO_CODEC_CAP_DURATION_10)
 #define SUPPORTED_FREQ     BT_AUDIO_CODEC_CAP_FREQ_ANY
-#define SEM_TIMEOUT        K_SECONDS(5)
+#define SEM_TIMEOUT        K_SECONDS(5U)
 #define MAX_SDU            155U
 #define MIN_SDU            30U
-#define FRAMES_PER_SDU     2
+#define FRAMES_PER_SDU     2U
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -66,14 +68,11 @@ static const struct bt_data ad[] = {
 static struct bt_le_ext_adv *adv;
 static struct peer_config peer;
 
-static K_SEM_DEFINE(sem_state_change, 0, 1);
+static K_SEM_DEFINE(sem_state_change, 0U, 1U);
 
 static void connected_cb(struct bt_conn *conn, uint8_t err)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
-	(void)bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	LOG_INF("Connected: %s", addr);
+	LOG_INF("Connected: %s", bt_conn_dst_str(conn));
 
 	peer.conn = bt_conn_ref(conn);
 	k_sem_give(&sem_state_change);
@@ -81,14 +80,12 @@ static void connected_cb(struct bt_conn *conn, uint8_t err)
 
 static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
 	if (conn != peer.conn) {
 		return;
 	}
 
-	(void)bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	LOG_INF("Disconnected: %s, reason 0x%02x %s", addr, reason, bt_hci_err_to_str(reason));
+	LOG_INF("Disconnected: %s, reason 0x%02x %s", bt_conn_dst_str(conn),
+		reason, bt_hci_err_to_str(reason));
 
 	bt_conn_unref(peer.conn);
 	peer.conn = NULL;
@@ -105,21 +102,21 @@ static int advertise(void)
 	int err;
 
 	err = bt_le_ext_adv_create(BT_BAP_ADV_PARAM_CONN_QUICK, NULL, &adv);
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("Failed to create advertising set: %d", err);
 
 		return err;
 	}
 
 	err = bt_le_ext_adv_set_data(adv, ad, ARRAY_SIZE(ad), NULL, 0);
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("Failed to set advertising data: %d", err);
 
 		return err;
 	}
 
 	err = bt_le_ext_adv_start(adv, BT_LE_EXT_ADV_START_DEFAULT);
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("Failed to start advertising set: %d", err);
 
 		return err;
@@ -140,21 +137,32 @@ static int advertise(void)
 
 struct bt_cap_stream *stream_alloc(enum bt_audio_dir dir)
 {
-	if (dir == BT_AUDIO_DIR_SINK && peer.sink_stream.bap_stream.ep == NULL) {
-		return &peer.sink_stream;
+	struct bt_cap_stream *ret_stream;
+
+	if (dir == BT_AUDIO_DIR_SINK) {
+		ret_stream = NULL;
+		ARRAY_FOR_EACH_PTR(peer.sink_streams, stream) {
+			if (stream->bap_stream.ep == NULL) {
+				ret_stream = stream;
+			}
+		}
 	} else if (dir == BT_AUDIO_DIR_SOURCE && peer.source_stream.bap_stream.ep == NULL) {
-		return &peer.source_stream;
+		ret_stream = &peer.source_stream;
+	} else {
+		ret_stream = NULL;
 	}
 
-	return NULL;
+	return ret_stream;
 }
 
 void stream_released(const struct bt_cap_stream *cap_stream)
 {
 	if (cap_stream == &peer.source_stream) {
 		k_sem_give(&peer.source_stream_sem);
-	} else if (cap_stream == &peer.sink_stream) {
+	} else if (IS_ARRAY_ELEMENT(peer.sink_streams, cap_stream)) {
 		k_sem_give(&peer.sink_stream_sem);
+	} else {
+		__ASSERT(false, "Invalid stream: %p", cap_stream);
 	}
 }
 
@@ -201,11 +209,13 @@ static int reset_cap_acceptor(void)
 		}
 	}
 
-	if (peer.sink_stream.bap_stream.ep != NULL) {
-		err = k_sem_take(&peer.sink_stream_sem, SEM_TIMEOUT);
-		if (err != 0) {
-			LOG_ERR("Timeout on sink_stream_sem: %d", err);
-			return err;
+	ARRAY_FOR_EACH_PTR(peer.sink_streams, stream) {
+		if (stream->bap_stream.ep != NULL) {
+			err = k_sem_take(&peer.sink_stream_sem, SEM_TIMEOUT);
+			if (err != 0) {
+				LOG_ERR("Timeout on sink_stream_sem: %d", err);
+				return err;
+			}
 		}
 	}
 
@@ -271,7 +281,7 @@ static int init_cap_acceptor(void)
 	LOG_INF("Bluetooth initialized");
 
 	err = bt_pacs_register(&pacs_param);
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("Could not register PACS (err %d)", err);
 		return 0;
 	}

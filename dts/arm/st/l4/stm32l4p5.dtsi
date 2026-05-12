@@ -5,6 +5,7 @@
  */
 
 #include <st/l4/stm32l4.dtsi>
+#include <st/l4/stm32l4_sai.dtsi>
 #include <zephyr/dt-bindings/clock/stm32l4plus_clock.h>
 #include <zephyr/dt-bindings/flash_controller/ospi.h>
 #include <zephyr/dt-bindings/sensor/qdec_stm32.h>
@@ -39,7 +40,7 @@
 
 		pllsai2: pllsai2 {
 			#clock-cells = <0>;
-			compatible = "st,stm32l4-pllsai-clock";
+			compatible = "st,stm32l4-pll-clock";
 			status = "disabled";
 		};
 	};
@@ -163,7 +164,8 @@
 			#size-cells = <0>;
 			reg = <0x40003800 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB1, 14)>;
-			interrupts = <36 5>;
+			interrupts = <36 0>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 		};
 
@@ -173,7 +175,8 @@
 			#size-cells = <0>;
 			reg = <0x40003c00 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB1, 15)>;
-			interrupts = <51 5>;
+			interrupts = <51 0>;
+			st,spi-data-width = "full-4-to-16-bit";
 			status = "disabled";
 		};
 
@@ -304,6 +307,11 @@
 				#pwm-cells = <3>;
 			};
 
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
+
 			qdec {
 				compatible = "st,stm32-qdec";
 				st,input-filter-level = <NO_FILTER>;
@@ -334,12 +342,22 @@
 			};
 		};
 
+		ltdc: display-controller@40016800 {
+			compatible = "st,stm32-ltdc";
+			reg = <0x40016800 0x200>;
+			interrupts = <91 0>, <92 0>;
+			interrupt-names = "ltdc", "ltdc_er";
+			clocks = <&rcc STM32_CLOCK(APB2, 26)>;
+			resets = <&rctl STM32_RESET(APB2, 26)>;
+			status = "disabled";
+		};
+
 		can1: can@40006400 {
 			compatible = "st,stm32-bxcan";
 			reg = <0x40006400 0x400>;
 			interrupts = <19 0>, <20 0>, <21 0>, <22 0>;
 			interrupt-names = "TX", "RX0", "RX1", "SCE";
-			clocks = <&rcc STM32_CLOCK(APB1, 25)>; //RCC_APB1ENR1_CAN1EN
+			clocks = <&rcc STM32_CLOCK(APB1, 25)>;
 			status = "disabled";
 		};
 
@@ -384,8 +402,9 @@
 			interrupt-names = "dcmi";
 			clocks = <&rcc STM32_CLOCK(AHB2, 14)>;
 			dmas = <&dma1 1 91 (STM32_DMA_PERIPH_TO_MEMORY | STM32_DMA_PERIPH_NO_INC |
-				STM32_DMA_MEM_INC | STM32_DMA_PERIPH_8BITS | STM32_DMA_MEM_32BITS |
-				STM32_DMA_PRIORITY_HIGH) STM32_DMA_FIFO_1_4>;
+					    STM32_DMA_MEM_INC | STM32_DMA_PERIPH_8BITS |
+					    STM32_DMA_MEM_32BITS |
+					    STM32_DMA_PRIORITY_HIGH) STM32_DMA_FIFO_1_4>;
 			status = "disabled";
 		};
 
@@ -445,6 +464,12 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
+		};
+
+		rng: rng@50060800 {
+			nist-config = <0xf00d00>;
+			health-test-magic = <0x17590abc>;
+			health-test-config = <0xaa74>;
 		};
 	};
 

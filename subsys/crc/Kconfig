@@ -17,7 +17,8 @@ source "subsys/logging/Kconfig.template.log_config"
 
 config CRC_HW_HANDLER
 	bool "CRC Hardware Accelerator"
-	default y if $(dt_chosen_enabled,$(DT_CHOSEN_Z_CRC))
+	depends on $(dt_chosen_enabled,$(DT_CHOSEN_Z_CRC))
+	default y
 	select CRC_DRIVER
 	help
 	  Enable use of CRC hardware
@@ -156,7 +157,7 @@ config CRC32_K_4_2_TABLE_256
 config CRC_SHELL
 	bool "CRC Shell"
 	depends on SHELL
-	select POSIX_C_LIB_EXT
+	select GETOPT
 	help
 	  Enable CRC checking for memory regions from the shell.
 

@@ -516,8 +516,8 @@ static void esp_dns_work(struct k_work *work)
 #if defined(ESP_MAX_DNS)
 	struct esp_data *data = CONTAINER_OF(work, struct esp_data, dns_work);
 	struct dns_resolve_context *dnsctx;
-	struct sockaddr_in *addrs = data->dns_addresses;
-	const struct sockaddr *dns_servers[ESP_MAX_DNS + 1] = {};
+	struct net_sockaddr_in *addrs = data->dns_addresses;
+	const struct net_sockaddr *dns_servers[ESP_MAX_DNS + 1] = {};
 	int interfaces[ESP_MAX_DNS];
 	size_t i;
 	int err, ifindex;
@@ -528,7 +528,7 @@ static void esp_dns_work(struct k_work *work)
 		if (!addrs[i].sin_addr.s_addr) {
 			break;
 		}
-		dns_servers[i] = (struct sockaddr *) &addrs[i];
+		dns_servers[i] = (struct net_sockaddr *) &addrs[i];
 		interfaces[i] = ifindex;
 	}
 
@@ -550,7 +550,7 @@ MODEM_CMD_DEFINE(on_cmd_cipdns)
 #if defined(ESP_MAX_DNS)
 	struct esp_data *dev = CONTAINER_OF(data, struct esp_data,
 					    cmd_handler_data);
-	struct sockaddr_in *addrs = dev->dns_addresses;
+	struct net_sockaddr_in *addrs = dev->dns_addresses;
 	char **servers = (char **)argv + 1;
 	size_t num_servers = argc - 1;
 	size_t valid_servers = 0;
@@ -566,7 +566,7 @@ MODEM_CMD_DEFINE(on_cmd_cipdns)
 		servers[i] = str_unquote(servers[i]);
 		LOG_DBG("DNS[%zu]: %s", i, servers[i]);
 
-		err = net_addr_pton(AF_INET, servers[i], &addrs[i].sin_addr);
+		err = net_addr_pton(NET_AF_INET, servers[i], &addrs[i].sin_addr);
 		if (err) {
 			LOG_ERR("Invalid DNS address: %s",
 				servers[i]);
@@ -574,8 +574,8 @@ MODEM_CMD_DEFINE(on_cmd_cipdns)
 			break;
 		}
 
-		addrs[i].sin_family = AF_INET;
-		addrs[i].sin_port = htons(53);
+		addrs[i].sin_family = NET_AF_INET;
+		addrs[i].sin_port = net_htons(53);
 
 		valid_servers++;
 	}
@@ -663,11 +663,11 @@ MODEM_CMD_DEFINE(on_cmd_cipsta)
 	ip = str_unquote(argv[1]);
 
 	if (!strcmp(argv[0], "ip")) {
-		net_addr_pton(AF_INET, ip, &dev->ip);
+		net_addr_pton(NET_AF_INET, ip, &dev->ip);
 	} else if (!strcmp(argv[0], "gateway")) {
-		net_addr_pton(AF_INET, ip, &dev->gw);
+		net_addr_pton(NET_AF_INET, ip, &dev->gw);
 	} else if (!strcmp(argv[0], "netmask")) {
-		net_addr_pton(AF_INET, ip, &dev->nm);
+		net_addr_pton(NET_AF_INET, ip, &dev->nm);
 	} else {
 		LOG_WRN("Unknown IP type %s", argv[0]);
 	}
@@ -854,8 +854,8 @@ static int cmd_ipd_parse_hdr(struct esp_data *dev,
 
 	if (!ESP_PROTO_PASSIVE(esp_socket_ip_proto(*sock)) &&
 	    IS_ENABLED(CONFIG_WIFI_ESP_AT_CIPDINFO_USE)) {
-		struct sockaddr_in *recv_addr =
-			(struct sockaddr_in *) &(*sock)->context->remote;
+		struct net_sockaddr_in *recv_addr =
+			(struct net_sockaddr_in *) &(*sock)->context->remote;
 		char *remote_ip;
 		long port;
 
@@ -883,15 +883,15 @@ static int cmd_ipd_parse_hdr(struct esp_data *dev,
 			goto socket_unref;
 		}
 
-		err = net_addr_pton(AF_INET, remote_ip, &recv_addr->sin_addr);
+		err = net_addr_pton(NET_AF_INET, remote_ip, &recv_addr->sin_addr);
 		if (err) {
 			LOG_ERR("Invalid IP address");
 			err = -EBADMSG;
 			goto socket_unref;
 		}
 
-		recv_addr->sin_family = AF_INET;
-		recv_addr->sin_port = htons(port);
+		recv_addr->sin_family = NET_AF_INET;
+		recv_addr->sin_port = net_htons(port);
 	}
 
 	*data_offset = (str - ipd_buf);
@@ -1074,6 +1074,7 @@ static void esp_mgmt_iface_status_work(struct k_work *work)
 }
 
 static int esp_mgmt_iface_status(const struct device *dev,
+				 struct net_if *iface,
 				 struct wifi_iface_status *status)
 {
 	struct esp_data *data = dev->data;
@@ -1087,7 +1088,7 @@ static int esp_mgmt_iface_status(const struct device *dev,
 	status->security = WIFI_SECURITY_TYPE_UNKNOWN;
 	status->mfp = WIFI_MFP_UNKNOWN;
 
-	if (!net_if_is_carrier_ok(data->net_iface)) {
+	if (!net_if_is_carrier_ok(iface)) {
 		status->state = WIFI_STATE_INTERFACE_DISABLED;
 		return 0;
 	}
@@ -1133,6 +1134,7 @@ out:
 }
 
 static int esp_mgmt_scan(const struct device *dev,
+			 struct net_if *iface,
 			 struct wifi_scan_params *params,
 			 scan_result_cb_t cb)
 {
@@ -1144,7 +1146,7 @@ static int esp_mgmt_scan(const struct device *dev,
 		return -EINPROGRESS;
 	}
 
-	if (!net_if_is_carrier_ok(data->net_iface)) {
+	if (!net_if_is_carrier_ok(iface)) {
 		return -EIO;
 	}
 
@@ -1272,14 +1274,15 @@ static int esp_conn_cmd_escape_and_append(struct esp_data *data, size_t *off,
 }
 
 static int esp_mgmt_connect(const struct device *dev,
+			    struct net_if *iface,
 			    struct wifi_connect_req_params *params)
 {
 	struct esp_data *data = dev->data;
 	size_t off = 0;
 	int err;
 
-	if (!net_if_is_carrier_ok(data->net_iface) ||
-	    !net_if_is_admin_up(data->net_iface)) {
+	if (!net_if_is_carrier_ok(iface) ||
+	    !net_if_is_admin_up(iface)) {
 		return -EIO;
 	}
 
@@ -1323,7 +1326,7 @@ static int esp_mgmt_connect(const struct device *dev,
 	return 0;
 }
 
-static int esp_mgmt_disconnect(const struct device *dev)
+static int esp_mgmt_disconnect(const struct device *dev, struct net_if *iface __unused)
 {
 	struct esp_data *data = dev->data;
 	int ret;
@@ -1334,6 +1337,7 @@ static int esp_mgmt_disconnect(const struct device *dev)
 }
 
 static int esp_mgmt_ap_enable(const struct device *dev,
+			      struct net_if *iface,
 			      struct wifi_connect_req_params *params)
 {
 	char cmd[sizeof("AT+"_CWSAP"=\"\",\"\",xx,x") + WIFI_SSID_MAX_LEN +
@@ -1365,17 +1369,17 @@ static int esp_mgmt_ap_enable(const struct device *dev,
 
 	ret = esp_cmd_send(data, NULL, 0, cmd, ESP_CMD_TIMEOUT);
 
-	net_if_dormant_off(data->net_iface);
+	net_if_dormant_off(iface);
 
 	return ret;
 }
 
-static int esp_mgmt_ap_disable(const struct device *dev)
+static int esp_mgmt_ap_disable(const struct device *dev, struct net_if *iface)
 {
 	struct esp_data *data = dev->data;
 
 	if (!esp_flags_are_set(data, EDF_STA_CONNECTED)) {
-		net_if_dormant_on(data->net_iface);
+		net_if_dormant_on(iface);
 	}
 
 	return esp_mode_flags_clear(data, EDF_AP_ENABLED);

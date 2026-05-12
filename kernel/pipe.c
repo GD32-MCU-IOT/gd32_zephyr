@@ -9,6 +9,7 @@
 #include <ksched.h>
 #include <kthread.h>
 #include <wait_q.h>
+#include <scheduler.h>
 
 #ifdef CONFIG_OBJ_CORE_PIPE
 static struct k_obj_type obj_type_pipe;
@@ -113,7 +114,7 @@ static size_t copy_to_pending_readers(struct k_pipe *pipe, bool *need_resched,
 			}
 
 			reader_buf = reader->base.swap_data;
-			copy_size = MIN(len - written,
+			copy_size = min(len - written,
 					reader_buf->len - reader_buf->used);
 			memcpy(&reader_buf->data[reader_buf->used],
 			       &data[written], copy_size);

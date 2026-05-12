@@ -139,6 +139,8 @@ enum net_request_wifi_cmd {
 	NET_REQUEST_WIFI_CMD_BSS_MAX_IDLE_PERIOD,
 	/** Configure background scanning */
 	NET_REQUEST_WIFI_CMD_BGSCAN,
+	/** Wi-Fi Direct (P2P) operations*/
+	NET_REQUEST_WIFI_CMD_P2P_OPER,
 	/** @cond INTERNAL_HIDDEN */
 	NET_REQUEST_WIFI_CMD_MAX
 	/** @endcond */
@@ -339,6 +341,11 @@ NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_WIFI_BSS_MAX_IDLE_PERIOD);
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_WIFI_BGSCAN);
 
+#define NET_REQUEST_WIFI_P2P_OPER						\
+	(NET_WIFI_BASE | NET_REQUEST_WIFI_CMD_P2P_OPER)
+
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_WIFI_P2P_OPER);
+
 /** @cond INTERNAL_HIDDEN */
 
 enum {
@@ -359,7 +366,7 @@ enum {
 	NET_EVENT_WIFI_CMD_AP_STA_CONNECTED_VAL,
 	NET_EVENT_WIFI_CMD_AP_STA_DISCONNECTED_VAL,
 	NET_EVENT_WIFI_CMD_SUPPLICANT_VAL,
-
+	NET_EVENT_WIFI_CMD_P2P_DEVICE_FOUND_VAL,
 	NET_EVENT_WIFI_CMD_MAX,
 };
 
@@ -406,6 +413,8 @@ enum net_event_wifi_cmd {
 	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_AP_STA_DISCONNECTED),
 	/** Supplicant specific event */
 	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_SUPPLICANT),
+	/** P2P device found */
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_P2P_DEVICE_FOUND),
 };
 
 /** Event emitted for Wi-Fi scan result */
@@ -467,6 +476,51 @@ enum net_event_wifi_cmd {
 /** Event emitted Wi-Fi station is disconnected from AP */
 #define NET_EVENT_WIFI_AP_STA_DISCONNECTED			\
 	(NET_WIFI_EVENT | NET_EVENT_WIFI_CMD_AP_STA_DISCONNECTED)
+
+/** Event emitted for P2P device found event */
+#define NET_EVENT_WIFI_P2P_DEVICE_FOUND				\
+	(NET_WIFI_EVENT | NET_EVENT_WIFI_CMD_P2P_DEVICE_FOUND)
+
+#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P
+/** Maximum length for P2P device name */
+#define WIFI_P2P_DEVICE_NAME_MAX_LEN 32
+/** Size of P2P primary device type (8 bytes) */
+#define WIFI_P2P_PRI_DEV_TYPE_SIZE 8
+/** Maximum length for P2P primary device type string */
+#define WIFI_P2P_PRI_DEV_TYPE_STR_MAX_LEN 32
+/** Maximum length for P2P WPS configuration methods string */
+#define WIFI_P2P_CONFIG_METHODS_STR_MAX_LEN 16
+/** Maximum length for P2P manufacturer name */
+#define WIFI_P2P_MANUFACTURER_MAX_LEN 64
+/** Maximum length for P2P model name */
+#define WIFI_P2P_MODEL_NAME_MAX_LEN 32
+
+/** @brief Wi-Fi P2P device info */
+struct wifi_p2p_device_info {
+	/** Device MAC address */
+	uint8_t mac[WIFI_MAC_ADDR_LEN];
+	/** Device name (max 32 chars + null terminator) */
+	char device_name[WIFI_P2P_DEVICE_NAME_MAX_LEN + 1];
+	/** Primary device type */
+	uint8_t pri_dev_type[WIFI_P2P_PRI_DEV_TYPE_SIZE];
+	/** Primary device type string */
+	char pri_dev_type_str[WIFI_P2P_PRI_DEV_TYPE_STR_MAX_LEN];
+	/** Signal strength (RSSI) */
+	int8_t rssi;
+	/** WPS configuration methods supported */
+	uint16_t config_methods;
+	/** WPS configuration methods string */
+	char config_methods_str[WIFI_P2P_CONFIG_METHODS_STR_MAX_LEN];
+	/** Device capability */
+	uint8_t dev_capab;
+	/** Group capability */
+	uint8_t group_capab;
+	/** Manufacturer (max 64 chars + null terminator) */
+	char manufacturer[WIFI_P2P_MANUFACTURER_MAX_LEN + 1];
+	/** Model name (max 32 chars + null terminator) */
+	char model_name[WIFI_P2P_MODEL_NAME_MAX_LEN + 1];
+};
+#endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P */
 
 /** @brief Wi-Fi version */
 struct wifi_version {
@@ -723,6 +777,16 @@ struct wifi_connect_req_params {
 	uint8_t ignore_broadcast_ssid;
 	/** Parameter used for frequency band */
 	enum wifi_frequency_bandwidths bandwidth;
+
+	/** Full domain name to verify in the server certificate */
+	const uint8_t *server_cert_domain_exact;
+	/** Length of the server_cert_domain_exact string, maximum 128 bytes */
+	uint8_t server_cert_domain_exact_len;
+
+	/** Domain name suffix to verify in the server certificate */
+	const uint8_t *server_cert_domain_suffix;
+	/** Length of the server_cert_domain_suffix string, maximum 64 bytes */
+	uint8_t server_cert_domain_suffix_len;
 };
 
 /** @brief Wi-Fi disconnect reason codes. To be overlaid on top of \ref wifi_status
@@ -799,6 +863,8 @@ struct wifi_iface_status {
 	enum wifi_wpa3_enterprise_type wpa3_ent_type;
 	/** Security type, see enum wifi_security_type */
 	enum wifi_security_type security;
+	/** WEP key type (64-bit or 128-bit), see enum wifi_wep_key_type */
+	enum wifi_wep_key_type wep_key_type;
 	/** MFP options, see enum wifi_mfp_options */
 	enum wifi_mfp_options mfp;
 	/** RSSI */
@@ -1104,6 +1170,9 @@ union wifi_mgmt_events {
 #endif /* CONFIG_WIFI_MGMT_RAW_SCAN_RESULTS */
 	struct wifi_twt_params twt_params;
 	struct wifi_ap_sta_info ap_sta_info;
+#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P
+	struct wifi_p2p_device_info p2p_device_info;
+#endif
 };
 
 /** @endcond */
@@ -1132,8 +1201,13 @@ struct wifi_filter_info {
 
 /** @brief Wi-Fi channel setting for monitor and TX-injection modes */
 struct wifi_channel_info {
-	/** Channel value to set */
+	/** Channel value to set or get */
 	uint16_t channel;
+	/** Frequency band for the channel (2.4 / 5 / 6 GHz). Use WIFI_FREQ_BAND_UNKNOWN
+	 *  to let the driver infer when unambiguous (e.g. 36-165 is 5 GHz). Required
+	 *  when channel is ambiguous (e.g. 1-14 can be 2.4 or 6 GHz).
+	 */
+	enum wifi_frequency_bands band;
 	/** Interface index */
 	uint8_t if_index;
 	/** Get or set operation */
@@ -1387,6 +1461,133 @@ struct wifi_wps_config_params {
 	char pin[WIFI_WPS_PIN_MAX_LEN + 1];
 };
 
+#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P
+/** Wi-Fi P2P operation */
+enum wifi_p2p_op {
+	/** P2P find/discovery */
+	WIFI_P2P_FIND = 0,
+	/** P2P stop find/discovery */
+	WIFI_P2P_STOP_FIND,
+	/** P2P query peer info use broadcast MAC (ff:ff:ff:ff:ff:ff) to list all peers,
+	 *  or specific MAC address to query a single peer
+	 */
+	WIFI_P2P_PEER,
+	/** P2P connect to peer */
+	WIFI_P2P_CONNECT,
+	/** P2P group add */
+	WIFI_P2P_GROUP_ADD,
+	/** P2P group remove */
+	WIFI_P2P_GROUP_REMOVE,
+	/** P2P invite */
+	WIFI_P2P_INVITE,
+	/** P2P power save */
+	WIFI_P2P_POWER_SAVE,
+};
+
+/** Wi-Fi P2P discovery type */
+enum wifi_p2p_discovery_type {
+	/** Start with full scan, then only social channels */
+	WIFI_P2P_FIND_START_WITH_FULL = 0,
+	/** Only social channels (1, 6, 11) */
+	WIFI_P2P_FIND_ONLY_SOCIAL,
+	/** Progressive - scan through all channels one at a time */
+	WIFI_P2P_FIND_PROGRESSIVE,
+};
+
+/** Wi-Fi P2P connection method */
+enum wifi_p2p_connection_method {
+	/** Push Button Configuration */
+	WIFI_P2P_METHOD_PBC = 0,
+	/** Display PIN (device displays PIN for peer to enter) */
+	WIFI_P2P_METHOD_DISPLAY,
+	/** Keypad PIN (user enters PIN on device) */
+	WIFI_P2P_METHOD_KEYPAD,
+};
+
+/** Maximum number of P2P peers that can be returned in a single query */
+#define WIFI_P2P_MAX_PEERS CONFIG_WIFI_P2P_MAX_PEERS
+
+/** Wi-Fi P2P parameters */
+struct wifi_p2p_params {
+	/** P2P operation */
+	enum wifi_p2p_op oper;
+	/** Discovery type (for find operation) */
+	enum wifi_p2p_discovery_type discovery_type;
+	/** Timeout in seconds (0 = no timeout, run until stopped) */
+	uint16_t timeout;
+	/** Peer device address (for peer operation) */
+	uint8_t peer_addr[WIFI_MAC_ADDR_LEN];
+	/** Flag to list only discovered peers (for peers operation) */
+	bool discovered_only;
+	/** Pointer to array for peer info results */
+	struct wifi_p2p_device_info *peers;
+	/** Actual number of peers returned */
+	uint16_t peer_count;
+	/** Power save enabled (for power save operation) */
+	bool power_save;
+	/** Connect specific parameters */
+	struct {
+		/** Connection method */
+		enum wifi_p2p_connection_method method;
+		/** PIN for display/keypad methods (8 digits)
+		 * - For DISPLAY: Leave empty, PIN will be generated and returned
+		 * - For KEYPAD: Provide the PIN to use for connection
+		 */
+		char pin[WIFI_WPS_PIN_MAX_LEN + 1];
+		/** GO intent (0-15, higher values indicate higher willingness to be GO) */
+		uint8_t go_intent;
+		/** Frequency in MHz (0 = not specified, use default) */
+		unsigned int freq;
+		/** Join an existing group (as a client) instead of starting GO negotiation */
+		bool join;
+	} connect;
+	/** Group add specific parameters */
+	struct {
+		/** Frequency in MHz (0 = auto) */
+		int freq;
+		/** Persistent group ID (-1 = not persistent) */
+		int persistent;
+		/** Enable HT40 */
+		bool ht40;
+		/** Enable VHT */
+		bool vht;
+		/** Enable HE */
+		bool he;
+		/** Enable EDMG */
+		bool edmg;
+		/** GO BSSID (NULL = auto) */
+		uint8_t go_bssid[WIFI_MAC_ADDR_LEN];
+		/** GO BSSID length */
+		uint8_t go_bssid_length;
+	} group_add;
+	/** Group remove specific parameters */
+	struct {
+		/** Interface name (e.g., "wlan0") */
+		char ifname[CONFIG_NET_INTERFACE_NAME_LEN + 1];
+	} group_remove;
+	/** Invite specific parameters */
+	struct {
+		/** Invite type: persistent or group */
+		enum {
+			WIFI_P2P_INVITE_PERSISTENT = 0,
+			WIFI_P2P_INVITE_GROUP,
+		} type;
+		/** Persistent group ID (for persistent type) */
+		int persistent_id;
+		/** Group interface name (for group type) */
+		char group_ifname[CONFIG_NET_INTERFACE_NAME_LEN + 1];
+		/** Peer MAC address */
+		uint8_t peer_addr[WIFI_MAC_ADDR_LEN];
+		/** Frequency in MHz (0 = auto) */
+		int freq;
+		/** GO device address (for group type, NULL = auto) */
+		uint8_t go_dev_addr[WIFI_MAC_ADDR_LEN];
+		/** GO device address length */
+		uint8_t go_dev_addr_length;
+	} invite;
+};
+#endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P */
+
 /** Wi-Fi AP status
  */
 enum wifi_sap_iface_state {
@@ -1462,6 +1663,7 @@ struct wifi_mgmt_ops {
 	/** Scan for Wi-Fi networks
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the scan
 	 * @param params Scan parameters
 	 * @param cb Callback to be called for each result
 	 *           cb parameter is the cb that should be called for each
@@ -1471,186 +1673,234 @@ struct wifi_mgmt_ops {
 	 * @return 0 if ok, < 0 if error
 	 */
 	int (*scan)(const struct device *dev,
+		    struct net_if *iface,
 		    struct wifi_scan_params *params,
 		    scan_result_cb_t cb);
 	/** Connect to a Wi-Fi network
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the connection
 	 * @param params Connect parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
 	int (*connect)(const struct device *dev,
+		       struct net_if *iface,
 		       struct wifi_connect_req_params *params);
 	/** Disconnect from a Wi-Fi network
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to disconnect
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*disconnect)(const struct device *dev);
+	int (*disconnect)(const struct device *dev,
+			  struct net_if *iface);
 	/** Enable AP mode
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the AP
 	 * @param params AP mode parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
 	int (*ap_enable)(const struct device *dev,
+			 struct net_if *iface,
 			 struct wifi_connect_req_params *params);
 	/** Disable AP mode
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
-	 *
+	 * @param iface Network interface to use for the AP
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*ap_disable)(const struct device *dev);
+	int (*ap_disable)(const struct device *dev, struct net_if *iface);
 	/** Disconnect a STA from AP
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the AP
 	 * @param mac MAC address of the STA to disconnect
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*ap_sta_disconnect)(const struct device *dev, const uint8_t *mac);
+	int (*ap_sta_disconnect)(const struct device *dev, struct net_if *iface,
+				 const uint8_t *mac);
 	/** Get interface status
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to get the status
 	 * @param status Interface status
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*iface_status)(const struct device *dev, struct wifi_iface_status *status);
+	int (*iface_status)(const struct device *dev,
+			    struct net_if *iface,
+			    struct wifi_iface_status *status);
 #if defined(CONFIG_NET_STATISTICS_WIFI) || defined(__DOXYGEN__)
 	/** Get Wi-Fi statistics
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to get the statistics
 	 * @param stats Wi-Fi statistics
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*get_stats)(const struct device *dev, struct net_stats_wifi *stats);
+	int (*get_stats)(const struct device *dev,
+			 struct net_if *iface,
+			 struct net_stats_wifi *stats);
 	/** Reset  Wi-Fi statistics
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to reset the statistics
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*reset_stats)(const struct device *dev);
+	int (*reset_stats)(const struct device *dev, struct net_if *iface);
 #endif /* CONFIG_NET_STATISTICS_WIFI */
 	/** Set or get 11K status
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the 11k operation
 	 * @param params 11k parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*cfg_11k)(const struct device *dev, struct wifi_11k_params *params);
+	int (*cfg_11k)(const struct device *dev,
+		       struct net_if *iface,
+		       struct wifi_11k_params *params);
 	/** Send 11k neighbor request
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the 11k operation
 	 * @param params 11k parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*send_11k_neighbor_request)(const struct device *dev, struct wifi_11k_params *params);
+	int (*send_11k_neighbor_request)(const struct device *dev,
+					 struct net_if *iface,
+					 struct wifi_11k_params *params);
 	/** Set power save status
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the power save operation
 	 * @param params Power save parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*set_power_save)(const struct device *dev, struct wifi_ps_params *params);
+	int (*set_power_save)(const struct device *dev,
+			      struct net_if *iface,
+			      struct wifi_ps_params *params);
 	/** Setup or teardown TWT flow
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the TWT operation
 	 * @param params TWT parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*set_twt)(const struct device *dev, struct wifi_twt_params *params);
+	int (*set_twt)(const struct device *dev,
+		       struct net_if *iface,
+		       struct wifi_twt_params *params);
 	/** Setup BTWT flow
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the BTWT operation
 	 * @param params BTWT parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*set_btwt)(const struct device *dev, struct wifi_twt_params *params);
+	int (*set_btwt)(const struct device *dev,
+			struct net_if *iface,
+			struct wifi_twt_params *params);
 	/** Get power save config
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the power save operation
 	 * @param config Power save config
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*get_power_save_config)(const struct device *dev, struct wifi_ps_config *config);
+	int (*get_power_save_config)(const struct device *dev,
+				     struct net_if *iface,
+				     struct wifi_ps_config *config);
 	/** Set or get regulatory domain
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the regulatory domain operation
 	 * @param reg_domain Regulatory domain
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*reg_domain)(const struct device *dev, struct wifi_reg_domain *reg_domain);
+	int (*reg_domain)(const struct device *dev,
+			  struct net_if *iface,
+			  struct wifi_reg_domain *reg_domain);
 	/** Set or get packet filter settings for monitor and promiscuous modes
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the filter operation
 	 * @param packet filter settings
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*filter)(const struct device *dev, struct wifi_filter_info *filter);
+	int (*filter)(const struct device *dev,
+		      struct net_if *iface,
+		      struct wifi_filter_info *filter);
 	/** Set or get mode of operation
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the mode operation
 	 * @param mode settings
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*mode)(const struct device *dev, struct wifi_mode_info *mode);
+	int (*mode)(const struct device *dev, struct net_if *iface, struct wifi_mode_info *mode);
 	/** Set or get current channel of operation
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the channel operation
 	 * @param channel settings
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*channel)(const struct device *dev, struct wifi_channel_info *channel);
+	int (*channel)(const struct device *dev,
+		       struct net_if *iface,
+		       struct wifi_channel_info *channel);
 
 	/** Send BTM query
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the BTM query operation
 	 * @param reason query reason
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*btm_query)(const struct device *dev, uint8_t reason);
+	int (*btm_query)(const struct device *dev, struct net_if *iface, uint8_t reason);
 
 	/** Check if ap support Neighbor Report or not.
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the Neighbor Report operation
 	 *
 	 * @return true if support, false if not support
 	 */
-	bool (*bss_support_neighbor_rep)(const struct device *dev);
+	bool (*bss_support_neighbor_rep)(const struct device *dev, struct net_if *iface);
 
 	/** Judge ap whether support the capability
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the capability operation
 	 * @param capab is the capability to judge
 	 *
 	 * @return 1 if support, 0 if not support
 	 */
-	int (*bss_ext_capab)(const struct device *dev, int capab);
+	int (*bss_ext_capab)(const struct device *dev, struct net_if *iface, int capab);
 
 	/** Send legacy scan
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the legacy scan operation
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*legacy_roam)(const struct device *dev);
+	int (*legacy_roam)(const struct device *dev, struct net_if *iface);
 
 	/** Get Version of WiFi driver and Firmware
 	 *
@@ -1660,120 +1910,170 @@ struct wifi_mgmt_ops {
 	 * or in RAM.
 	 *
 	 * @param dev Pointer to the device structure for the driver instance
+	 * @param iface Network interface to use for the get version operation
 	 * @param params Version parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*get_version)(const struct device *dev, struct wifi_version *params);
+	int (*get_version)(const struct device *dev,
+			   struct net_if *iface,
+			   struct wifi_version *params);
 	/** Get Wi-Fi connection parameters recently used
 	 *
 	 * @param dev Pointer to the device structure for the driver instance
+	 * @param iface Network interface to use for the get connection parameters operation
 	 * @param params the Wi-Fi connection parameters recently used
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*get_conn_params)(const struct device *dev, struct wifi_connect_req_params *params);
+	int (*get_conn_params)(const struct device *dev,
+			       struct net_if *iface,
+			       struct wifi_connect_req_params *params);
 	/** Set RTS threshold value
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the RTS threshold operation
 	 * @param RTS threshold value
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*set_rts_threshold)(const struct device *dev, unsigned int rts_threshold);
+	int (*set_rts_threshold)(const struct device *dev,
+				 struct net_if *iface,
+				 unsigned int rts_threshold);
 	/** Configure AP parameter
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the AP parameter configuration operation
 	 * @param params AP mode parameter configuration parameter info
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*ap_config_params)(const struct device *dev, struct wifi_ap_config_params *params);
+	int (*ap_config_params)(const struct device *dev,
+				struct net_if *iface,
+				struct wifi_ap_config_params *params);
 	/** Configure STA parameter
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the STA parameter configuration operation
 	 * @param params STA mode parameter configuration parameter info
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*config_params)(const struct device *dev, struct wifi_config_params *params);
+	int (*config_params)(const struct device *dev,
+			     struct net_if *iface,
+			     struct wifi_config_params *params);
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP
 	/** Dispatch DPP operations by action enum, with or without arguments in string format
 	 *
 	 * @param dev Pointer to the device structure for the driver instance
+	 * @param iface Network interface to use for the DPP operation
 	 * @param params DPP action enum and parameters in string
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*dpp_dispatch)(const struct device *dev, struct wifi_dpp_params *params);
+	int (*dpp_dispatch)(const struct device *dev,
+			    struct net_if *iface,
+			    struct wifi_dpp_params *params);
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_DPP */
 	/** Flush PMKSA cache entries
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the PMKSA flush operation
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*pmksa_flush)(const struct device *dev);
+	int (*pmksa_flush)(const struct device *dev, struct net_if *iface);
 	/** Set Wi-Fi enterprise mode CA/client Cert and key
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the enterprise credentials operation
 	 * @param creds Pointer to the CA/client Cert and key.
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_ENTERPRISE
 	int (*enterprise_creds)(const struct device *dev,
-			struct wifi_enterprise_creds_params *creds);
+				struct net_if *iface,
+				struct wifi_enterprise_creds_params *creds);
 #endif
 	/** Get RTS threshold value
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the RTS threshold operation
 	 * @param rts_threshold Pointer to the RTS threshold value.
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*get_rts_threshold)(const struct device *dev, unsigned int *rts_threshold);
+	int (*get_rts_threshold)(const struct device *dev,
+				 struct net_if *iface,
+				 unsigned int *rts_threshold);
 	/** Start a WPS PBC/PIN connection
 	 *
 	 * @param dev Pointer to the device structure for the driver instance
+	 * @param iface Network interface to use for the WPS operation
 	 * @param params wps operarion parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*wps_config)(const struct device *dev, struct wifi_wps_config_params *params);
+	int (*wps_config)(const struct device *dev,
+			  struct net_if *iface,
+			  struct wifi_wps_config_params *params);
 	/** Trigger candidate scan
 	 *
 	 * @param dev Pointer to the device structure for the driver instance
+	 * @param iface Network interface to use for the scan operation
 	 * @param params Scan parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*candidate_scan)(const struct device *dev, struct wifi_scan_params *params);
+	int (*candidate_scan)(const struct device *dev,
+			      struct net_if *iface,
+			      struct wifi_scan_params *params);
 	/** Start 11r roaming
 	 *
 	 * @param dev Pointer to the device structure for the driver instance
+	 * @param iface Network interface to use for the roaming operation
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*start_11r_roaming)(const struct device *dev);
+	int (*start_11r_roaming)(const struct device *dev, struct net_if *iface);
 	/** Set BSS max idle period
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
-	 * @param BSS max idle period value
+	 * @param iface Network interface to use for the BSS max idle period operation
+	 * @param bss_max_idle_period max idle period value
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
 	int (*set_bss_max_idle_period)(const struct device *dev,
-			unsigned short bss_max_idle_period);
+				       struct net_if *iface,
+				       unsigned short bss_max_idle_period);
 #if defined(CONFIG_WIFI_NM_WPA_SUPPLICANT_BGSCAN) || defined(__DOXYGEN__)
 	/** Configure background scanning
 	 *
 	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the background scanning operation
 	 * @param params Background scanning configuration parameters
 	 *
 	 * @return 0 if ok, < 0 if error
 	 */
-	int (*set_bgscan)(const struct device *dev, struct wifi_bgscan_params *params);
+	int (*set_bgscan)(const struct device *dev,
+			  struct net_if *iface,
+			  struct wifi_bgscan_params *params);
+#endif
+#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P
+	/** Wi-Fi Direct (P2P) operations for device discovery
+	 *
+	 * @param dev Pointer to the device structure for the driver instance.
+	 * @param iface Network interface to use for the P2P operation
+	 * @param params P2P operation parameters including operation type, discovery settings,
+	 * timeout values and peer information retrieval options
+	 *
+	 * @return 0 if ok, < 0 if error
+	 */
+	int (*p2p_oper)(const struct device *dev,
+			struct net_if *iface,
+			struct wifi_p2p_params *params);
 #endif
 };
 
@@ -1905,6 +2205,17 @@ void wifi_mgmt_raise_ap_sta_connected_event(struct net_if *iface,
  */
 void wifi_mgmt_raise_ap_sta_disconnected_event(struct net_if *iface,
 		struct wifi_ap_sta_info *sta_info);
+
+#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P
+/**
+ * @brief Raise P2P device found event
+ *
+ * @param iface Network interface
+ * @param device_info P2P device information
+ */
+void wifi_mgmt_raise_p2p_device_found_event(struct net_if *iface,
+		struct wifi_p2p_device_info *peer_info);
+#endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_P2P */
 
 /**
  * @}

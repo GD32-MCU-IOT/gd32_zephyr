@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024, 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,6 +13,7 @@
 /*                                  Includes                                  */
 /* -------------------------------------------------------------------------- */
 #include <zephyr/irq.h>
+#include <zephyr/drivers/pinctrl.h>
 #include <soc.h>
 
 /* -------------------------------------------------------------------------- */
@@ -27,11 +28,42 @@
 #define NBU_WAKE_UP_IRQ_P DT_IRQ_BY_NAME(DT_DRV_INST(0), wakeup_int, priority)
 #endif
 
+/* Check if XTAL properties are set and get values */
+#if DT_INST_NODE_HAS_PROP(0, rfmc_xo_cdac)
+#define NBU_RFMC_XO_CDAC_VALUE DT_INST_PROP(0, rfmc_xo_cdac)
+#endif
+
+#if DT_INST_NODE_HAS_PROP(0, rfmc_xo_isel)
+#define NBU_RFMC_XO_ISEL_VALUE DT_INST_PROP(0, rfmc_xo_isel)
+#endif
+
+/* Check if TX power is supported*/
+#if DT_INST_NODE_HAS_PROP(0, max_tx_power_dbm)
+#define NBU_MAX_TX_POWER_DBM DT_INST_PROP(0, max_tx_power_dbm)
+#endif
+
+#if DT_INST_NODE_HAS_PROP(0, max_tx_power_support) && defined(NBU_MAX_TX_POWER_DBM)
+#define TX_POWER_SUPPORTED_LEN DT_INST_PROP_LEN(0, max_tx_power_support)
+
+#define IS_EQUAL_TO_SUPPORTED(node_id, prop, idx)                                                  \
+	(NBU_MAX_TX_POWER_DBM == DT_INST_PROP_BY_IDX(0, prop, idx))
+
+#define IS_TX_POWER_VALID()                                                                        \
+	(DT_INST_FOREACH_PROP_ELEM_SEP(0, max_tx_power_support, IS_EQUAL_TO_SUPPORTED, (||)))
+
+/* Validation only if supported values exists */
+BUILD_ASSERT(IS_TX_POWER_VALID(), "max-tx-power-dbm must be one of the supported values");
+#endif
+
 /* -------------------------------------------------------------------------- */
 /*                             Private prototypes                             */
 /* -------------------------------------------------------------------------- */
 extern int32_t nbu_handler(void);
 extern int32_t nbu_wakeup_done_handler(void);
+
+#if DT_INST_NODE_HAS_PROP(0, pinctrl_0)
+PINCTRL_DT_INST_DEFINE(0);
+#endif
 
 /* -------------------------------------------------------------------------- */
 /*                             Public function                                */
@@ -39,7 +71,24 @@ extern int32_t nbu_wakeup_done_handler(void);
 
 void nxp_nbu_init(void)
 {
-#if defined(CONFIG_BT) || defined(CONFIG_IEEE802154)
+#if defined(NBU_RFMC_XO_CDAC_VALUE) || defined(NBU_RFMC_XO_ISEL_VALUE)
+	uint32_t rfmc_xo;
+
+	rfmc_xo = RFMC->XO_TEST;
+
+#if defined(NBU_RFMC_XO_CDAC_VALUE)
+	/* Apply a Trim value/ Current selection for the crystal oscillator */
+	rfmc_xo &= ~(RFMC_XO_TEST_CDAC_MASK);
+	rfmc_xo |= RFMC_XO_TEST_CDAC(NBU_RFMC_XO_CDAC_VALUE);
+#endif
+
+#if defined(NBU_RFMC_XO_ISEL_VALUE)
+	rfmc_xo &= ~(RFMC_XO_TEST_ISEL_MASK);
+	rfmc_xo |= RFMC_XO_TEST_ISEL(NBU_RFMC_XO_ISEL_VALUE);
+#endif
+
+	RFMC->XO_TEST = rfmc_xo;
+#endif
 	/* NBU interface Interrupt */
 	IRQ_CONNECT(NBU_RX_IRQ_N, NBU_RX_IRQ_P, nbu_handler, 0, 0);
 
@@ -50,6 +99,9 @@ void nxp_nbu_init(void)
 #if (DT_INST_PROP(0, wakeup_source)) && CONFIG_PM
 	NXP_ENABLE_WAKEUP_SIGNAL(NBU_RX_IRQ_N);
 #endif
-
+#if DT_INST_NODE_HAS_PROP(0, pinctrl_0)
+	/* NBU HDI pin configuration */
+	const struct pinctrl_dev_config *pincfg = PINCTRL_DT_DEV_CONFIG_GET(DT_DRV_INST(0));
+	(void)pinctrl_apply_state(pincfg, PINCTRL_STATE_DEFAULT);
 #endif
 }

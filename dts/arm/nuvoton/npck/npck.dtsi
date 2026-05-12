@@ -218,7 +218,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x40095000 0x2000>;
 			gpio-controller;
-			index = <0xA>;
+			index = <0xa>;
 			#gpio-cells = <2>;
 		};
 
@@ -226,7 +226,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x40097000 0x2000>;
 			gpio-controller;
-			index = <0xB>;
+			index = <0xb>;
 			#gpio-cells = <2>;
 		};
 
@@ -234,7 +234,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x40099000 0x2000>;
 			gpio-controller;
-			index = <0xC>;
+			index = <0xc>;
 			#gpio-cells = <2>;
 		};
 
@@ -242,7 +242,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x4009b000 0x2000>;
 			gpio-controller;
-			index = <0xD>;
+			index = <0xd>;
 			#gpio-cells = <2>;
 		};
 
@@ -250,7 +250,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x4009d000 0x2000>;
 			gpio-controller;
-			index = <0xE>;
+			index = <0xe>;
 			#gpio-cells = <2>;
 		};
 
@@ -258,7 +258,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x4009f000 0x2000>;
 			gpio-controller;
-			index = <0xF>;
+			index = <0xf>;
 			#gpio-cells = <2>;
 		};
 
@@ -373,6 +373,7 @@
 			interrupts = <21 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB1 NPCX_PWDWN_CTL4 4>;
 			vref-mv = <3300>;
+			speed-conf = <0x02 0x8901 0x0100 0x0405>;
 			status = "disabled";
 		};
 
@@ -443,6 +444,7 @@
 			interrupts = <35 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL3 0>;
 			smb-wui = <&wui_smb1>;
+			dma-driven;
 			status = "disabled";
 		};
 
@@ -452,6 +454,7 @@
 			interrupts = <36 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL3 1>;
 			smb-wui = <&wui_smb2>;
+			dma-driven;
 			status = "disabled";
 		};
 
@@ -461,6 +464,7 @@
 			interrupts = <37 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL3 2>;
 			smb-wui = <&wui_smb3>;
+			dma-driven;
 			status = "disabled";
 		};
 
@@ -470,6 +474,7 @@
 			interrupts = <38 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL3 3>;
 			smb-wui = <&wui_smb4>;
+			dma-driven;
 			status = "disabled";
 		};
 
@@ -479,6 +484,7 @@
 			interrupts = <39 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL3 4>;
 			smb-wui = <&wui_smb5>;
+			dma-driven;
 			status = "disabled";
 		};
 
@@ -488,6 +494,7 @@
 			interrupts = <20 3>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL3 5>;
 			smb-wui = <&wui_smb6>;
+			dma-driven;
 			status = "disabled";
 		};
 
@@ -523,6 +530,13 @@
 			compatible = "nuvoton,npcx-tach";
 			reg = <0x400e9000 0x2000>;
 			clocks = <&pcc NPCX_CLOCK_BUS_LFCLK NPCX_PWDWN_CTL0 6>;
+			status = "disabled";
+		};
+
+		v2t0: adc-v2t0 {
+			compatible = "nuvoton,npcx-adc-v2t";
+			adc-dev = <&adc0>;
+			support-npckn-v1;
 			status = "disabled";
 		};
 

@@ -9,8 +9,7 @@
 
 #define DT_DRV_COMPAT andestech_qspi_nor_xip
 
-#include "soc_v5.h"
-
+#include <andes_csr.h>
 #include <errno.h>
 #include <string.h>
 #include <zephyr/kernel.h>
@@ -297,7 +296,7 @@ static __ramfunc void cleanup_after_flashing(const struct device *dev, off_t add
 	if (size > 0) {
 		const struct flash_andes_qspi_xip_config *config = dev->config;
 
-		/* Invalidate modyfied flash memory. */
+		/* Invalidate modified flash memory. */
 		cache_data_invd_range((void *)(addr + config->mapped_base), size);
 		cache_instr_invd_range((void *)(addr + config->mapped_base), size);
 	}

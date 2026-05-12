@@ -20,8 +20,8 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_l2.h>
 
-static struct in_addr test_addr_ipv4 = { { { 192, 0, 2, 1 } } };
-static struct in6_addr test_addr_ipv6 = { { {
+static struct net_in_addr test_addr_ipv4 = { { { 192, 0, 2, 1 } } };
+static struct net_in6_addr test_addr_ipv6 = { { {
 	0x20, 0x01, 0x0d, 0xb8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x1
 } } };
 
@@ -52,7 +52,7 @@ static void net_offload_l2_iface_init(struct net_if *iface)
 	/* Reviewers: Is there a better way to do this?
 	 * I couldn't find any actual examples in the source
 	 */
-	iface->if_dev->offload = &net_offload_api;
+	net_if_offload_set(iface, &net_offload_api);
 	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
 	net_if_flag_set(iface, NET_IF_IPV4);
 	net_if_flag_set(iface, NET_IF_IPV6);

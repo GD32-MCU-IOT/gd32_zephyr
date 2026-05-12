@@ -274,8 +274,8 @@ static void virt_region_free(void *vaddr, size_t size)
 	     (vaddr_u8 < Z_VIRT_REGION_END_ADDR)) ||
 	    (((vaddr_u8 + size - 1) >= Z_VIRT_REGION_START_ADDR) &&
 	     ((vaddr_u8 + size - 1) < Z_VIRT_REGION_END_ADDR))) {
-		uint8_t *adjusted_start = MAX(vaddr_u8, Z_VIRT_REGION_START_ADDR);
-		uint8_t *adjusted_end = MIN(vaddr_u8 + size,
+		uint8_t *adjusted_start = max(vaddr_u8, Z_VIRT_REGION_START_ADDR);
+		uint8_t *adjusted_end = min(vaddr_u8 + size,
 					    Z_VIRT_REGION_END_ADDR);
 		size_t adjusted_sz = adjusted_end - adjusted_start;
 
@@ -873,7 +873,7 @@ size_t k_mem_free_get(void)
  * @param[in] phys Physical address of region to be mapped, aligned to MMU_PAGE_SIZE
  * @param[in] size Size of region to be mapped, aligned to MMU_PAGE_SIZE
  *
- * @retval alignment to apply on the virtual address of this region
+ * @return alignment to apply on the virtual address of this region
  */
 static size_t virt_region_align(uintptr_t phys, size_t size)
 {
@@ -930,8 +930,8 @@ void k_mem_map_phys_bare(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32
 		    IN_RANGE(aligned_phys + aligned_size - 1,
 			      (uintptr_t)K_MEM_VIRT_RAM_START,
 			      (uintptr_t)(K_MEM_VIRT_RAM_END - 1))) {
-			uint8_t *adjusted_start = MAX(dest_addr, K_MEM_VIRT_RAM_START);
-			uint8_t *adjusted_end = MIN(dest_addr + aligned_size,
+			uint8_t *adjusted_start = max(dest_addr, K_MEM_VIRT_RAM_START);
+			uint8_t *adjusted_end = min(dest_addr + aligned_size,
 						    K_MEM_VIRT_RAM_END);
 			size_t adjusted_sz = adjusted_end - adjusted_start;
 

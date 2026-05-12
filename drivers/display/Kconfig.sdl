@@ -1,6 +1,7 @@
 # SDL based emulated display configuration options
 
 # Copyright (c) 2018 Jan Van Winkel <jan.van_winkel@dxplore.eu>
+# Copyright (c) 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 menuconfig SDL_DISPLAY
@@ -22,6 +23,9 @@ choice SDL_DISPLAY_DEFAULT_PIXEL_FORMAT
 	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_ARGB_8888
 		bool "ARGB 8888"
 
+	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_XRGB_8888
+		bool "XRGB 8888"
+
 	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGB_888
 		bool "RGB 888"
 
@@ -34,14 +38,26 @@ choice SDL_DISPLAY_DEFAULT_PIXEL_FORMAT
 	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGB_565
 		bool "RGB 565"
 
-	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_BGR_565
-		bool "BGR 565"
+	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGB_565X
+		bool "RGB 565X"
 
 	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_L_8
 		bool "Grayscale 8bit"
 
 	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_AL_88
 		bool "Grayscale 8bit with Alpha"
+
+	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_BGR_888
+		bool "BGR 888"
+
+	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_ABGR_8888
+		bool "ABGR 8888"
+
+	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGBA_8888
+		bool "RGBA 8888"
+
+	config SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_BGRA_8888
+		bool "BGRA 8888"
 
 endchoice
 
@@ -98,6 +114,19 @@ config SDL_DISPLAY_COLOR_TINT
 	default 0xffffff
 	help
 	  Can be used to simulate colored monochrome displays, like R8 (L8 + tint 0xff0000).
+	  Byte order: RGB_888
+
+config SDL_DISPLAY_ROUNDED_MASK
+	bool "Use rounded mask"
+	help
+	  If enabled, a rounded mask will be applied to the display output.
+	  This is useful to simulate rounded displays.
+
+config SDL_DISPLAY_ROUNDED_MASK_COLOR
+	hex "Rounded mask color"
+	default 0x000000
+	help
+	  The color of the rounded mask.
 	  Byte order: RGB_888
 
 config SDL_DISPLAY_THREAD_PRIORITY

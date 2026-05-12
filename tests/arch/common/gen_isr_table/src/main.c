@@ -31,16 +31,22 @@ extern const uintptr_t _irq_vector_table[];
 
 #if defined(CONFIG_NRFX_CLIC)
 
-#if defined(CONFIG_SOC_SERIES_NRF54LX) && defined(CONFIG_RISCV_CORE_NORDIC_VPR)
+#if (defined(CONFIG_SOC_SERIES_NRF54L) || defined(CONFIG_SOC_NRF54H20_CPUFLPR)) && \
+	defined(CONFIG_RISCV_CORE_NORDIC_VPR)
 #define ISR1_OFFSET	16
 #define ISR3_OFFSET	17
 #define ISR5_OFFSET	18
 #define TRIG_CHECK_SIZE	19
-#elif defined(CONFIG_SOC_SERIES_NRF54HX) && defined(CONFIG_RISCV_CORE_NORDIC_VPR)
+#elif defined(CONFIG_SOC_SERIES_NRF54H) && defined(CONFIG_RISCV_CORE_NORDIC_VPR)
 #define ISR1_OFFSET	14
 #define ISR3_OFFSET	15
 #define ISR5_OFFSET	16
 #define TRIG_CHECK_SIZE	17
+#elif defined(CONFIG_SOC_SERIES_NRF71) && defined(CONFIG_RISCV_CORE_NORDIC_VPR)
+#define ISR1_OFFSET	16
+#define ISR3_OFFSET	21
+#define ISR5_OFFSET	22
+#define TRIG_CHECK_SIZE	23
 #elif defined(CONFIG_SOC_NRF9280_CPUPPR)
 #define ISR1_OFFSET	14
 #define ISR3_OFFSET	15
@@ -55,7 +61,7 @@ extern const uintptr_t _irq_vector_table[];
 #define ISR3_OFFSET	17
 #define ISR5_OFFSET	18
 #define TRIG_CHECK_SIZE	19
-#elif defined(CONFIG_SOC_ANDES_AE350_CLIC)
+#elif defined(CONFIG_SOC_AE350_INTERRUPT_TYPE_CLIC)
 #define ISR1_OFFSET	19
 #define ISR3_OFFSET	20
 #define ISR5_OFFSET	21
@@ -66,6 +72,18 @@ extern const uintptr_t _irq_vector_table[];
 #define ISR5_OFFSET SPARE_IRQ_4
 #define ISR6_OFFSET SPARE_IRQ_5
 #define TRIG_CHECK_SIZE (ISR6_OFFSET + 1)
+#elif defined(CONFIG_RISCV_S_MODE)
+/* In S-mode the supervisor timer (IRQ_S_TIMER = 5) is already claimed by the
+ * timer driver; only the supervisor software interrupt (IRQ_S_SOFT = 1) is
+ * available for the test.  Mirror the direct/indirect split of the default
+ * CLINT case: use ISR1_OFFSET for direct IRQs, ISR3_OFFSET otherwise.
+ */
+#ifdef HAS_DIRECT_IRQS
+#define ISR1_OFFSET	1
+#else
+#define ISR3_OFFSET	1
+#endif
+#define TRIG_CHECK_SIZE	2
 #else
 
 #if !defined(IRQ1_USED)
@@ -104,7 +122,7 @@ extern const uintptr_t _irq_vector_table[];
  * with isr used here, so add a workaround
  */
 #define TEST_NUM_IRQS	105
-#elif defined(CONFIG_SOC_NRF5340_CPUAPP) || defined(CONFIG_SOC_SERIES_NRF91X)
+#elif defined(CONFIG_SOC_NRF5340_CPUAPP) || defined(CONFIG_SOC_SERIES_NRF91)
 /* In the application core of nRF5340 and nRF9 series, not all interrupts with highest
  * numbers are implemented. Thus, limit the number of interrupts reported to
  * the test, so that it does not try to use some unavailable ones.
@@ -268,7 +286,9 @@ static int check_vector(void *isr, int offset)
 }
 #endif
 
-#ifdef CONFIG_GEN_SW_ISR_TABLE
+#if defined(CONFIG_GEN_SW_ISR_TABLE) && \
+	(defined(ISR3_OFFSET) || defined(ISR4_OFFSET) || \
+	 defined(ISR5_OFFSET) || defined(ISR6_OFFSET))
 static int check_sw_isr(void *isr, uintptr_t arg, int offset)
 {
 	const struct _isr_table_entry *e = &_sw_isr_table[TABLE_INDEX(offset)];

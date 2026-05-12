@@ -396,20 +396,21 @@ Code::
 	}
 
 When designing hierarchical state machines, the following should be considered:
- - Ancestor entry actions are executed before the sibling entry actions. For
-   example, the parent_entry function is called before the s0_entry function.
- - Transitioning from one sibling to another with a shared ancestry does not
-   re-execute the ancestor\'s entry action or execute the exit action.
-   For example, the parent_entry function is not called when transitioning
-   from S0 to S1, nor is the parent_exit function called.
- - Ancestor exit actions are executed after the exit action of the current
-   state. For example, the s1_exit function is called before the parent_exit
-   function is called.
- - The parent_run function only executes if the child_run function does not
-   call either :c:func:`smf_set_state` or return :c:enum:`SMF_EVENT_HANDLED`.
- - Avoid malformed hierarchical state machines by ensuring the state always
-   transitions to a leaf state when :kconfig:option:`CONFIG_SMF_INITIAL_TRANSITION`
-   is not enabled, or when a parent state's initial state is undefined.
+
+- Ancestor entry actions are executed before the sibling entry actions. For
+  example, the parent_entry function is called before the s0_entry function.
+- Transitioning from one sibling to another with a shared ancestry does not
+  re-execute the ancestor\'s entry action or execute the exit action.
+  For example, the parent_entry function is not called when transitioning
+  from S0 to S1, nor is the parent_exit function called.
+- Ancestor exit actions are executed after the exit action of the current
+  state. For example, the s1_exit function is called before the parent_exit
+  function is called.
+- The parent_run function only executes if the child_run function does not
+  call either :c:func:`smf_set_state` or return :c:enum:`SMF_EVENT_HANDLED`.
+- Avoid malformed hierarchical state machines by ensuring the state always
+  transitions to a leaf state when :kconfig:option:`CONFIG_SMF_INITIAL_TRANSITION`
+  is not enabled, or when a parent state's initial state is undefined.
 
 Event Driven State Machine Example
 **********************************
@@ -471,7 +472,7 @@ Code::
 		printk("STATE0\n");
 	}
 
-	static void s0_run(void *o)
+	static enum smf_state_result s0_run(void *o)
 	{
 		struct s_object *s = (struct s_object *)o;
 
@@ -488,7 +489,7 @@ Code::
 		printk("STATE1\n");
 	}
 
-	static void s1_run(void *o)
+	static enum smf_state_result s1_run(void *o)
 	{
 		struct s_object *s = (struct s_object *)o;
 
@@ -608,6 +609,71 @@ state. The statechart for this test is below.
       "smf_set_initial()" -> STATE_A [lhead=cluster_ab]
    }
 
+
+Test Instrumentation
+====================
+
+The SMF provides optional instrumentation hooks for observing state machine
+behavior during testing. To enable them, set
+:kconfig:option:`CONFIG_SMF_INSTRUMENTATION`.
+
+When enabled, three hook callbacks can be registered on a state machine context
+via :c:func:`smf_set_hooks`:
+
+- **on_action** — called before each entry, run, or exit action executes.
+- **on_transition** — called after the current state pointer is updated but
+  before the new state's entry actions execute.
+- **on_error** — called when an invalid operation is detected (e.g. a NULL
+  transition target or a transition attempted from an exit action).
+
+.. important:: :c:func:`smf_set_hooks` must be called **after**
+   :c:func:`smf_set_initial`, because :c:func:`smf_set_initial` resets the
+   hooks pointer to ``NULL``. As a consequence, entry actions executed during
+   :c:func:`smf_set_initial` (i.e. the initial state's entry actions and those
+   of its ancestors) will **not** be captured by the hooks.
+
+Example::
+
+	#include <zephyr/smf.h>
+
+	static void on_action(struct smf_ctx *ctx,
+			      const struct smf_state *state,
+			      smf_action_type action_type)
+	{
+		/* Log or record the action */
+	}
+
+	static void on_transition(struct smf_ctx *ctx,
+				  const struct smf_state *source,
+				  const struct smf_state *dest)
+	{
+		/* Log or record the transition */
+	}
+
+	static const struct smf_hooks hooks = {
+		.on_action = on_action,
+		.on_transition = on_transition,
+		/* .on_error = NULL — any member may be NULL */
+	};
+
+	void test_example(void)
+	{
+		struct s_object s_obj;
+
+		/* Set the initial state first */
+		smf_set_initial(SMF_CTX(&s_obj), &demo_states[S0]);
+
+		/* Install hooks after init — initial entry actions are not captured */
+		smf_set_hooks(SMF_CTX(&s_obj), &hooks);
+
+		/* Run the state machine — hooks fire on every action and transition */
+		while (!smf_run_state(SMF_CTX(&s_obj))) {
+			/* ... */
+		}
+	}
+
+When :kconfig:option:`CONFIG_SMF_INSTRUMENTATION` is not set, all
+instrumentation code is compiled out and there is zero runtime overhead.
 
 API Reference
 =============

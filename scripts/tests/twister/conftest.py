@@ -9,20 +9,16 @@ import os
 
 import pytest
 from twisterlib.environment import TwisterEnv, add_parse_arguments, parse_arguments
+from twisterlib.hardwaremap import HardwareMap
 from twisterlib.testinstance import TestInstance
 from twisterlib.testplan import TestConfiguration, TestPlan
 
+# pylint: disable=no-name-in-module
 from . import ZEPHYR_BASE
 
 pytest_plugins = ["pytester"]
 
 logging.getLogger("twister").setLevel(logging.DEBUG)  # requires for testing twister
-
-
-def new_get_toolchain(*args, **kwargs):
-    return 'zephyr'
-
-TestPlan.get_toolchain = new_get_toolchain
 
 
 @pytest.fixture(name='test_data')
@@ -55,6 +51,7 @@ def tesenv_obj(test_data, testsuites_dir, tmpdir_factory):
                       os.path.join(testsuites_dir, 'samples')]
     env.test_config = os.path.join(test_data, "test_config.yaml")
     env.outdir = tmpdir_factory.mktemp("sanity_out_demo")
+    env.hwm = HardwareMap(options)
     return env
 
 

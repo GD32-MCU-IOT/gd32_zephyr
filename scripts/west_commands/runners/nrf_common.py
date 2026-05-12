@@ -39,6 +39,9 @@ UICR_RANGES = {
     'nrf54l': {
         'Application': (0x00FFD000, 0x00FFDA00),
     },
+    'nrf71': {
+        'Application': (0x00FFD000, 0x00FFDA00)
+    },
     'nrf91': {
         'Application': (0x00FF8000, 0x00FF8800),
     },
@@ -53,7 +56,7 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
 
     def __init__(self, cfg, family, softreset, pinreset, dev_id, erase=False,
                  erase_mode=None, ext_erase_mode=None, reset=True,
-                 tool_opt=None, force=False, recover=False):
+                 tool_opt=None, force=False, recover=False, dry_run=False):
         super().__init__(cfg)
         self.hex_ = cfg.hex_file
         # The old --nrf-family options takes upper-case family names
@@ -67,6 +70,7 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
         self.reset = bool(reset)
         self.force = force
         self.recover = bool(recover)
+        self.dry_run = bool(dry_run)
 
         self.tool_opt = []
         if tool_opt is not None:
@@ -74,10 +78,10 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
                 self.tool_opt += opts
 
     @classmethod
-    def _capabilities(cls, mult_dev_ids=False):
+    def _capabilities(cls, mult_dev_ids=False, dry_run=False):
         return RunnerCaps(commands={'flash'}, dev_id=True,
                           mult_dev_ids=mult_dev_ids, erase=True, reset=True,
-                          tool_opt=True)
+                          tool_opt=True, dry_run=dry_run)
 
     @classmethod
     def _dev_id_help(cls) -> str:
@@ -89,7 +93,7 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
     def do_add_parser(cls, parser):
         parser.add_argument('--nrf-family',
                             choices=['NRF51', 'NRF52', 'NRF53', 'NRF54L',
-                                     'NRF54H', 'NRF91', 'NRF92'],
+                                     'NRF54H', 'NRF71', 'NRF91', 'NRF92'],
                             help='''MCU family; still accepted for
                             compatibility only''')
         # Not using a mutual exclusive group for softreset and pinreset due to
@@ -118,7 +122,6 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
                             choices=['none', 'ranges', 'all'],
                             help='Select the type of erase operation for the '
                                  'external non-volatile memory')
-
         parser.set_defaults(reset=True)
 
     @classmethod
@@ -139,7 +142,10 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
                 self.dev_id = [d.lstrip("0") for d in dev_id]
                 return
         if not dev_id or "*" in dev_id:
-            dev_id = self.get_board_snr(dev_id or "*")
+            if not self.dry_run:
+                dev_id = self.get_board_snr(dev_id or "*")
+            else:
+                dev_id = "DEVICEID" # for a dry run
         self.dev_id = dev_id.lstrip("0")
 
     @abc.abstractmethod
@@ -213,19 +219,21 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
         if self.family is not None:
             return
 
-        if self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF51X'):
+        if self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF51'):
             self.family = 'nrf51'
-        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF52X'):
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF52'):
             self.family = 'nrf52'
-        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF53X'):
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF53'):
             self.family = 'nrf53'
-        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF54LX'):
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF54L'):
             self.family = 'nrf54l'
-        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF54HX'):
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF54H'):
             self.family = 'nrf54h'
-        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF91X'):
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF71'):
+            self.family = 'nrf71'
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF91'):
             self.family = 'nrf91'
-        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF92X'):
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF92'):
             self.family = 'nrf92'
         else:
             raise RuntimeError(f'unknown nRF; update {__file__}')
@@ -297,22 +305,15 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
 
     def _get_core(self):
         if self.family in ('nrf54h', 'nrf92'):
-            if (self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPUAPP') or
-                self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPUFLPR') or
-                self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPUPPR') or
-                self.build_conf.getboolean('CONFIG_SOC_NRF9280_CPUAPP')):
-                return 'Application'
             if (self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPURAD') or
                 self.build_conf.getboolean('CONFIG_SOC_NRF9280_CPURAD')):
                 return 'Network'
-            raise RuntimeError(f'Core not found for family: {self.family}')
+            return 'Application'
 
         if self.family in ('nrf53'):
-            if self.build_conf.getboolean('CONFIG_SOC_NRF5340_CPUAPP'):
-                return 'Application'
             if self.build_conf.getboolean('CONFIG_SOC_NRF5340_CPUNET'):
                 return 'Network'
-            raise RuntimeError(f'Core not found for family: {self.family}')
+            return 'Application'
 
         return None
 
@@ -357,10 +358,13 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
             if not self.erase and regtool_generated_uicr:
                 self.exec_op('erase', core=core, kind='uicr')
         else:
+            erase_mode = self._get_erase_mode(self.erase_mode)
             if self.erase:
                 erase_arg = 'ERASE_ALL'
-            elif self.family == 'nrf54l':
-                erase_arg = self._get_erase_mode(self.erase_mode) or 'ERASE_NONE'
+            elif self.erase_mode:
+                erase_arg = erase_mode
+            elif self.family in ('nrf54l', 'nrf71'):
+                erase_arg = 'ERASE_NONE'
             else:
                 erase_arg = 'ERASE_RANGES_TOUCHED_BY_FIRMWARE'
 
@@ -389,6 +393,12 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
             core = "Application"
 
         self.op_program(self.hex_, erase_arg, ext_mem_erase_opt, defer=True, core=core)
+
+        # provision relevant slots if prot_ram_inv_slots.json exists in the build directory
+        prot_ram_inv_slots = Path(self.cfg.build_dir).parent / 'prot_ram_inv_slots.json'
+        if prot_ram_inv_slots.exists():
+            self.logger.info(f'Provisioning key file: {prot_ram_inv_slots}')
+            self.exec_op('x-provision-keys', keyfile=str(prot_ram_inv_slots), defer=True)
 
         if self.erase or self.recover:
             # provision keys if keyfile.json exists in the build directory
@@ -478,10 +488,6 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
                                'exclusive.')
 
         self.ensure_family()
-
-        if self.family != 'nrf54l' and self.erase_mode:
-            raise RuntimeError('Option --erase-mode can only be used with the '
-                               'nRF54L family.')
 
         self.ensure_output('hex')
         if IntelHex is None:

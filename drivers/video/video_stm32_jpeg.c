@@ -484,11 +484,6 @@ static int stm32_jpeg_enable_clock(const struct device *dev)
 	const struct stm32_jpeg_config *config = dev->config;
 	const struct device *cc_node = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
 
-	if (!device_is_ready(cc_node)) {
-		LOG_ERR("clock control device not ready");
-		return -ENODEV;
-	}
-
 	/* Turn on JPEG peripheral clock */
 	return clock_control_on(cc_node, (clock_control_subsys_t)&config->jpeg_hclken);
 }
@@ -520,11 +515,6 @@ static int stm32_jpeg_init(const struct device *dev)
 
 	/* Run IRQ init */
 	cfg->irq_config(dev);
-
-#if defined(CONFIG_SOC_SERIES_STM32N6X)
-	HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_JPEG,
-					      RIF_ATTRIBUTE_PRIV | RIF_ATTRIBUTE_SEC);
-#endif
 
 	/* Initialise default input / output formats */
 	k_mutex_init(&data->lock);

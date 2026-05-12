@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <dt-bindings/pinctrl/ambiq-apollo3-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/ambiq-apollo3-pinctrl.h>
 #include "apollo3_evb_connector.dtsi"
 
 &pinctrl {
@@ -73,6 +73,15 @@
 	i2c5_default: i2c5_default {
 		group1 {
 			pinmux = <M5SCL_P48>, <M5SDAWIR3_P49>;
+			drive-open-drain;
+			drive-strength = "0.5";
+			bias-pull-up;
+		};
+	};
+
+	ios_i2c0_default: ios_i2c0_default {
+		group1 {
+			pinmux = <SLSCL_P0>, <SLSDAWIR3_P1>;
 			drive-open-drain;
 			drive-strength = "0.5";
 			bias-pull-up;

@@ -1,7 +1,7 @@
 /*  Bluetooth TBS - Telephone Bearer Service - Client
  *
  * Copyright (c) 2020 Bose Corporation
- * Copyright (c) 2021-2024 Nordic Semiconductor ASA
+ * Copyright (c) 2021-2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/att.h>
 #include <zephyr/bluetooth/audio/tbs.h>
 #include <zephyr/bluetooth/bluetooth.h>
@@ -31,8 +32,8 @@
 #include <zephyr/sys/util_utf8.h>
 #include <zephyr/toolchain.h>
 #include <zephyr/types.h>
-#include <zephyr/sys/check.h>
 
+#include "common/bt_str.h"
 #include "tbs_internal.h"
 
 LOG_MODULE_REGISTER(bt_tbs_client, CONFIG_BT_TBS_CLIENT_LOG_LEVEL);
@@ -55,7 +56,13 @@ LOG_MODULE_REGISTER(bt_tbs_client, CONFIG_BT_TBS_CLIENT_LOG_LEVEL);
 
 BUILD_ASSERT(CONFIG_BT_ATT_TX_COUNT >= TBS_CLIENT_BUF_COUNT, "Too few ATT buffers");
 
-#include "common/bt_str.h"
+/* The maximum size of all supported string values */
+#define MAX_STR_LEN                                                                                \
+	MAX(CONFIG_BT_TBS_MAX_URI_LENGTH,                                                          \
+	    (MAX(COND_CODE_1(CONFIG_BT_TBS_CLIENT_BEARER_PROVIDER_NAME,                            \
+			     (CONFIG_BT_TBS_MAX_PROVIDER_NAME_LENGTH), (0U)),                      \
+		 COND_CODE_1(CONFIG_BT_TBS_CLIENT_CALL_FRIENDLY_NAME,                              \
+			     (CONFIG_BT_TBS_MAX_FRIENDLY_NAME_LENGTH), (0U)))))
 
 struct bt_tbs_server_inst {
 #if defined(CONFIG_BT_TBS_CLIENT_TBS)
@@ -96,7 +103,7 @@ static struct bt_tbs_instance *tbs_instance_find(struct bt_tbs_server_inst *serv
 	return NULL;
 }
 
-static struct bt_tbs_instance *tbs_inst_by_index(struct bt_conn *conn, uint8_t index)
+static struct bt_tbs_instance *tbs_inst_by_index(const struct bt_conn *conn, uint8_t index)
 {
 	struct bt_tbs_server_inst *server;
 
@@ -354,10 +361,10 @@ static void call_cp_callback_handler(struct bt_conn *conn, int err,
 }
 #endif /* defined(CONFIG_BT_TBS_CLIENT_OPTIONAL_OPCODES) */
 
-const char *parse_string_value(const void *data, uint16_t length,
-				      uint16_t max_len)
+__maybe_unused static const char *parse_string_value(const void *data, uint16_t length,
+						     uint16_t max_len)
 {
-	static char string_val[CONFIG_BT_TBS_MAX_URI_LENGTH + 1];
+	static char string_val[MAX_STR_LEN + 1];
 	const size_t len = MIN(length, max_len);
 
 	if (len != 0) {
@@ -397,7 +404,7 @@ static void provider_name_notify_handler(struct bt_conn *conn,
 
 #if defined(CONFIG_BT_TBS_CLIENT_BEARER_TECHNOLOGY)
 static void technology_changed(struct bt_conn *conn, int err, uint8_t inst_index,
-			       uint8_t technology)
+			       enum bt_bearer_tech technology)
 {
 	struct bt_tbs_client_cb *listener, *next;
 
@@ -418,9 +425,11 @@ static void technology_notify_handler(struct bt_conn *conn,
 
 	if (length == sizeof(technology)) {
 		(void)memcpy(&technology, data, length);
-		LOG_DBG("%s (0x%02x)", bt_tbs_technology_str(technology), technology);
+		LOG_DBG("%s (0x%02x)", bt_bearer_tech_str((enum bt_bearer_tech)technology),
+			technology);
 
-		technology_changed(conn, 0, tbs_index(conn, tbs_inst), technology);
+		technology_changed(conn, 0, tbs_index(conn, tbs_inst),
+				   (enum bt_bearer_tech)technology);
 	}
 }
 #endif /* defined(CONFIG_BT_TBS_CLIENT_BEARER_TECHNOLOGY) */
@@ -672,8 +681,7 @@ static void friendly_name_notify_handler(struct bt_conn *conn,
 					 const struct bt_tbs_instance *tbs_inst,
 					 const void *data, uint16_t length)
 {
-	const char *name = parse_string_value(data, length,
-					      CONFIG_BT_TBS_MAX_URI_LENGTH);
+	const char *name = parse_string_value(data, length, CONFIG_BT_TBS_MAX_FRIENDLY_NAME_LENGTH);
 
 	LOG_DBG("%s", name);
 
@@ -761,8 +769,13 @@ static uint8_t notify_handler(struct bt_conn *conn,
 
 static void initialize_net_buf_read_buffer(struct bt_tbs_instance *inst)
 {
-	net_buf_simple_init_with_data(&inst->net_buf, &inst->read_buf,
-				      sizeof(inst->read_buf));
+	if (inst->net_buf.data == NULL) {
+		net_buf_simple_init_with_data(&inst->net_buf, &inst->read_buf,
+					      sizeof(inst->read_buf));
+	} else {
+		(void)memset(inst->net_buf.data, 0, inst->net_buf.len);
+	}
+
 	net_buf_simple_reset(&inst->net_buf);
 }
 
@@ -1025,7 +1038,8 @@ static uint8_t read_technology_cb(struct bt_conn *conn, uint8_t err,
 		LOG_HEXDUMP_DBG(data, length, "Data read");
 		if (length == sizeof(technology)) {
 			(void)memcpy(&technology, data, length);
-			LOG_DBG("%s (0x%02x)", bt_tbs_technology_str(technology), technology);
+			LOG_DBG("%s (0x%02x)", bt_bearer_tech_str((enum bt_bearer_tech)technology),
+				technology);
 		} else {
 			LOG_DBG("Invalid length");
 			cb_err = BT_ATT_ERR_INVALID_ATTRIBUTE_LEN;
@@ -1034,7 +1048,11 @@ static uint8_t read_technology_cb(struct bt_conn *conn, uint8_t err,
 
 	tbs_client_gatt_read_complete(inst);
 
-	technology_changed(conn, cb_err, inst_index, technology);
+	/* TODO: We should probably verify that the read value is valid before calling
+	 * technology_changed with a non-0 error
+	 */
+
+	technology_changed(conn, cb_err, inst_index, (enum bt_bearer_tech)technology);
 
 	return BT_GATT_ITER_STOP;
 }
@@ -1805,6 +1823,8 @@ static uint8_t primary_discover_tbs_cb(struct bt_conn *conn, const struct bt_gat
 	const uint8_t conn_index = bt_conn_index(conn);
 	struct bt_tbs_server_inst *srv_inst = &srv_insts[conn_index];
 
+	ARG_UNUSED(params);
+
 	LOG_DBG("conn %p attr %p", (void *)conn, attr);
 
 	if (attr != NULL) {
@@ -1854,6 +1874,8 @@ static uint8_t primary_discover_gtbs_cb(struct bt_conn *conn, const struct bt_ga
 {
 	const uint8_t conn_index = bt_conn_index(conn);
 	struct bt_tbs_server_inst *srv_inst = &srv_insts[conn_index];
+
+	ARG_UNUSED(params);
 
 	LOG_DBG("conn %p attr %p", (void *)conn, attr);
 
@@ -2472,7 +2494,7 @@ int bt_tbs_client_discover(struct bt_conn *conn)
 
 int bt_tbs_client_register_cb(struct bt_tbs_client_cb *cb)
 {
-	CHECKIF(cb == NULL) {
+	if (cb == NULL) {
 		LOG_DBG("cb is NULL");
 
 		return -EINVAL;
@@ -2500,7 +2522,7 @@ struct bt_tbs_instance *bt_tbs_client_get_by_ccid(const struct bt_conn *conn,
 {
 	struct bt_tbs_server_inst *server;
 
-	CHECKIF(conn == NULL) {
+	if (conn == NULL) {
 		LOG_DBG("conn was NULL");
 		return NULL;
 	}
@@ -2508,5 +2530,16 @@ struct bt_tbs_instance *bt_tbs_client_get_by_ccid(const struct bt_conn *conn,
 	server = &srv_insts[bt_conn_index(conn)];
 
 	return tbs_instance_find(server, tbs_instance_ccid_is_eq, UINT_TO_POINTER(ccid));
+}
+
+struct bt_tbs_instance *bt_tbs_client_get_by_index(const struct bt_conn *conn, uint8_t index)
+
+{
+	if (conn == NULL) {
+		LOG_DBG("conn was NULL");
+		return NULL;
+	}
+
+	return tbs_inst_by_index(conn, index);
 }
 #endif /* defined(CONFIG_BT_TBS_CLIENT_CCID) */

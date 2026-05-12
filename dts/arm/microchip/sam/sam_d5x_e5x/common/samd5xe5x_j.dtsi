@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <microchip/sam/sam_d5x_e5x/common/samd5xe5x.dtsi>
+
 / {
 	soc {
 		tcc3: tcc@42001000 {
@@ -15,6 +17,30 @@
 			clock-names = "mclk", "gclk";
 			max-bit-width = <16>;
 			channels = <2>;
+		};
+
+		tc4: tc@42001400 {
+			compatible = "microchip,tc-g1";
+			reg = <0x42001400 0x400>;
+			interrupts = <111 0>;
+			clocks = <&mclkperiphperiph CLOCK_MCHP_MCLKPERIPH_ID_APBC_TC4>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_TC4>;
+			clock-names = "mclk", "gclk";
+			max-bit-width = <16>;
+			channels = <2>;
+			status = "disabled";
+		};
+
+		tc5: tc@42001800 {
+			compatible = "microchip,tc-g1";
+			reg = <0x42001800 0x400>;
+			interrupts = <112 0>;
+			clocks = <&mclkperiphperiph CLOCK_MCHP_MCLKPERIPH_ID_APBC_TC5>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_TC5>;
+			clock-names = "mclk", "gclk";
+			max-bit-width = <16>;
+			channels = <2>;
+			status = "disabled";
 		};
 
 		tcc4: tcc@43001000 {

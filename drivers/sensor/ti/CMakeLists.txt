@@ -3,13 +3,14 @@
 
 # zephyr-keep-sorted-start
 add_subdirectory_ifdef(CONFIG_BQ274XX bq274xx)
+add_subdirectory_ifdef(CONFIG_FDC1004 fdc1004)
 add_subdirectory_ifdef(CONFIG_FDC2X1X fdc2x1x)
 add_subdirectory_ifdef(CONFIG_INA219 ina219)
 add_subdirectory_ifdef(CONFIG_INA2XX ina2xx)
 add_subdirectory_ifdef(CONFIG_INA3221 ina3221)
 add_subdirectory_ifdef(CONFIG_INA7XX ina7xx)
 add_subdirectory_ifdef(CONFIG_LM95234 lm95234)
-add_subdirectory_ifdef(CONFIG_OPT3001 opt3001)
+add_subdirectory_ifdef(CONFIG_OPT300X opt300x)
 add_subdirectory_ifdef(CONFIG_TI_HDC ti_hdc)
 add_subdirectory_ifdef(CONFIG_TI_HDC20XX ti_hdc20xx)
 add_subdirectory_ifdef(CONFIG_TI_HDC302X ti_hdc302x)

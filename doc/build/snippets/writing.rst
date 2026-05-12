@@ -67,8 +67,7 @@ The build system looks for snippets in these places:
 
 #. In directories configured by the :makevar:`SNIPPET_ROOT` CMake variable.
    This always includes the zephyr repository (so
-   :zephyr_file:`snippets/` is always a source of snippets) and the
-   application source directory (so :file:`<app>/snippets` is also).
+   :zephyr_file:`snippets/` is always a source of snippets).
 
    Additional directories can be added manually at CMake time.
 
@@ -147,7 +146,16 @@ This :file:`snippet.yml` adds :file:`foo.overlay` to the build:
      EXTRA_DTC_OVERLAY_FILE: foo.overlay
 
 The path to :file:`foo.overlay` is relative to the directory containing
-:file:`snippet.yml`.
+:file:`snippet.yml`. Multiple ``.overlay`` files can also be provided as
+a list:
+
+.. code-block:: yaml
+
+   name: foo
+   append:
+     EXTRA_DTC_OVERLAY_FILE:
+       - foo.overlay
+       - bar.overlay
 
 .. _snippets-conf-files:
 
@@ -163,7 +171,8 @@ This :file:`snippet.yml` adds :file:`foo.conf` to the build:
      EXTRA_CONF_FILE: foo.conf
 
 The path to :file:`foo.conf` is relative to the directory containing
-:file:`snippet.yml`.
+:file:`snippet.yml`. Multiple ``.conf`` files can also be provided as
+a list.
 
 Sysbuild ``.conf`` files
 ************************
@@ -177,7 +186,8 @@ This :file:`snippet.yml` adds :file:`foo.conf` to the sysbuild configuration:
      SB_EXTRA_CONF_FILE: foo.conf
 
 The path to :file:`foo.conf` is relative to the directory containing
-:file:`snippet.yml`.
+:file:`snippet.yml`. Multiple sysbuild ``.conf`` files can also be provided
+as a list.
 
 ``DTS_EXTRA_CPPFLAGS``
 **********************
@@ -245,3 +255,27 @@ The above example uses devicetree overlay :file:`my_vendor.overlay` when
 building for either board ``my_vendor_board1`` or ``my_vendor_board2``. It
 would not use the overlay when building for either ``another_vendor_board`` or
 ``x_my_vendor_board``.
+
+Board revisions
+===============
+
+Specific configuration for revisions of boards is also supported which will be applied after the
+common files:
+
+.. code-block:: yaml
+
+   name: foo
+   boards:
+     bar:
+       append:
+         # Base file will be applied first
+         EXTRA_DTC_OVERLAY_FILE: first.overlay
+       revisions:
+         "0.7.0":
+           append:
+             # Will be applied on top of common board file
+             EXTRA_DTC_OVERLAY_FILE: extra_0_7_0.overlay
+
+The above example will use :file:`first.overlay` for all revisions of the ``bar`` board, and will
+also include :file:`extra_0_7_0.overlay` when building for revision ``0.7.0`` of the ``bar``
+board (``bar@0.7.0``).

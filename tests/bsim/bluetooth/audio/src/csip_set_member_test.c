@@ -15,6 +15,7 @@
 #include <zephyr/bluetooth/gap.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/toolchain.h>
 
 #include "bs_tracing.h"
 #include "bstests.h"
@@ -34,6 +35,8 @@ static void csip_lock_changed_cb(struct bt_conn *conn,
 				 struct bt_csip_set_member_svc_inst *svc_inst,
 				 bool locked)
 {
+	ARG_UNUSED(svc_inst);
+
 	printk("Client %p %s the lock\n", conn, locked ? "locked" : "released");
 	g_locked = locked;
 }
@@ -41,6 +44,9 @@ static void csip_lock_changed_cb(struct bt_conn *conn,
 static uint8_t sirk_read_req_cb(struct bt_conn *conn,
 				struct bt_csip_set_member_svc_inst *svc_inst)
 {
+	ARG_UNUSED(conn);
+	ARG_UNUSED(svc_inst);
+
 	return sirk_read_req_rsp;
 }
 
@@ -290,12 +296,17 @@ static void test_new_set_size_and_rank(void)
 
 static void test_register(void)
 {
-	for (size_t iteration = 1; iteration <= 5; iteration++) {
+	for (size_t iteration = 0U; iteration < 5U; iteration++) {
 		struct bt_csip_set_member_svc_inst
 			*svc_insts[CONFIG_BT_CSIP_SET_MEMBER_MAX_INSTANCE_COUNT];
 		int err;
 
-		printk("Running iteration %zu\n", iteration);
+		printk("Running iteration %zu\n", iteration + 1);
+
+		/* Run with different parameters for each iteration */
+		param.lockable = !param.lockable;
+		param.rank = iteration % 2;
+		param.set_size = iteration % 3;
 
 		ARRAY_FOR_EACH(svc_insts, i) {
 			err = bt_csip_set_member_register(&param, &svc_insts[i]);

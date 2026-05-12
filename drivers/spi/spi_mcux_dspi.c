@@ -9,7 +9,7 @@
 
 #include <errno.h>
 #include <zephyr/drivers/spi.h>
-#include <zephyr/drivers/spi/rtio.h>
+#include "spi_rtio.h"
 #include <zephyr/drivers/clock_control.h>
 #include <fsl_dspi.h>
 #include <zephyr/drivers/pinctrl.h>
@@ -686,13 +686,6 @@ static int transceive(const struct device *dev,
 	const struct spi_mcux_config *config = dev->config;
 	SPI_Type *base = config->base;
 #endif
-
-	if (rx_bufs == NULL) {
-		/* FIXME: for some reason this messes up the DMA configuration
-		 * probably because CITER is 0 and transfer is starting for some reason
-		 */
-		return -ENOTSUP;
-	}
 
 	spi_context_lock(&data->ctx, asynchronous, cb, userdata, spi_cfg);
 

@@ -8,7 +8,7 @@
 
 / {
 	chosen {
-		zephyr,display = &lcdif;
+		zephyr,display = &zephyr_lcdif;
 		zephyr,touch = &gt911_rk055hdmipi4ma0;
 	};
 
@@ -17,11 +17,6 @@
 		regulator-name = "en_mipi_display";
 		enable-gpios = <&nxp_mipi_connector 32 GPIO_ACTIVE_HIGH>;
 		regulator-boot-on;
-	};
-
-	lvgl_pointer {
-		compatible = "zephyr,lvgl-pointer-input";
-		input = <&gt911_rk055hdmipi4ma0>;
 	};
 };
 
@@ -60,14 +55,14 @@
 		 */
 		clock-frequency = <62346240>;
 	};
+
 	pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
-	data-bus-width = "24-bit";
 	backlight-gpios = <&nxp_mipi_connector 0 GPIO_ACTIVE_HIGH>;
 };
 
 &zephyr_mipi_dsi {
 	status = "okay";
-	nxp,lcdif = <&lcdif>;
+	nxp,lcdif = <&zephyr_lcdif>;
 	dpi-color-coding = "24-bit";
 	dpi-pixel-packet = "24-bit";
 	dpi-video-mode = "burst";

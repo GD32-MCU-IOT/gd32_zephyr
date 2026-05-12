@@ -1108,36 +1108,6 @@ static int it51xxx_i3cm_ibi_disable(const struct device *dev, struct i3c_device_
 }
 #endif /* CONFIG_I3C_USE_IBI */
 
-static enum i3c_bus_mode i3c_bus_mode(const struct i3c_dev_list *dev_list)
-{
-	enum i3c_bus_mode mode = I3C_BUS_MODE_PURE;
-
-	for (int i = 0; i < dev_list->num_i2c; i++) {
-		switch (I3C_LVR_I2C_DEV_IDX(dev_list->i2c[i].lvr)) {
-		case I3C_LVR_I2C_DEV_IDX_0:
-			if (mode < I3C_BUS_MODE_MIXED_FAST) {
-				mode = I3C_BUS_MODE_MIXED_FAST;
-			}
-			break;
-		case I3C_LVR_I2C_DEV_IDX_1:
-			if (mode < I3C_BUS_MODE_MIXED_LIMITED) {
-				mode = I3C_BUS_MODE_MIXED_LIMITED;
-			}
-			break;
-		case I3C_LVR_I2C_DEV_IDX_2:
-			if (mode < I3C_BUS_MODE_MIXED_SLOW) {
-				mode = I3C_BUS_MODE_MIXED_SLOW;
-			}
-			break;
-		default:
-			mode = I3C_BUS_MODE_INVALID;
-			break;
-		}
-	}
-
-	return mode;
-}
-
 static int it51xxx_i3cm_init(const struct device *dev)
 {
 	const struct it51xxx_i3cm_config *cfg = dev->config;
@@ -1219,7 +1189,8 @@ static int it51xxx_i3cm_init(const struct device *dev)
 	data->ibi_hj_response = true;
 #endif
 
-	if (cfg->common.dev_list.num_i3c > 0) {
+	if (cfg->common.dev_list.num_i3c > 0 &&
+	    !(cfg->common.flags & I3C_CONTROLLER_FLAG_DISABLE_BUS_INIT)) {
 		ret = i3c_bus_init(dev, &cfg->common.dev_list);
 		if (ret != 0) {
 			/* Perhaps the target device is offline. Avoid returning
@@ -1692,6 +1663,7 @@ static DEVICE_API(i3c, it51xxx_i3cm_api) = {
 		.common.dev_list.num_i3c = ARRAY_SIZE(it51xxx_i3cm_device_array_##n),              \
 		.common.dev_list.i2c = it51xxx_i3cm_i2c_device_array_##n,                          \
 		.common.dev_list.num_i2c = ARRAY_SIZE(it51xxx_i3cm_i2c_device_array_##n),          \
+		.common.flags = I3C_CONTROLLER_CONFIG_FLAGS_DT_INST(n),                            \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                         \
 		.io_channel = DT_INST_PROP(n, io_channel),                                         \
 		.clocks.i3c_pp_duty_cycle = DT_INST_PROP_OR(n, i3c_pp_duty_cycle, 0),              \

@@ -16,6 +16,10 @@ LOG_MODULE_REGISTER(wdt_sf32lb, CONFIG_WDT_LOG_LEVEL);
 #define WDT_CR          offsetof(WDT_TypeDef, WDT_CR)
 #define WDT_CCR         offsetof(WDT_TypeDef, WDT_CCR)
 
+#define PMUC_WER        offsetof(PMUC_TypeDef, WER)
+
+#define HPSYS_CFG_SYSCR offsetof(HPSYS_CFG_TypeDef, SYSCR)
+
 #define WDT_CMD_START 0x00000076U
 #define WDT_CMD_STOP  0x00000034U
 
@@ -30,7 +34,24 @@ LOG_MODULE_REGISTER(wdt_sf32lb, CONFIG_WDT_LOG_LEVEL);
 
 struct wdt_sf32lb_config {
 	uintptr_t base;
+	uintptr_t pmuc;
+	uintptr_t cfg;
+	bool reset_all;
 };
+
+struct wdt_sf32lb_data {
+	bool timeout_valid;
+};
+
+static inline bool wdt_sf32lb_is_enabled(const struct device *dev)
+{
+	const struct wdt_sf32lb_config *config = dev->config;
+	uint32_t cr;
+
+	cr = sys_read32(config->base + WDT_CCR);
+
+	return (cr == WDT_CMD_START);
+}
 
 static int wdt_sf32lb_setup(const struct device *dev, uint8_t options)
 {
@@ -41,6 +62,11 @@ static int wdt_sf32lb_setup(const struct device *dev, uint8_t options)
 		return -ENOTSUP;
 	}
 
+	if (wdt_sf32lb_is_enabled(dev)) {
+		LOG_ERR("Setup not allowed with watchdog enabled");
+		return -EBUSY;
+	}
+
 	sys_write32(WDT_CMD_START, config->base + WDT_CCR);
 
 	return 0;
@@ -49,7 +75,13 @@ static int wdt_sf32lb_setup(const struct device *dev, uint8_t options)
 static int wdt_sf32lb_disable(const struct device *dev)
 {
 	const struct wdt_sf32lb_config *config = dev->config;
+	struct wdt_sf32lb_data *data = dev->data;
 
+	if (!wdt_sf32lb_is_enabled(dev)) {
+		LOG_ERR("Watchdog already disabled");
+		return -EFAULT;
+	}
+	data->timeout_valid = false;
 	sys_write32(WDT_CMD_STOP, config->base + WDT_CCR);
 
 	return 0;
@@ -59,6 +91,12 @@ static int wdt_sf32lb_install_timeout(const struct device *dev,
 				      const struct wdt_timeout_cfg *wdt_cfg)
 {
 	const struct wdt_sf32lb_config *config = dev->config;
+	struct wdt_sf32lb_data *data = dev->data;
+
+	if (wdt_sf32lb_is_enabled(dev)) {
+		LOG_ERR("Timeout install not allowed with watchdog enabled");
+		return -EBUSY;
+	}
 
 	if (wdt_cfg->flags != WDT_FLAG_RESET_SOC) {
 		LOG_ERR("Only SoC reset supported");
@@ -79,6 +117,8 @@ static int wdt_sf32lb_install_timeout(const struct device *dev,
 		return -EINVAL;
 	}
 
+	data->timeout_valid = true;
+
 	sys_write32(wdt_cfg->window.max * WDT_CLK_KHZ, config->base + WDT_CVR0);
 
 	return 0;
@@ -87,6 +127,12 @@ static int wdt_sf32lb_install_timeout(const struct device *dev,
 static int wdt_sf32lb_feed(const struct device *dev, int channel_id)
 {
 	const struct wdt_sf32lb_config *config = dev->config;
+	struct wdt_sf32lb_data *data = dev->data;
+
+	if (!data->timeout_valid) {
+		LOG_ERR("No valid timeout installed");
+		return -EINVAL;
+	}
 
 	sys_write32(WDT_CMD_START, config->base + WDT_CCR);
 
@@ -110,14 +156,26 @@ static int wdt_sf32lb_init(const struct device *dev)
 	cr |= WDT_WDT_CR_RESPONSE_MODE1;
 	sys_write32(cr, config->base + WDT_CR);
 
+	sys_set_bit(config->pmuc + PMUC_WER, PMUC_WER_WDT1_Pos);
+
+	if (config->reset_all) {
+		sys_set_bit(config->cfg + HPSYS_CFG_SYSCR, HPSYS_CFG_SYSCR_WDT1_REBOOT_Pos);
+	} else {
+		sys_clear_bit(config->cfg + HPSYS_CFG_SYSCR, HPSYS_CFG_SYSCR_WDT1_REBOOT_Pos);
+	}
+
 	return 0;
 }
 
 #define WDT_SF32LB_INIT(index)                                                                     \
 	static const struct wdt_sf32lb_config wdt_sf32lb_config_##index = {                        \
 		.base = DT_INST_REG_ADDR(index),                                                   \
+		.pmuc = DT_REG_ADDR(DT_INST_PHANDLE(index, sifli_pmuc)),                           \
+		.cfg = DT_REG_ADDR(DT_INST_PHANDLE(index, sifli_cfg)),                             \
+		.reset_all = DT_INST_PROP(index, sifli_reset_all),                                 \
 	};                                                                                         \
-	DEVICE_DT_INST_DEFINE(index, wdt_sf32lb_init, NULL, NULL,                                  \
+	static struct wdt_sf32lb_data wdt_sf32lb_data_##index;                                     \
+	DEVICE_DT_INST_DEFINE(index, wdt_sf32lb_init, NULL, &wdt_sf32lb_data_##index,              \
 			      &wdt_sf32lb_config_##index, POST_KERNEL,                             \
 			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &wdt_sf32lb_api);
 

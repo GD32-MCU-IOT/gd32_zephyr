@@ -6,6 +6,7 @@
  */
 
 #include <arm/armv8.1-m.dtsi>
+
 / {
 	cpus {
 		#address-cells = <1>;
@@ -17,6 +18,18 @@
 			reg = <1>;
 			clock-frequency = <400000000>;
 		};
+	};
+
+	dtcm: dtcm@20000000 {
+		compatible = "zephyr,memory-region", "arm,dtcm";
+		reg = <0x20000000 DT_SIZE_K(256)>;
+		zephyr,memory-region = "DTCM";
+	};
+
+	itcm: itcm@0 {
+		compatible = "zephyr,memory-region", "arm,itcm";
+		reg = <0x00000000 DT_SIZE_K(256)>;
+		zephyr,memory-region = "ITCM";
 	};
 };
 
@@ -108,7 +121,7 @@
 	interrupts = <19 4>;
 };
 
-&adc0 {
+&autanalog {
 	interrupts = <36 4>;
 };
 
@@ -160,6 +173,25 @@
 	interrupts = <120 4>;
 };
 
+&i2s0 {
+	interrupts = <135 4>, /* RX Structure */
+		     <136 4>; /* TX Structure */
+};
+
+&i2s1 {
+	interrupts = <137 4>, /* RX Structure */
+		     <138 4>; /* TX Structure */
+};
+
+&dmic0 {
+	interrupts = <142 4>, /* Channel 0 */
+		     <143 4>, /* Channel 1 */
+		     <144 4>, /* Channel 2 */
+		     <145 4>, /* Channel 3 */
+		     <146 4>, /* Channel 4 */
+		     <147 4>; /* Channel 5 */
+};
+
 &i3c0 {
 	interrupts = <153 4>;
 };
@@ -174,6 +206,14 @@
 
 &mcwdt1 {
 	interrupts = <34 4>;
+};
+
+&can0 {
+	interrupts = <84 4>, <85 4>;
+};
+
+&can1 {
+	interrupts = <86 4>, <87 4>;
 };
 
 &tcpwm0_0 {
@@ -305,7 +345,7 @@
 };
 
 &dma0 {
-interrupts = <60 4>, /* CH0 */
+	interrupts = <60 4>, /* CH0 */
 		     <61 4>, /* CH1 */
 		     <62 4>, /* CH2 */
 		     <63 4>, /* CH3 */
@@ -324,7 +364,7 @@ interrupts = <60 4>, /* CH0 */
 };
 
 &dma1 {
-interrupts = <158 4>, /* CH0 */
+	interrupts = <158 4>, /* CH0 */
 		     <159 4>, /* CH1 */
 		     <160 4>, /* CH2 */
 		     <161 4>, /* CH3 */
@@ -344,14 +384,23 @@ interrupts = <158 4>, /* CH0 */
 
 &sdhc0 {
 	interrupts = <132 4>, /* SDIO wakeup interrupt for mxsdhc */
-				 <131 6>; /* Consolidated interrupt for mxsdhc */
+		     <131 6>; /* Consolidated interrupt for mxsdhc */
 };
 
 &sdhc1 {
 	interrupts = <134 4>, /* SDIO wakeup interrupt for mxsdhc */
-				 <133 6>; /* Consolidated interrupt for mxsdhc */
+		     <133 6>; /* Consolidated interrupt for mxsdhc */
+};
+
+&lpcomp0 {
+	interrupts = <24 4>;
 };
 
 &nvic {
 	arm,num-irq-priority-bits = <3>;
+};
+
+&usbhs {
+	interrupts = <151 4>, /* usbhs_ctrl_irqn */
+		     <152 4>; /* usbhss_irqn */
 };

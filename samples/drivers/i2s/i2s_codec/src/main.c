@@ -119,9 +119,9 @@ int main(void)
 	audio_cfg.dai_cfg.i2s.channels = 2;
 	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
 #ifdef CONFIG_USE_CODEC_CLOCK
-	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER;
+	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_CONTROLLER | I2S_OPT_BIT_CLK_CONTROLLER;
 #else
-	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_SLAVE | I2S_OPT_BIT_CLK_SLAVE;
+	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_TARGET | I2S_OPT_BIT_CLK_TARGET;
 #endif
 	audio_cfg.dai_cfg.i2s.frame_clk_freq = SAMPLE_FREQUENCY;
 	audio_cfg.dai_cfg.i2s.mem_slab = &mem_slab;
@@ -132,7 +132,7 @@ int main(void)
 #if CONFIG_USE_DMIC
 	cfg.channel.req_num_chan = 2;
 	cfg.channel.req_chan_map_lo = dmic_build_channel_map(0, 0, PDM_CHAN_LEFT) |
-				      dmic_build_channel_map(1, 1, PDM_CHAN_RIGHT);
+				      dmic_build_channel_map(1, 0, PDM_CHAN_RIGHT);
 	cfg.streams[0].pcm_rate = SAMPLE_FREQUENCY;
 	cfg.streams[0].block_size = BLOCK_SIZE;
 
@@ -150,9 +150,9 @@ int main(void)
 	config.channels = NUMBER_OF_CHANNELS;
 	config.format = I2S_FMT_DATA_FORMAT_I2S;
 #ifdef CONFIG_USE_CODEC_CLOCK
-	config.options = I2S_OPT_BIT_CLK_SLAVE | I2S_OPT_FRAME_CLK_SLAVE;
+	config.options = I2S_OPT_BIT_CLK_TARGET | I2S_OPT_FRAME_CLK_TARGET;
 #else
-	config.options = I2S_OPT_BIT_CLK_MASTER | I2S_OPT_FRAME_CLK_MASTER;
+	config.options = I2S_OPT_BIT_CLK_CONTROLLER | I2S_OPT_FRAME_CLK_CONTROLLER;
 #endif
 	config.frame_clk_freq = SAMPLE_FREQUENCY;
 	config.mem_slab = &mem_slab;

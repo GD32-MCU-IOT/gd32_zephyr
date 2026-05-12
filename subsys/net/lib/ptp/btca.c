@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024 BayLibre SAS
+ * Copyright (c) 2026 Philipp Steiner <philipp.steiner1987@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -73,7 +74,7 @@ static int btca_ds_cmp2(const struct ptp_dataset *a, const struct ptp_dataset *b
 	if (a->receiver.port_number > b->receiver.port_number) {
 		return B_BETTER_TOPOLOGY;
 	}
-	if (a->receiver.port_number > b->receiver.port_number) {
+	if (a->receiver.port_number < b->receiver.port_number) {
 		return A_BETTER_TOPOLOGY;
 	}
 	/* error-2 */
@@ -97,17 +98,37 @@ int ptp_btca_ds_cmp(const struct ptp_dataset *a, const struct ptp_dataset *b)
 	if (id_diff == 0) {
 		return btca_ds_cmp2(a, b);
 	}
+
+	if (a->priority1 < b->priority1) {
+		return A_BETTER;
+	}
 	if (a->priority1 > b->priority1) {
 		return B_BETTER;
+	}
+
+	if (a->clk_quality.cls < b->clk_quality.cls) {
+		return A_BETTER;
 	}
 	if (a->clk_quality.cls > b->clk_quality.cls) {
 		return B_BETTER;
 	}
+
+	if (a->clk_quality.accuracy < b->clk_quality.accuracy) {
+		return A_BETTER;
+	}
 	if (a->clk_quality.accuracy > b->clk_quality.accuracy) {
 		return B_BETTER;
 	}
+
+	if (a->clk_quality.offset_scaled_log_variance < b->clk_quality.offset_scaled_log_variance) {
+		return A_BETTER;
+	}
 	if (a->clk_quality.offset_scaled_log_variance > b->clk_quality.offset_scaled_log_variance) {
 		return B_BETTER;
+	}
+
+	if (a->priority2 < b->priority2) {
+		return A_BETTER;
 	}
 	if (a->priority2 > b->priority2) {
 		return B_BETTER;

@@ -29,7 +29,11 @@
 #define EVT_PROP_TXP    BIT(6)
 #define ADV_INTERVAL    0x20   /* 20 ms advertising interval */
 #define ADV_WAIT_MS     10     /* 10 ms wait loop */
+#if defined(CONFIG_BT_CTLR_PRIVACY)
+#define OWN_ADDR_TYPE   BT_HCI_OWN_ADDR_RPA_OR_RANDOM
+#else /* !CONFIG_BT_CTLR_PRIVACY */
 #define OWN_ADDR_TYPE   BT_HCI_OWN_ADDR_RANDOM
+#endif /* !CONFIG_BT_CTLR_PRIVACY */
 #define PEER_ADDR_TYPE  BT_HCI_OWN_ADDR_RANDOM
 #define PEER_ADDR       peer_addr
 #define ADV_CHAN_MAP    0x07
@@ -675,28 +679,32 @@ static void test_advx_main(void)
 
 	k_sleep(K_MSEC(1000));
 
-	printk("Add to resolving list...");
-	bt_addr_le_t peer_id_addr = {
-		.type = BT_ADDR_LE_RANDOM,
-		.a = {
-			.val = {0xc6, 0xc7, 0xc8, 0xc9, 0xc1, 0xcb}
+	if (IS_ENABLED(CONFIG_BT_CTLR_PRIVACY)) {
+		printk("Add to resolving list...");
+		bt_addr_le_t peer_id_addr = {
+			.type = BT_ADDR_LE_RANDOM,
+			.a = {
+				.val = {0xc6, 0xc7, 0xc8, 0xc9, 0xc1, 0xcb}
+			}
+		};
+		uint8_t pirk[16] = {0xAB, 0xBA, 0xAB, 0xBA, 0xAB, 0xBA, 0xAB, 0xBA,
+				    0xAB, 0xBA, 0xAB, 0xBA, 0xAB, 0xBA, 0xAB, 0xBA};
+		uint8_t lirk[16] = {0x12, 0x21, 0x12, 0x21, 0x12, 0x21, 0x12, 0x21,
+				    0x12, 0x21, 0x12, 0x21, 0x12, 0x21, 0x12, 0x21};
+
+		err = ll_rl_add(&peer_id_addr, pirk, lirk);
+		if (err) {
+			goto exit;
 		}
-	};
-	uint8_t pirk[16] = {0x00, };
-	uint8_t lirk[16] = {0x01, };
+		printk("success.\n");
 
-	err = ll_rl_add(&peer_id_addr, pirk, lirk);
-	if (err) {
-		goto exit;
+		printk("Enable resolving list...");
+		err = ll_rl_enable(BT_HCI_ADDR_RES_ENABLE);
+		if (err) {
+			goto exit;
+		}
+		printk("success.\n");
 	}
-	printk("success.\n");
-
-	printk("Enable resolving list...");
-	err = ll_rl_enable(BT_HCI_ADDR_RES_ENABLE);
-	if (err) {
-		goto exit;
-	}
-	printk("success.\n");
 
 	printk("Enabling extended...");
 	err = ll_adv_enable(handle, 1, 0, 0);
@@ -1090,10 +1098,7 @@ static bool is_reenable_addr;
 static void scan_cb(const bt_addr_le_t *addr, int8_t rssi, uint8_t adv_type,
 		    struct net_buf_simple *buf)
 {
-	char le_addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(addr, le_addr, sizeof(le_addr));
-	printk("%s: type = 0x%x, addr = %s\n", __func__, adv_type, le_addr);
+	printk("%s: type = 0x%x, addr = %s\n", __func__, adv_type, bt_addr_le_str(addr));
 
 	if (!is_reenable_addr &&
 	    !memcmp(own_addr_reenable, addr->a.val,
@@ -1122,11 +1127,8 @@ static void scan_cb(const bt_addr_le_t *addr, int8_t rssi, uint8_t adv_type,
 			bt_conn_unref(conn);
 		}
 	} else if (!is_scanned) {
-		char addr_str[BT_ADDR_LE_STR_LEN];
-
-		bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
 		printk("Device found: %s, type: %u, AD len: %u, RSSI %d\n",
-			addr_str, adv_type, buf->len, rssi);
+			bt_addr_le_str(addr), adv_type, buf->len, rssi);
 
 		if ((buf->len == adv_data_expected_len) &&
 		    !memcmp(buf->data, adv_data_expected,
@@ -1173,18 +1175,16 @@ static uint8_t per_adv_evt_cnt_actual;
 static void scan_recv(const struct bt_le_scan_recv_info *info,
 		      struct net_buf_simple *buf)
 {
-	char le_addr[BT_ADDR_LE_STR_LEN];
 	char name[NAME_LEN];
 
 	(void)memset(name, 0, sizeof(name));
 
 	bt_data_parse(buf, data_cb, name);
 
-	bt_addr_le_to_str(info->addr, le_addr, sizeof(le_addr));
 	printk("[DEVICE]: %s, AD evt type %u, Tx Pwr: %i, RSSI %i %s "
 	       "C:%u S:%u D:%u SR:%u E:%u Prim: %s, Secn: %s, "
 	       "Interval: 0x%04x (%u ms), SID: %u\n",
-	       le_addr, info->adv_type, info->tx_power, info->rssi, name,
+	       bt_addr_le_str(info->addr), info->adv_type, info->tx_power, info->rssi, name,
 	       (info->adv_props & BT_GAP_ADV_PROP_CONNECTABLE) != 0,
 	       (info->adv_props & BT_GAP_ADV_PROP_SCANNABLE) != 0,
 	       (info->adv_props & BT_GAP_ADV_PROP_DIRECTED) != 0,
@@ -1245,13 +1245,9 @@ static void
 per_adv_sync_sync_cb(struct bt_le_per_adv_sync *sync,
 		     struct bt_le_per_adv_sync_synced_info *info)
 {
-	char le_addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(info->addr, le_addr, sizeof(le_addr));
-
 	printk("PER_ADV_SYNC[%u]: [DEVICE]: %s synced, "
 	       "Interval 0x%04x (%u ms), PHY %s\n",
-	       bt_le_per_adv_sync_get_index(sync), le_addr,
+	       bt_le_per_adv_sync_get_index(sync), bt_addr_le_str(info->addr),
 	       info->interval, info->interval * 5 / 4, phy2str(info->phy));
 
 	is_sync = true;
@@ -1261,12 +1257,8 @@ static void
 per_adv_sync_terminated_cb(struct bt_le_per_adv_sync *sync,
 			   const struct bt_le_per_adv_sync_term_info *info)
 {
-	char le_addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(info->addr, le_addr, sizeof(le_addr));
-
 	printk("PER_ADV_SYNC[%u]: [DEVICE]: %s sync terminated\n",
-	       bt_le_per_adv_sync_get_index(sync), le_addr);
+	       bt_le_per_adv_sync_get_index(sync), bt_addr_le_str(info->addr));
 
 	is_sync_lost = true;
 }
@@ -1276,13 +1268,9 @@ per_adv_sync_recv_cb(struct bt_le_per_adv_sync *sync,
 		     const struct bt_le_per_adv_sync_recv_info *info,
 		     struct net_buf_simple *buf)
 {
-	char le_addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(info->addr, le_addr, sizeof(le_addr));
-
 	printk("PER_ADV_SYNC[%u]: [DEVICE]: %s, tx_power %i, "
 	       "RSSI %i, CTE %u, data length %u\n",
-	       bt_le_per_adv_sync_get_index(sync), le_addr, info->tx_power,
+	       bt_le_per_adv_sync_get_index(sync), bt_addr_le_str(info->addr), info->tx_power,
 	       info->rssi, info->cte_type, buf->len);
 
 	if (!is_sync_report) {
@@ -1716,28 +1704,46 @@ static void test_scanx_main(void)
 	}
 	printk("done.\n");
 
-	printk("Add to resolving list...");
 	bt_addr_le_t peer_id_addr = {
 		.type = BT_ADDR_LE_RANDOM,
 		.a = {
 			.val = {0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5}
 		}
 	};
-	uint8_t pirk[16] = {0x01, };
-	uint8_t lirk[16] = {0x00, };
 
-	err = ll_rl_add(&peer_id_addr, pirk, lirk);
-	if (err) {
-		goto exit;
-	}
-	printk("success.\n");
+	if (IS_ENABLED(CONFIG_BT_CTLR_PRIVACY)) {
+		printk("Add to resolving list...");
+		bt_addr_le_t some_id_addr = {
+			.type = BT_ADDR_LE_RANDOM,
+			.a = {
+				.val = {0x78, 0x87, 0x78, 0x87, 0x78, 0x87}
+			}
+		};
+		uint8_t pirk[16] = {0x12, 0x21, 0x12, 0x21, 0x12, 0x21, 0x12, 0x21,
+				    0x12, 0x21, 0x12, 0x21, 0x12, 0x21, 0x12, 0x21};
+		uint8_t lirk[16] = {0xCD, 0xDC, 0xCD, 0xDC, 0xCD, 0xDC, 0xCD, 0xDC,
+				    0xCD, 0xDC, 0xCD, 0xDC, 0xCD, 0xDC, 0xCD, 0xDC};
 
-	printk("Enable resolving list...");
-	err = ll_rl_enable(BT_HCI_ADDR_RES_ENABLE);
-	if (err) {
-		goto exit;
+		/* some_id_addr with swapped peer IRK and local IRK */
+		err = ll_rl_add(&some_id_addr, lirk, pirk);
+		if (err) {
+			goto exit;
+		}
+
+		/* peer_id_addr with correct peer IRK and local IRK */
+		err = ll_rl_add(&peer_id_addr, pirk, lirk);
+		if (err) {
+			goto exit;
+		}
+		printk("success.\n");
+
+		printk("Enable resolving list...");
+		err = ll_rl_enable(BT_HCI_ADDR_RES_ENABLE);
+		if (err) {
+			goto exit;
+		}
+		printk("success.\n");
 	}
-	printk("success.\n");
 
 	printk("Add device to periodic advertising list...");
 	err = bt_le_per_adv_list_add(&peer_id_addr, per_sid);

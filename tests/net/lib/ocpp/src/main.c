@@ -11,7 +11,7 @@
 
 static void test_ocpp_charge_cycle(ocpp_session_handle_t hndl)
 {
-	int ret;
+	int ret = -EINVAL;
 	int retry = 3;
 	enum ocpp_auth_status status;
 	const uint32_t timeout_ms = 500;
@@ -26,7 +26,7 @@ static void test_ocpp_charge_cycle(ocpp_session_handle_t hndl)
 			break;
 		}
 	}
-	zassert_equal(ret, 0, "CP authorize fail %d");
+	zassert_equal(ret, 0, "CP authorize fail %d", ret);
 	zassert_equal(status, OCPP_AUTH_ACCEPTED, "idtag not authorized");
 
 	ret = ocpp_start_transaction(hndl, sys_rand32_get(), 1, timeout_ms);
@@ -81,7 +81,7 @@ int test_ocpp_init(void)
 	struct ocpp_cs_info csi = { "122.165.245.213", /* ssh.linumiz.com */
 				    "/steve/websocket/CentralSystemService/zephyr",
 				    8180,
-				    AF_INET };
+				    NET_AF_INET };
 
 	net_dhcpv4_start(net_if_get_default());
 

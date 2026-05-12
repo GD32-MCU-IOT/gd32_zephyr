@@ -165,7 +165,7 @@ __weak void clock_init(void)
 	BUILD_ASSERT_PODF_IN_RANGE(ipg_podf, 1, 4);
 	CLOCK_SetDiv(kCLOCK_IpgDiv, DT_PROP(DT_CHILD(CCM_NODE, ipg_podf), clock_div) - 1);
 
-#ifdef CONFIG_SOC_MIMXRT1042
+#if (defined(CONFIG_SOC_MIMXRT1041) || defined(CONFIG_SOC_MIMXRT1042))
 	/* Set PRE_PERIPH_CLK to SYS_PLL */
 	CLOCK_SetMux(kCLOCK_PrePeriphMux, 0x0);
 #else
@@ -360,12 +360,12 @@ void soc_early_init_hook(void)
 #ifdef CONFIG_SOC_RESET_HOOK
 void soc_reset_hook(void)
 {
-	/* Call CMSIS SystemInit */
-	SystemInit();
-
 #if defined(FLEXRAM_RUNTIME_BANKS_USED)
 	/* Configure flexram if not running from RAM */
 	flexram_dt_partition();
 #endif
+
+	/* Call CMSIS SystemInit */
+	SystemInit();
 }
 #endif

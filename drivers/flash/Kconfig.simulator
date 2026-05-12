@@ -14,6 +14,14 @@ menuconfig FLASH_SIMULATOR
 
 if FLASH_SIMULATOR
 
+config FLASH_SIMULATOR_CALLBACKS
+	bool "Provide callback mechanism"
+	help
+	  If selected the flash_simulator_set_callbacks is implemented allowing
+	  to change write and erase functions behavior.
+	  This option is meant to be used with tests when checking module reaction
+	  to different write/erase errors in the memory.
+
 config FLASH_SIMULATOR_UNALIGNED_READ
 	bool "Allow read access to be unaligned"
 	default y
@@ -93,5 +101,12 @@ config FLASH_SIMULATOR_STAT_PAGE_COUNT
 	  number of iterations.
 	  This is why it's not possible to calculate the number of pages with
 	  preprocessor using DT properties.
+
+config FLASH_SIMULATOR_EX_OP
+	bool "Extended operations API"
+	select FLASH_HAS_EX_OP
+	help
+	  The flash extended operations API can be used to perform non-standard operations. For example
+	  to fake bad block management required for NAND flash translation layers.
 
 endif # FLASH_SIMULATOR

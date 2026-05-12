@@ -178,14 +178,23 @@ typedef uint8_t i2s_opt_t;
 #define I2S_OPT_BIT_CLK_CONT                (0 << 0)
 /** Run bit clock when sending data only */
 #define I2S_OPT_BIT_CLK_GATED               BIT(0)
-/** I2S driver is bit clock master */
-#define I2S_OPT_BIT_CLK_MASTER              (0 << 1)
-/** I2S driver is bit clock slave */
-#define I2S_OPT_BIT_CLK_SLAVE               BIT(1)
-/** I2S driver is frame clock master */
-#define I2S_OPT_FRAME_CLK_MASTER            (0 << 2)
-/** I2S driver is frame clock slave */
-#define I2S_OPT_FRAME_CLK_SLAVE             BIT(2)
+/** I2S driver is bit clock controller */
+#define I2S_OPT_BIT_CLK_CONTROLLER          (0 << 1)
+/** I2S driver is bit clock target */
+#define I2S_OPT_BIT_CLK_TARGET              BIT(1)
+/** I2S driver is frame clock controller */
+#define I2S_OPT_FRAME_CLK_CONTROLLER        (0 << 2)
+/** I2S driver is frame clock target */
+#define I2S_OPT_FRAME_CLK_TARGET            BIT(2)
+
+/** @deprecated @see I2S_OPT_BIT_CLK_CONTROLLER */
+#define I2S_OPT_BIT_CLK_MASTER              I2S_OPT_BIT_CLK_CONTROLLER __DEPRECATED_MACRO
+/** @deprecated @see I2S_OPT_BIT_CLK_TARGET */
+#define I2S_OPT_BIT_CLK_SLAVE               I2S_OPT_BIT_CLK_TARGET __DEPRECATED_MACRO
+/** @deprecated @see I2S_OPT_FRAME_CLK_CONTROLLER */
+#define I2S_OPT_FRAME_CLK_MASTER            I2S_OPT_FRAME_CLK_CONTROLLER __DEPRECATED_MACRO
+/** @deprecated @see I2S_OPT_FRAME_CLK_TARGET */
+#define I2S_OPT_FRAME_CLK_SLAVE             I2S_OPT_FRAME_CLK_TARGET __DEPRECATED_MACRO
 
 /** @brief Loop back mode.
  *
@@ -362,10 +371,7 @@ static inline int z_impl_i2s_configure(const struct device *dev,
 				       enum i2s_dir dir,
 				       const struct i2s_config *cfg)
 {
-	const struct i2s_driver_api *api =
-		(const struct i2s_driver_api *)dev->api;
-
-	return api->configure(dev, dir, cfg);
+	return DEVICE_API_GET(i2s, dev)->configure(dev, dir, cfg);
 }
 
 /**
@@ -373,16 +379,13 @@ static inline int z_impl_i2s_configure(const struct device *dev,
  *
  * @param dev Pointer to the device structure for the driver instance
  * @param dir Stream direction: RX or TX as defined by I2S_DIR_*
- * @retval Pointer to the structure containing configuration parameters,
+ * @return Pointer to the structure containing configuration parameters,
  *         or NULL if un-configured
  */
 static inline const struct i2s_config *i2s_config_get(const struct device *dev,
 						      enum i2s_dir dir)
 {
-	const struct i2s_driver_api *api =
-		(const struct i2s_driver_api *)dev->api;
-
-	return api->config_get(dev, dir);
+	return DEVICE_API_GET(i2s, dev)->config_get(dev, dir);
 }
 
 /**
@@ -419,10 +422,7 @@ static inline const struct i2s_config *i2s_config_get(const struct device *dev,
 static inline int i2s_read(const struct device *dev, void **mem_block,
 				 size_t *size)
 {
-	const struct i2s_driver_api *api =
-		(const struct i2s_driver_api *)dev->api;
-
-	return api->read(dev, mem_block, size);
+	return DEVICE_API_GET(i2s, dev)->read(dev, mem_block, size);
 }
 
 /**
@@ -480,10 +480,7 @@ __syscall int i2s_buf_read(const struct device *dev, void *buf, size_t *size);
 static inline int i2s_write(const struct device *dev, void *mem_block,
 			    size_t size)
 {
-	const struct i2s_driver_api *api =
-		(const struct i2s_driver_api *)dev->api;
-
-	return api->write(dev, mem_block, size);
+	return DEVICE_API_GET(i2s, dev)->write(dev, mem_block, size);
 }
 
 /**
@@ -531,10 +528,7 @@ static inline int z_impl_i2s_trigger(const struct device *dev,
 				     enum i2s_dir dir,
 				     enum i2s_trigger_cmd cmd)
 {
-	const struct i2s_driver_api *api =
-		(const struct i2s_driver_api *)dev->api;
-
-	return api->trigger(dev, dir, cmd);
+	return DEVICE_API_GET(i2s, dev)->trigger(dev, dir, cmd);
 }
 
 /**

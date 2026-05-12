@@ -71,7 +71,7 @@ Default Zephyr Peripheral Mapping:
 - I2C1 SCL/SDA : PB8/PB9 (Arduino I2C)
 - LD1       : PA5
 - LD2       : PC9
-- SPI1 NSS/SCK/MISO/MOSI : PA4/PA5/PA11/PA12 (Arduino SPI)
+- SPI1 NSS/SCK/MISO/MOSI : PA15/PA5/PA6/PA7 (Arduino SPI)
 - UART_2 TX/RX : PA2/PA3 (ST-Link Virtual Port Com)
 - USER_PB : PC13
 
@@ -94,6 +94,13 @@ Flashing
 
 The board is configured to be flashed using west `STM32CubeProgrammer`_ runner,
 so its :ref:`installation <stm32cubeprog-flash-host-tools>` is required.
+
+Alternatively, an external JLink can also be used to flash the board using
+the ``--runner`` (or ``-r``) option:
+
+.. code-block:: console
+
+   $ west flash --runner jlink
 
 Flashing an application to Nucleo C071RB
 ----------------------------------------

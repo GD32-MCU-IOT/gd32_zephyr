@@ -1,4 +1,4 @@
-/* obex.c - Internal for IrDA Oject Exchange Protocol handling */
+/* obex.c - Internal for IrDA Object Exchange Protocol handling */
 
 /*
  * Copyright 2024-2025 NXP
@@ -7,8 +7,6 @@
  */
 
 #define BT_OBEX_VERSION 0x10
-
-#define BT_OBEX_MIN_MTU 255
 
 #define BT_OBEX_OPCODE_CONNECT  0x80
 #define BT_OBEX_OPCODE_DISCONN  0x81

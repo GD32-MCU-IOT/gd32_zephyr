@@ -258,7 +258,7 @@ static int litex_clk_wait(uint32_t reg)
 		k_sleep(K_MSEC(1));
 	}
 	if (timeout == 0) {
-		LOG_WRN("Timeout occured when waiting for the register: 0x%x", reg);
+		LOG_WRN("Timeout occurred when waiting for the register: 0x%x", reg);
 		return -ETIME;
 	}
 	return 0;
@@ -958,17 +958,6 @@ static int litex_clk_calc_duty_normal(struct litex_clk_clkout *lcko,
 	return 0;
 }
 
-/* Calculates duty high_time for given divider and ratio */
-static inline int litex_clk_calc_duty_high_time(struct clk_duty *duty,
-						   uint32_t divider)
-{
-	uint32_t high_duty;
-
-	high_duty = litex_clk_calc_duty_percent(duty) * divider;
-
-	return litex_round(high_duty, 100);
-}
-
 /* Set duty cycle with given ratio */
 static int litex_clk_set_duty_cycle(struct litex_clk_clkout *lcko,
 			     struct clk_duty *duty)
@@ -1248,7 +1237,7 @@ static int litex_clk_calc_clkout_params(struct litex_clk_clkout *lcko,
 					 uint64_t vco_freq)
 {
 	int delta_f;
-	uint64_t m, clk_freq = 0;
+	uint64_t m, clk_freq;
 	uint32_t d, margin = 1;
 
 	if (lcko->margin.exp) {
@@ -1311,13 +1300,13 @@ static int litex_clk_calc_all_clkout_params(uint64_t vco_freq)
 static int litex_clk_calc_all_params(void)
 {
 	uint32_t div, mul;
-	uint64_t vco_freq = 0;
+	uint64_t vco_freq;
 
 	for (div = ldev->divclk.min; div <= ldev->divclk.max; div++) {
 		ldev->ts_g_config.div = div;
 		for (mul = ldev->clkfbout.max; mul >= ldev->clkfbout.min;
 								 mul--) {
-			int below, above, all_valid = true;
+			int below, above, all_valid;
 
 			vco_freq = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC * (uint64_t)mul;
 			vco_freq /= div;
@@ -1637,7 +1626,7 @@ static int litex_clk_dts_timeout_read(struct litex_clk_timeout *timeout)
 	return 0;
 }
 
-static int litex_clk_dts_clkouts_read(void)
+static void litex_clk_dts_clkouts_read(void)
 {
 	struct litex_clk_range clkout_div;
 	struct litex_clk_clkout *lcko;
@@ -1665,7 +1654,6 @@ static int litex_clk_dts_clkouts_read(void)
 #if CLKOUT_EXIST(6) == 1
 		CLKOUT_INIT(6)
 #endif
-	return 0;
 }
 
 static void litex_clk_init_clkouts(void)
@@ -1756,10 +1744,7 @@ static int litex_clk_init(const struct device *dev)
 		return ret;
 	}
 
-	ret = litex_clk_dts_clkouts_read();
-	if (ret != 0) {
-		return ret;
-	}
+	litex_clk_dts_clkouts_read();
 
 	litex_clk_init_clkouts();
 

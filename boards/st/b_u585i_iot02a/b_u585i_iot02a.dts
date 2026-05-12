@@ -25,6 +25,7 @@
 	aliases {
 		led0 = &green_led_1;
 		led1 = &red_led_1;
+		rtc = &rtc;
 		sw0 = &user_button;
 		die-temp0 = &die_temp;
 	};
@@ -33,16 +34,16 @@
 		compatible = "zephyr,memory-region";
 		reg = <0x70000000 DT_SIZE_M(64)>;
 		zephyr,memory-region = "EXTMEM";
-		/* The ATTR_MPU_EXTMEM attribut causing a MPU FAULT */
+		/* The ATTR_MPU_EXTMEM attribute causing a MPU FAULT */
 		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_IO)>;
 	};
 };
 
 &flash0 {
 	partitions {
-		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		ranges;
 
 		/*
 		 * Following flash partition is dedicated to the use of b_u585i_iot02a
@@ -50,26 +51,31 @@
 		 * Set the partitions with first MB to make use of the whole Bank1
 		 */
 		boot_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
 			label = "mcuboot";
 			reg = <0x00000000 DT_SIZE_K(64)>;
 		};
 
 		slot0_partition: partition@10000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-0";
 			reg = <0x00010000 DT_SIZE_K(416)>;
 		};
 
 		slot1_partition: partition@78000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-1";
 			reg = <0x00078000 DT_SIZE_K(416)>;
 		};
 
 		scratch_partition: partition@e0000 {
+			compatible = "zephyr,mapped-partition";
 			label = "image-scratch";
 			reg = <0x000e0000 DT_SIZE_K(64)>;
 		};
 
 		storage_partition: partition@f0000 {
+			compatible = "zephyr,mapped-partition";
 			label = "storage";
 			reg = <0x000f0000 DT_SIZE_K(64)>;
 		};
@@ -110,5 +116,9 @@
 
 &adc1 {
 	st,adc-prescaler = <4>;
+	status = "okay";
+};
+
+&rng {
 	status = "okay";
 };

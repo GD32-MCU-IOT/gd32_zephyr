@@ -181,6 +181,7 @@
 			mfd-nct38xx@9 {
 				compatible = "nuvoton,nct38xx";
 				reg = <0x09>;
+
 				test_i2c_nct3807: nct3807 {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -210,6 +211,7 @@
 			test_i2c_nct3808_p1: mfd-nct38xx@a {
 				compatible = "nuvoton,nct38xx";
 				reg = <0x0a>;
+
 				nct3808_0_P1 {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -230,6 +232,7 @@
 			test_i2c_nct3808_p2: mfd-nct38xx@b {
 				compatible = "nuvoton,nct38xx";
 				reg = <0x0b>;
+
 				nct3808_0_P2 {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -457,6 +460,17 @@
 					ngpios = <5>;
 				};
 			};
+
+			test_i2c_npm1012: pmic@1f {
+				reg = <0x1f>;
+
+				npm1012_gpio: gpio-controller {
+					compatible = "nordic,npm10xx-gpio";
+					gpio-controller;
+					#gpio-cells = <2>;
+					ngpios = <3>;
+				};
+			};
 		};
 
 		nct3807_alert_1 {
@@ -596,9 +610,9 @@
 				ngpios = <8>;
 				crc-en;
 				spi-addr = <0>;
-				ow-on-en = <0 0 0 0>;
-				ow-off-en = <0 0 0 0>;
-				sh-vdd-en = <0 0 0 0>;
+				ow-on-en = <0 0 0 0 0 0 0 0>;
+				ow-off-en = <0 0 0 0 0 0 0 0>;
+				sh-vdd-en = <0 0 0 0 0 0 0 0>;
 				drdy-gpios = <&test_gpio 0 0>;
 				fault-gpios = <&test_gpio 0 0>;
 				sync-gpios = <&test_gpio 0 0>;

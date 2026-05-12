@@ -71,19 +71,19 @@ enum sensor_channel {
 	SENSOR_CHAN_ACCEL_Z,
 	/** Acceleration on the X, Y and Z axes. */
 	SENSOR_CHAN_ACCEL_XYZ,
-	/** Angular velocity around the X axis, in radians/s. */
+	/** Angular velocity around the X axis, in rad/s. */
 	SENSOR_CHAN_GYRO_X,
-	/** Angular velocity around the Y axis, in radians/s. */
+	/** Angular velocity around the Y axis, in rad/s. */
 	SENSOR_CHAN_GYRO_Y,
-	/** Angular velocity around the Z axis, in radians/s. */
+	/** Angular velocity around the Z axis, in rad/s. */
 	SENSOR_CHAN_GYRO_Z,
 	/** Angular velocity around the X, Y and Z axes. */
 	SENSOR_CHAN_GYRO_XYZ,
-	/** Magnetic field on the X axis, in Gauss. */
+	/** Magnetic field on the X axis, in G. */
 	SENSOR_CHAN_MAGN_X,
-	/** Magnetic field on the Y axis, in Gauss. */
+	/** Magnetic field on the Y axis, in G. */
 	SENSOR_CHAN_MAGN_Y,
-	/** Magnetic field on the Z axis, in Gauss. */
+	/** Magnetic field on the Z axis, in G. */
 	SENSOR_CHAN_MAGN_Z,
 	/** Magnetic field on the X, Y and Z axes. */
 	SENSOR_CHAN_MAGN_XYZ,
@@ -115,12 +115,31 @@ enum sensor_channel {
 	/** Altitude, in meters */
 	SENSOR_CHAN_ALTITUDE,
 
+	/** PM1.0 concentration (standard particle, CF=1), in µg/m³ */
+	SENSOR_CHAN_PM_1_0_CF,
+	/** PM2.5 concentration (standard particle, CF=1), in µg/m³ */
+	SENSOR_CHAN_PM_2_5_CF,
+	/** PM10 concentration (standard particle, CF=1), in µg/m³ */
+	SENSOR_CHAN_PM_10_CF,
 	/** 1.0 micro-meters Particulate Matter, in ug/m^3 */
 	SENSOR_CHAN_PM_1_0,
 	/** 2.5 micro-meters Particulate Matter, in ug/m^3 */
 	SENSOR_CHAN_PM_2_5,
 	/** 10 micro-meters Particulate Matter, in ug/m^3 */
 	SENSOR_CHAN_PM_10,
+	/** Number of particles ≥ 0.3 µm per 0.1 liter of air */
+	SENSOR_CHAN_PM_0_3_COUNT,
+	/** Number of particles ≥ 0.5 µm per 0.1 liter of air */
+	SENSOR_CHAN_PM_0_5_COUNT,
+	/** Number of particles ≥ 1.0 µm per 0.1 liter of air */
+	SENSOR_CHAN_PM_1_0_COUNT,
+	/** Number of particles ≥ 2.5 µm per 0.1 liter of air */
+	SENSOR_CHAN_PM_2_5_COUNT,
+	/** Number of particles ≥ 5.0 µm per 0.1 liter of air */
+	SENSOR_CHAN_PM_5_COUNT,
+	/** Number of particles ≥ 10.0 µm per 0.1 liter of air */
+	SENSOR_CHAN_PM_10_COUNT,
+
 	/** Distance. From sensor to target, in meters */
 	SENSOR_CHAN_DISTANCE,
 
@@ -207,8 +226,11 @@ enum sensor_channel {
 	SENSOR_CHAN_GAME_ROTATION_VECTOR,
 	/** Gravity Vector (X/Y/Z components in m/s^2) */
 	SENSOR_CHAN_GRAVITY_VECTOR,
-	/** Gyroscope bias (X/Y/Z components in radians/s) */
+	/** Gyroscope bias (X/Y/Z components in rad/s) */
 	SENSOR_CHAN_GBIAS_XYZ,
+
+	/** Raw quadrature decoder count, in counts */
+	SENSOR_CHAN_ENCODER_COUNT,
 
 	/** All channels. */
 	SENSOR_CHAN_ALL,
@@ -367,10 +389,12 @@ enum sensor_attribute {
 
 	/** Hardware batch duration in ticks */
 	SENSOR_ATTR_BATCH_DURATION,
-	/* Configure the gain of a sensor. */
+	/** Configure the gain of a sensor. */
 	SENSOR_ATTR_GAIN,
-	/* Configure the resolution of a sensor. */
+	/** Configure the resolution of a sensor. */
 	SENSOR_ATTR_RESOLUTION,
+	/** Chip ID of a sensor */
+	SENSOR_ATTR_CHIP_ID,
 	/**
 	 * Number of all common sensor attributes.
 	 */
@@ -389,7 +413,6 @@ enum sensor_attribute {
 };
 
 /**
- * @typedef sensor_trigger_handler_t
  * @brief Callback API upon firing of a trigger
  *
  * @param dev Pointer to the sensor device
@@ -399,9 +422,12 @@ typedef void (*sensor_trigger_handler_t)(const struct device *dev,
 					 const struct sensor_trigger *trigger);
 
 /**
- * @typedef sensor_attr_set_t
- * @brief Callback API upon setting a sensor's attributes
- *
+ * @def_driverbackendgroup{Sensor,sensor_interface}
+ * @{
+ */
+
+/**
+ * @brief Callback API to set a sensor attribute.
  * See sensor_attr_set() for argument description
  */
 typedef int (*sensor_attr_set_t)(const struct device *dev,
@@ -410,9 +436,7 @@ typedef int (*sensor_attr_set_t)(const struct device *dev,
 				 const struct sensor_value *val);
 
 /**
- * @typedef sensor_attr_get_t
- * @brief Callback API upon getting a sensor's attributes
- *
+ * @brief Callback API to get a sensor attribute.
  * See sensor_attr_get() for argument description
  */
 typedef int (*sensor_attr_get_t)(const struct device *dev,
@@ -421,31 +445,84 @@ typedef int (*sensor_attr_get_t)(const struct device *dev,
 				 struct sensor_value *val);
 
 /**
- * @typedef sensor_trigger_set_t
- * @brief Callback API for setting a sensor's trigger and handler
- *
+ * @brief Callback API to set a sensor trigger and handler.
  * See sensor_trigger_set() for argument description
  */
 typedef int (*sensor_trigger_set_t)(const struct device *dev,
 				    const struct sensor_trigger *trig,
 				    sensor_trigger_handler_t handler);
+
 /**
- * @typedef sensor_sample_fetch_t
- * @brief Callback API for fetching data from a sensor
- *
- * See sensor_sample_fetch() for argument description
+ * @brief Callback API to fetch a sensor sample into the driver buffer.
+ * See sensor_sample_fetch_chan() for argument description
  */
 typedef int (*sensor_sample_fetch_t)(const struct device *dev,
 				     enum sensor_channel chan);
+
 /**
- * @typedef sensor_channel_get_t
- * @brief Callback API for getting a reading from a sensor
- *
+ * @brief Callback API to read a sensor channel from the driver buffer.
  * See sensor_channel_get() for argument description
  */
 typedef int (*sensor_channel_get_t)(const struct device *dev,
 				    enum sensor_channel chan,
 				    struct sensor_value *val);
+
+/* Forward declaration */
+struct sensor_decoder_api;
+
+/**
+ * @brief Callback API to get the sensor decoder implementation.
+ * See sensor_get_decoder() for argument description
+ */
+typedef int (*sensor_get_decoder_t)(const struct device *dev,
+				    const struct sensor_decoder_api **api);
+
+/**
+ * @brief Callback API to service an RTIO submission for a sensor device.
+ *
+ * Invoked when the asynchronous sensor path dispatches work to the driver.
+ *
+ * @param sensor The sensor device
+ * @param sqe The RTIO submission queue entry
+ */
+typedef void (*sensor_submit_t)(const struct device *sensor, struct rtio_iodev_sqe *sqe);
+
+/**
+ * @driver_ops{Sensor}
+ */
+__subsystem struct sensor_driver_api {
+	/**
+	 * @driver_ops_optional @copybrief sensor_attr_set
+	 */
+	sensor_attr_set_t attr_set;
+	/**
+	 * @driver_ops_optional @copybrief sensor_attr_get
+	 */
+	sensor_attr_get_t attr_get;
+	/**
+	 * @driver_ops_optional @copybrief sensor_trigger_set
+	 */
+	sensor_trigger_set_t trigger_set;
+	/**
+	 * @driver_ops_mandatory @copybrief sensor_sample_fetch
+	 */
+	sensor_sample_fetch_t sample_fetch;
+	/**
+	 * @driver_ops_mandatory @copybrief sensor_channel_get
+	 */
+	sensor_channel_get_t channel_get;
+	/**
+	 * @driver_ops_optional @copybrief sensor_get_decoder
+	 */
+	sensor_get_decoder_t get_decoder;
+	/**
+	 * @driver_ops_optional Handler for RTIO submissions to this sensor.
+	 */
+	sensor_submit_t submit;
+};
+/**
+ * @}
+ */
 
 /**
  * @brief Sensor Channel Specification
@@ -612,15 +689,6 @@ int sensor_natively_supported_channel_size_info(struct sensor_chan_spec channel,
 						size_t *frame_size);
 
 /**
- * @typedef sensor_get_decoder_t
- * @brief Get the decoder associate with the given device
- *
- * @see sensor_get_decoder for more details
- */
-typedef int (*sensor_get_decoder_t)(const struct device *dev,
-				    const struct sensor_decoder_api **api);
-
-/**
  * @brief Options for what to do with the associated data when a trigger is consumed
  */
 enum sensor_stream_data_opt {
@@ -713,24 +781,11 @@ struct sensor_read_config {
 	};                                                                                         \
 	RTIO_IODEV_DEFINE(name, &__sensor_iodev_api, &_CONCAT(__sensor_read_config_, name))
 
-/* Used to submit an RTIO sqe to the sensor's iodev */
-typedef void (*sensor_submit_t)(const struct device *sensor, struct rtio_iodev_sqe *sqe);
-
 /* The default decoder API */
 extern const struct sensor_decoder_api __sensor_default_decoder;
 
 /* The default sensor iodev API */
 extern const struct rtio_iodev_api __sensor_iodev_api;
-
-__subsystem struct sensor_driver_api {
-	sensor_attr_set_t attr_set;
-	sensor_attr_get_t attr_get;
-	sensor_trigger_set_t trigger_set;
-	sensor_sample_fetch_t sample_fetch;
-	sensor_channel_get_t channel_get;
-	sensor_get_decoder_t get_decoder;
-	sensor_submit_t submit;
-};
 
 /**
  * @brief Set an attribute for a sensor
@@ -754,8 +809,7 @@ static inline int z_impl_sensor_attr_set(const struct device *dev,
 					 enum sensor_attribute attr,
 					 const struct sensor_value *val)
 {
-	const struct sensor_driver_api *api =
-		(const struct sensor_driver_api *)dev->api;
+	const struct sensor_driver_api *api = DEVICE_API_GET(sensor, dev);
 
 	if (api->attr_set == NULL) {
 		return -ENOSYS;
@@ -786,8 +840,7 @@ static inline int z_impl_sensor_attr_get(const struct device *dev,
 					 enum sensor_attribute attr,
 					 struct sensor_value *val)
 {
-	const struct sensor_driver_api *api =
-		(const struct sensor_driver_api *)dev->api;
+	const struct sensor_driver_api *api = DEVICE_API_GET(sensor, dev);
 
 	if (api->attr_get == NULL) {
 		return -ENOSYS;
@@ -809,7 +862,7 @@ static inline int z_impl_sensor_attr_get(const struct device *dev,
  * CONTAINER_OF to retrieve a context pointer when the trigger is embedded in a
  * larger struct and requires that the trigger is not allocated on the stack.
  *
- * @funcprops \supervisor
+ * @supervisor
  *
  * @param dev Pointer to the sensor device
  * @param trig The trigger to activate
@@ -822,8 +875,7 @@ static inline int sensor_trigger_set(const struct device *dev,
 				     const struct sensor_trigger *trig,
 				     sensor_trigger_handler_t handler)
 {
-	const struct sensor_driver_api *api =
-		(const struct sensor_driver_api *)dev->api;
+	const struct sensor_driver_api *api = DEVICE_API_GET(sensor, dev);
 
 	if (api->trigger_set == NULL) {
 		return -ENOSYS;
@@ -854,10 +906,7 @@ __syscall int sensor_sample_fetch(const struct device *dev);
 
 static inline int z_impl_sensor_sample_fetch(const struct device *dev)
 {
-	const struct sensor_driver_api *api =
-		(const struct sensor_driver_api *)dev->api;
-
-	return api->sample_fetch(dev, SENSOR_CHAN_ALL);
+	return DEVICE_API_GET(sensor, dev)->sample_fetch(dev, SENSOR_CHAN_ALL);
 }
 
 /**
@@ -887,10 +936,7 @@ __syscall int sensor_sample_fetch_chan(const struct device *dev,
 static inline int z_impl_sensor_sample_fetch_chan(const struct device *dev,
 						  enum sensor_channel type)
 {
-	const struct sensor_driver_api *api =
-		(const struct sensor_driver_api *)dev->api;
-
-	return api->sample_fetch(dev, type);
+	return DEVICE_API_GET(sensor, dev)->sample_fetch(dev, type);
 }
 
 /**
@@ -922,10 +968,7 @@ static inline int z_impl_sensor_channel_get(const struct device *dev,
 					    enum sensor_channel chan,
 					    struct sensor_value *val)
 {
-	const struct sensor_driver_api *api =
-		(const struct sensor_driver_api *)dev->api;
-
-	return api->channel_get(dev, chan, val);
+	return DEVICE_API_GET(sensor, dev)->channel_get(dev, chan, val);
 }
 
 #if defined(CONFIG_SENSOR_ASYNC_API) || defined(__DOXYGEN__)
@@ -1004,7 +1047,7 @@ __syscall int sensor_get_decoder(const struct device *dev,
 static inline int z_impl_sensor_get_decoder(const struct device *dev,
 					    const struct sensor_decoder_api **decoder)
 {
-	const struct sensor_driver_api *api = (const struct sensor_driver_api *)dev->api;
+	const struct sensor_driver_api *api = DEVICE_API_GET(sensor, dev);
 
 	__ASSERT_NO_MSG(api != NULL);
 
@@ -1156,7 +1199,6 @@ static inline int sensor_read_async_mempool(const struct rtio_iodev *iodev, stru
 }
 
 /**
- * @typedef sensor_processing_callback_t
  * @brief Callback function used with the helper processing function.
  *
  * @see sensor_processing_with_callback

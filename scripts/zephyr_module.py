@@ -17,6 +17,10 @@ that can be included during a twister run. This allows testing code
 maintained in modules in addition to what is available in the main Zephyr tree.
 '''
 
+# Warning: avoid adding third party dependencies other than those provided by west
+# to this file. The west 'packages' extension imports this module to install Python
+# dependencies for Zephyr and Zephyr modules
+
 import argparse
 import hashlib
 import os
@@ -24,169 +28,142 @@ import re
 import subprocess
 import sys
 import yaml
-import pykwalify.core
-from pathlib import Path, PurePath, PurePosixPath
 from collections import namedtuple
+from pathlib import Path, PurePath, PurePosixPath
 
 try:
     from yaml import CSafeLoader as SafeLoader
 except ImportError:
     from yaml import SafeLoader
 
+# NOTE: keep in sync with doc/develop/modules.rst
 METADATA_SCHEMA = '''
-## A pykwalify schema for basic validation of the structure of a
+## A JSON Schema (Draft 2020-12) for basic validation of the structure of a
 ## metadata YAML file.
 ##
-# The zephyr/module.yml file is a simple list of key value pairs to be used by
-# the build system.
-type: map
-mapping:
+$schema: "https://json-schema.org/draft/2020-12/schema"
+type: object
+properties:
   name:
-    required: false
-    type: str
+    type: string
   build:
-    required: false
-    type: map
-    mapping:
+    type: object
+    properties:
       cmake:
-        required: false
-        type: str
+        type: string
       kconfig:
-        required: false
-        type: str
+        type: string
       cmake-ext:
-        required: false
-        type: bool
-        default: false
+        type: boolean
       kconfig-ext:
-        required: false
-        type: bool
-        default: false
+        type: boolean
       sysbuild-cmake:
-        required: false
-        type: str
+        type: string
       sysbuild-kconfig:
-        required: false
-        type: str
+        type: string
       sysbuild-cmake-ext:
-        required: false
-        type: bool
-        default: false
+        type: boolean
       sysbuild-kconfig-ext:
-        required: false
-        type: bool
-        default: false
+        type: boolean
       depends:
-        required: false
-        type: seq
-        sequence:
-          - type: str
+        type: array
+        items:
+          type: string
       settings:
-        required: false
-        type: map
-        mapping:
+        type: object
+        properties:
           board_root:
-            required: false
-            type: str
+            type: string
           dts_root:
-            required: false
-            type: str
+            type: string
           snippet_root:
-            required: false
-            type: str
+            type: string
           soc_root:
-            required: false
-            type: str
+            type: string
           arch_root:
-            required: false
-            type: str
+            type: string
           module_ext_root:
-            required: false
-            type: str
+            type: string
           sca_root:
-            required: false
-            type: str
+            type: string
   tests:
-    required: false
-    type: seq
-    sequence:
-      - type: str
+    type: array
+    items:
+      type: string
   samples:
-    required: false
-    type: seq
-    sequence:
-      - type: str
+    type: array
+    items:
+      type: string
   boards:
-    required: false
-    type: seq
-    sequence:
-      - type: str
+    type: array
+    items:
+      type: string
   blobs:
-    required: false
-    type: seq
-    sequence:
-      - type: map
-        mapping:
-          path:
-            required: true
-            type: str
-          sha256:
-            required: true
-            type: str
-          type:
-            required: true
-            type: str
-            enum: ['img', 'lib']
-          version:
-            required: true
-            type: str
-          license-path:
-            required: true
-            type: str
-          click-through:
-            required: false
-            type: bool
-            default: false
-          url:
-            required: true
-            type: str
-          description:
-            required: true
-            type: str
-          doc-url:
-            required: false
-            type: str
+    type: array
+    items:
+      type: object
+      properties:
+        path:
+          type: string
+        sha256:
+          type: string
+        type:
+          type: string
+          enum: ['img', 'lib']
+        version:
+          type: string
+        license-path:
+          type: string
+        click-through:
+          type: boolean
+        url:
+          anyOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        description:
+          type: string
+        doc-url:
+          type: string
+        fetcher:
+          type: string
+        size:
+          type: integer
+      required:
+        - path
+        - sha256
+        - type
+        - version
+        - license-path
+        - url
+        - description
   security:
-     required: false
-     type: map
-     mapping:
-       external-references:
-         required: false
-         type: seq
-         sequence:
-            - type: str
+    type: object
+    properties:
+      external-references:
+        type: array
+        items:
+          type: string
   package-managers:
-    required: false
-    type: map
-    mapping:
+    type: object
+    properties:
       pip:
-        required: false
-        type: map
-        mapping:
+        type: object
+        properties:
           requirement-files:
-            required: false
-            type: seq
-            sequence:
-              - type: str
+            type: array
+            items:
+              type: string
   runners:
-    required: false
-    type: seq
-    sequence:
-      - type: map
-        mapping:
-          file:
-            required: true
-            type: str
+    type: array
+    items:
+      type: object
+      properties:
+        file:
+          type: string
+      required:
+        - file
 '''
 
 MODULE_YML_PATH = PurePath('zephyr/module.yml')
@@ -196,7 +173,17 @@ BLOB_PRESENT = 'A'
 BLOB_NOT_PRESENT = 'D'
 BLOB_OUTDATED = 'M'
 
-schema = yaml.load(METADATA_SCHEMA, Loader=SafeLoader)
+
+try:
+    import jsonschema
+    from jsonschema.exceptions import best_match
+
+    SCHEMA = yaml.load(METADATA_SCHEMA, Loader=SafeLoader)
+    VALIDATOR_CLASS = jsonschema.validators.validator_for(SCHEMA)
+    VALIDATOR_CLASS.check_schema(SCHEMA)
+    VALIDATOR = VALIDATOR_CLASS(SCHEMA)
+except ImportError:
+    jsonschema = None
 
 
 def validate_setting(setting, module_path, filename=None):
@@ -210,7 +197,7 @@ def validate_setting(setting, module_path, filename=None):
     return True
 
 
-def process_module(module):
+def process_module(module, require_yaml_validation=True):
     module_path = PurePath(module)
 
     # The input is a module if zephyr/module.{yml,yaml} is a valid yaml file
@@ -219,15 +206,20 @@ def process_module(module):
     for module_yml in [module_path / MODULE_YML_PATH,
                        module_path / MODULE_YML_PATH.with_suffix('.yaml')]:
         if Path(module_yml).is_file():
-            with Path(module_yml).open('r', encoding='utf-8') as f:
+            with Path(module_yml).open('rb') as f:
                 meta = yaml.load(f.read(), Loader=SafeLoader)
 
-            try:
-                pykwalify.core.Core(source_data=meta, schema_data=schema)\
-                    .validate()
-            except pykwalify.errors.SchemaError as e:
-                sys.exit('ERROR: Malformed "build" section in file: {}\n{}'
-                        .format(module_yml.as_posix(), e))
+            if jsonschema is not None:
+                errors = list(VALIDATOR.iter_errors(meta))
+
+                if errors:
+                    sys.exit(
+                        'ERROR: Malformed module YAML file: '
+                        f'{module_yml.as_posix()}\n'
+                        f'{best_match(errors).message} in {best_match(errors).json_path}'
+                    )
+            elif require_yaml_validation:
+                sys.exit('Missing jsonschema dependency')
 
             meta['name'] = meta.get('name', module_path.name)
             meta['name-sanitized'] = re.sub('[^a-zA-Z0-9]', '_', meta['name'])
@@ -347,6 +339,7 @@ def process_blobs(module, meta):
         blob['abspath'] = blobs_path / Path(blob['path'])
         blob['license-abspath'] = Path(module) / Path(blob['license-path'])
         blob['status'] = get_blob_status(blob['abspath'], blob['sha256'])
+        blob['click-through'] = blob.get('click-through', False)
         blobs.append(blob)
 
     return blobs
@@ -759,7 +752,7 @@ def west_projects(manifest=None):
 
 
 def parse_modules(zephyr_base, manifest=None, west_projs=None, modules=None,
-                  extra_modules=None):
+                  extra_modules=None, require_yaml_validation=True):
 
     if modules is None:
         west_projs = west_projs or west_projects(manifest)
@@ -772,7 +765,7 @@ def parse_modules(zephyr_base, manifest=None, west_projs=None, modules=None,
             extra_module = os.environ.get(var, None)
             if not extra_module:
                 continue
-            extra_modules.extend(PurePosixPath(p) for p in extra_module.split(';'))
+            extra_modules.extend(PurePosixPath(p) for p in extra_module.split(';') if p)
 
     Module = namedtuple('Module', ['project', 'meta', 'depends'])
 
@@ -789,7 +782,7 @@ def parse_modules(zephyr_base, manifest=None, west_projs=None, modules=None,
         if project == zephyr_base:
             continue
 
-        meta = process_module(project)
+        meta = process_module(project, require_yaml_validation)
         if meta:
             depends = meta.get('build', {}).get('depends', [])
             all_modules_by_name[meta['name']] = Module(project, meta, depends)
@@ -830,6 +823,14 @@ def parse_modules(zephyr_base, manifest=None, west_projs=None, modules=None,
 
     return sorted_modules
 
+def write_if_different(file, data):
+    if Path(file).is_file():
+        with open(file, encoding="utf-8") as fp:
+            if fp.read() == data:
+                return
+
+    with open(file, 'w', encoding="utf-8") as fp:
+        fp.write(data)
 
 def main():
     parser = argparse.ArgumentParser(description='''
@@ -878,8 +879,17 @@ def main():
     cmake = ""
     sysbuild_kconfig = ""
     sysbuild_cmake = ""
-    settings = ""
     twister = ""
+    settings = '''\
+# WARNING. THIS FILE IS AUTO-GENERATED. DO NOT MODIFY!
+#
+# This file contains build system settings derived from your modules.
+#
+# Modules may be set via ZEPHYR_MODULES, ZEPHYR_EXTRA_MODULES,
+# and/or the west manifest file.
+#
+# See the Modules guide for more information.
+'''
 
     west_projs = west_projects()
     modules = parse_modules(args.zephyr_base, None, west_projs,
@@ -907,54 +917,34 @@ def main():
             kconfig_module_dirs_cmake_out = PurePath(args.sysbuild_kconfig_out).parent / \
                                       'kconfig_module_dirs.cmake'
 
-        with open(kconfig_module_dirs_out, 'w', encoding="utf-8") as fp:
-            fp.write(kconfig_module_dirs)
-
-        with open(kconfig_module_dirs_cmake_out, 'w', encoding="utf-8") as fp:
-            fp.write(kconfig_module_dirs_cmake)
+        write_if_different(kconfig_module_dirs_out, kconfig_module_dirs)
+        write_if_different(kconfig_module_dirs_cmake_out, kconfig_module_dirs_cmake)
 
     if args.kconfig_out:
-        with open(args.kconfig_out, 'w', encoding="utf-8") as fp:
-            fp.write(kconfig)
+        write_if_different(args.kconfig_out, kconfig)
 
     if args.cmake_out:
-        with open(args.cmake_out, 'w', encoding="utf-8") as fp:
-            fp.write(cmake)
+        write_if_different(args.cmake_out, cmake)
 
     if args.sysbuild_kconfig_out:
-        with open(args.sysbuild_kconfig_out, 'w', encoding="utf-8") as fp:
-            fp.write(sysbuild_kconfig)
+        write_if_different(args.sysbuild_kconfig_out, sysbuild_kconfig)
 
     if args.sysbuild_cmake_out:
-        with open(args.sysbuild_cmake_out, 'w', encoding="utf-8") as fp:
-            fp.write(sysbuild_cmake)
+        write_if_different(args.sysbuild_cmake_out, sysbuild_cmake)
 
     if args.settings_out:
-        with open(args.settings_out, 'w', encoding="utf-8") as fp:
-            fp.write('''\
-# WARNING. THIS FILE IS AUTO-GENERATED. DO NOT MODIFY!
-#
-# This file contains build system settings derived from your modules.
-#
-# Modules may be set via ZEPHYR_MODULES, ZEPHYR_EXTRA_MODULES,
-# and/or the west manifest file.
-#
-# See the Modules guide for more information.
-''')
-            fp.write(settings)
+        write_if_different(args.settings_out, settings)
 
     if args.twister_out:
-        with open(args.twister_out, 'w', encoding="utf-8") as fp:
-            fp.write(twister)
+        write_if_different(args.twister_out, twister)
 
     if args.meta_out:
         meta = process_meta(args.zephyr_base, west_projs, modules,
                             args.extra_modules, args.meta_state_propagate)
 
-        with open(args.meta_out, 'w', encoding="utf-8") as fp:
-            # Ignore references and insert data instead
-            yaml.Dumper.ignore_aliases = lambda self, data: True
-            fp.write(yaml.dump(meta))
+        # Ignore references and insert data instead
+        yaml.Dumper.ignore_aliases = lambda self, data: True
+        write_if_different(args.meta_out, yaml.dump(meta))
 
 
 if __name__ == "__main__":

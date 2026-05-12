@@ -3,6 +3,7 @@
 include_guard(GLOBAL)
 
 include(user_cache)
+include(yaml)
 
 # Dependencies on CMake modules from the CMake distribution.
 include(CheckCCompilerFlag)
@@ -37,7 +38,6 @@ include(CheckCXXCompilerFlag)
 # 7 Linkable loadable extensions (llext)
 # 7.1 llext_* configuration functions
 # 7.2 add_llext_* build control functions
-# 7.3 llext helper functions
 # 8. Script mode handling
 
 ########################################################
@@ -1732,7 +1732,7 @@ function(zephyr_build_string outvar)
   list(REMOVE_DUPLICATES ${outvar})
 
   if(BUILD_STR_SHORT AND BUILD_STR_BOARD_QUALIFIERS)
-    string(REGEX REPLACE "^/[^/]*(.*)" "\\1" shortened_qualifiers "${BOARD_QUALIFIERS}")
+    string(REGEX REPLACE "^.[^/]*(.*)" "\\1" shortened_qualifiers "${BOARD_QUALIFIERS}")
     string(REPLACE "/" ";" str_short_segment_list "${shortened_qualifiers}")
     string(JOIN "_" ${BUILD_STR_SHORT}
            ${BUILD_STR_BOARD} ${str_short_segment_list} ${revision_string}
@@ -1771,10 +1771,6 @@ function(zephyr_syscall_include_directories)
       syscalls_interface INTERFACE
       ${include_dir}
     )
-    add_dependencies(
-      syscalls_interface
-      ${include_dir}
-    )
 
     unset(include_dir)
   endforeach()
@@ -1793,10 +1789,6 @@ function(zephyr_syscall_header)
 
     target_sources(
       syscalls_interface INTERFACE
-      ${header_file}
-    )
-    add_dependencies(
-      syscalls_interface
       ${header_file}
     )
 
@@ -1881,6 +1873,91 @@ function(zephyr_blobs_verify)
       endif()
     endforeach()
   endif()
+endfunction()
+
+#
+# Usage:
+#   zephyr_custom_target_shared(<arguments>)
+#
+# Extension function of add_custom_command().
+#
+# The purpose of this function is to add the custom target to a CMake cache `ZEPHYR_SHARED_TARGETS`
+# list of targets.
+# The list of targets provides a possibility for external tools or build system to fetch important
+# build targets expected to be available to users.
+#
+# For example, Sysbuild will use this list for making build targets available to the user for the
+# image.
+#
+# All arguments to this function is passed to CMake add_custom_command() function as-is.
+#
+# Arguments:
+#  - See `add_custom_target` documentation
+#
+macro(zephyr_custom_target_shared)
+  add_custom_target(${ARGN})
+
+  zephyr_set(ZEPHYR_SHARED_TARGETS ${ARGV0} SCOPE cache APPEND)
+endmacro()
+
+# Usage:
+#   zephyr_constants_library(
+#     NAME    <name>          - OBJECT library name and base for target "<name>_h"
+#     SOURCE  <file>          - C source file using GEN_ABSOLUTE_SYM macros
+#     [HEADER  <filename>]    - output header name (default: <name>.h)
+#     [INCLUDES <dir>...]     - additional private include directories
+#     [DEPENDS <name>...]     - other constants libraries this one depends on
+#   )
+#
+# Creates an OBJECT library from a C source file containing
+# GEN_ABSOLUTE_SYM() declarations, then generates a header file from
+# the resulting symbols.  Symbols ending in _OFFSET or _SIZEOF are
+# extracted by gen_offset_header.py and the resulting header is placed
+# under include/generated/zephyr/.
+#
+# NAME is used as the OBJECT library name (like add_library(<name>)),
+# allowing callers to reference the compiled objects at link time via
+# $<TARGET_OBJECTS:name> if needed.
+#
+# DEPENDS lists other constants libraries (by NAME) whose generated
+# headers must be produced before this library is compiled.
+#
+function(zephyr_constants_library)
+  cmake_parse_arguments(ARG "" "NAME;SOURCE;HEADER" "INCLUDES;DEPENDS" ${ARGN})
+
+  zephyr_check_arguments_required_all(${CMAKE_CURRENT_FUNCTION} ARG NAME SOURCE)
+  if(NOT ARG_HEADER)
+    set(ARG_HEADER "${ARG_NAME}.h")
+  endif()
+
+  set(output_path ${PROJECT_BINARY_DIR}/include/generated/zephyr/${ARG_HEADER})
+  set(target_name ${ARG_NAME}_h)
+  set(lib_name ${ARG_NAME})
+
+  add_library(${lib_name} OBJECT ${ARG_SOURCE})
+  target_include_directories(${lib_name} PRIVATE
+    ${ZEPHYR_BASE}/kernel/include
+    ${ARG_INCLUDES}
+  )
+  target_link_libraries(${lib_name} zephyr_interface)
+
+  set_source_files_properties(${ARG_SOURCE} PROPERTIES
+    COMPILE_OPTIONS $<TARGET_PROPERTY:compiler,prohibit_lto>)
+
+  add_custom_command(
+    OUTPUT ${output_path}
+    COMMAND ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/build/gen_offset_header.py
+    -i $<TARGET_OBJECTS:${lib_name}>
+    -o ${output_path}
+    DEPENDS ${lib_name} $<TARGET_OBJECTS:${lib_name}>
+  )
+  add_custom_target(${target_name} DEPENDS ${output_path})
+
+  add_dependencies(zephyr_generated_headers ${target_name})
+
+  foreach(dep IN LISTS ARG_DEPENDS)
+    add_dependencies(${lib_name} ${dep}_h)
+  endforeach()
 endfunction()
 
 ########################################################
@@ -2555,6 +2632,14 @@ function(set_compiler_property)
 
   set_property(TARGET compiler ${APPEND} PROPERTY ${COMPILER_PROPERTY_PROPERTY})
   set_property(TARGET compiler-cpp ${APPEND} PROPERTY ${COMPILER_PROPERTY_PROPERTY})
+
+  list(GET COMPILER_PROPERTY_PROPERTY 0 prop_name)
+  # Brief docs is used to inform if inheritance is set for the property.
+  # When inheritance is set, then the value must also be set on directory to ensure inheritance.
+  get_property(inherit TARGET NONE PROPERTY ${prop_name} BRIEF_DOCS)
+  if(inherit STREQUAL "INHERIT")
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY ${COMPILER_PROPERTY_PROPERTY})
+  endif()
 endfunction()
 
 # 'check_set_compiler_property' is a function that check the provided compiler
@@ -3009,11 +3094,11 @@ endfunction()
 #   zephyr_file_suffix(<filename> SUFFIX <suffix>)
 #
 # Zephyr file add suffix extension.
-# This function will check the provied filename or list of filenames to see if they have a
+# This function will check the provided filename or list of filenames to see if they have a
 # `_<suffix>` extension to them and if so, updates the supplied variable/list with the new
 # path/paths.
 #
-# <filename>: Variable (singlular or list) of absolute path filename(s) which should be checked
+# <filename>: Variable (singular or list) of absolute path filename(s) which should be checked
 #             and updated if there is a filename which has the <suffix> present.
 # <suffix>: The suffix to test for and append to the end of the provided filename.
 #
@@ -3359,6 +3444,8 @@ function(zephyr_scope_exists result scope)
   get_property(scope_defined GLOBAL PROPERTY scope:${scope})
   if(scope_defined)
     set(${result} TRUE PARENT_SCOPE)
+  elseif(scope STREQUAL cache)
+    set(${result} TRUE PARENT_SCOPE)
   else()
     set(${result} FALSE PARENT_SCOPE)
   endif()
@@ -3369,6 +3456,9 @@ endfunction()
 #
 # Get the current value of <var> in a specific <scope>, as defined by a
 # previous zephyr_set() call. The value will be stored in the <output> var.
+#
+# Note: the scope `cache` will return the CMake cache value of the variable set
+#       in current CMake run. (cache values from earlier runs are ignored).
 #
 # <output> : Variable to store the value in
 # <scope>  : Scope for the variable look up
@@ -3395,6 +3485,9 @@ endfunction()
 # scope. The scope is used on later zephyr_get() invocation for precedence
 # handling when a variable it set in multiple scopes.
 #
+# Note: the scope `cache` sets the CMake cache value of the variable but cache
+#       values from earlier CMake runs are ignored.
+#
 # <variable>   : Name of variable
 # <value>      : Value of variable, multiple values will create a list.
 #                The SCOPE argument identifies the end of value list.
@@ -3418,6 +3511,11 @@ function(zephyr_set variable)
   set_property(GLOBAL ${property_args} PROPERTY
                ${SET_VAR_SCOPE}_scope:${variable} ${SET_VAR_UNPARSED_ARGUMENTS}
   )
+
+  if(SET_VAR_SCOPE STREQUAL cache)
+    zephyr_get_scoped(value ${SET_VAR_SCOPE} ${variable})
+    set(${variable} "${value}" CACHE INTERNAL "")
+  endif()
 endfunction()
 
 # Usage:
@@ -3726,7 +3824,7 @@ endfunction()
 #   build_info(<tag>... VALUE <value>...)
 #   build_info(<tag>... PATH  <path>...)
 #
-# This function populates the build_info.yml info file with exchangable build
+# This function populates the build_info.yml info file with exchangeable build
 # information related to the current build.
 #
 # Example:
@@ -4725,6 +4823,7 @@ function(zephyr_dt_import)
     )
 
     zephyr_file_copy(${gen_dts_cmake_temp} ${gen_dts_cmake_output} ONLY_IF_DIFFERENT)
+    file(REMOVE ${gen_dts_cmake_temp})
   endif()
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${gen_dts_cmake_script})
 
@@ -5313,7 +5412,7 @@ function(zephyr_iterable_section)
   endif()
 
   if(DEFINED SECTION_SUBALIGN)
-    set(subalign "SUBALIGN ${SECTION_SUBALIGN}")
+    set(subalign SUBALIGN ${SECTION_SUBALIGN})
   endif()
 
   if(SECTION_ALIGN_WITH_INPUT)
@@ -5863,11 +5962,24 @@ function(add_llext_target target_name)
   set(llext_pkg_output ${LLEXT_OUTPUT})
   set(source_files ${LLEXT_SOURCES})
 
+  # Convert the LLEXT_REMOVE_FLAGS list to a regular expression, and use it to
+  # filter out these flags from the Zephyr target settings
+  list(TRANSFORM LLEXT_REMOVE_FLAGS
+       REPLACE "(.+)" "^\\1$"
+       OUTPUT_VARIABLE llext_remove_flags_regexp
+  )
+  list(JOIN llext_remove_flags_regexp "|" llext_remove_flags_regexp)
+  if("${llext_remove_flags_regexp}" STREQUAL "")
+    # an empty regexp would match anything, we actually need the opposite
+    # so set it to match empty strings
+    set(llext_remove_flags_regexp "^$")
+  endif()
   set(zephyr_flags
       "$<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_OPTIONS>"
   )
-  llext_filter_zephyr_flags(LLEXT_REMOVE_FLAGS ${zephyr_flags}
-      zephyr_filtered_flags)
+  set(zephyr_filtered_flags
+      "$<FILTER:${zephyr_flags},EXCLUDE,${llext_remove_flags_regexp}>"
+  )
 
   # Compile the source file using current Zephyr settings but a different
   # set of flags to obtain the desired llext object type.
@@ -6100,38 +6212,6 @@ function(add_llext_command)
     ${LLEXT_UNPARSED_ARGUMENTS}
     COMMAND_EXPAND_LISTS
   )
-endfunction()
-
-# 7.3 llext helper functions
-
-# Usage:
-#   llext_filter_zephyr_flags(<filter> <flags> <outvar>)
-#
-# Filter out flags from a list of flags. The filter is a list of regular
-# expressions that will be used to exclude flags from the input list.
-#
-# The resulting generator expression will be stored in the variable <outvar>.
-#
-# Example:
-#   llext_filter_zephyr_flags(LLEXT_REMOVE_FLAGS zephyr_flags zephyr_filtered_flags)
-#
-function(llext_filter_zephyr_flags filter flags outvar)
-  list(TRANSFORM ${filter}
-       REPLACE "(.+)" "^\\1$"
-       OUTPUT_VARIABLE llext_remove_flags_regexp
-  )
-  list(JOIN llext_remove_flags_regexp "|" llext_remove_flags_regexp)
-  if("${llext_remove_flags_regexp}" STREQUAL "")
-    # an empty regexp would match anything, we actually need the opposite
-    # so set it to match empty strings
-    set(llext_remove_flags_regexp "^$")
-  endif()
-
-  set(zephyr_filtered_flags
-      "$<FILTER:${flags},EXCLUDE,${llext_remove_flags_regexp}>"
-  )
-
-  set(${outvar} ${zephyr_filtered_flags} PARENT_SCOPE)
 endfunction()
 
 ########################################################

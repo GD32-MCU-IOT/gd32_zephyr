@@ -18,8 +18,6 @@ LOG_MODULE_REGISTER(eth_adin2111, CONFIG_ETHERNET_LOG_LEVEL);
 #include <errno.h>
 
 #include <zephyr/net/net_if.h>
-#include <zephyr/net/ethernet.h>
-#include <zephyr/net/phy.h>
 #include <zephyr/drivers/ethernet/eth_adin2111.h>
 
 #include "phy/phy_adin2111_priv.h"
@@ -312,15 +310,22 @@ int eth_adin2111_oa_data_read(const struct device *dev, const uint16_t port_idx)
 		len = (ftr & ADIN2111_OA_DATA_FTR_EV) ?
 		       ((ftr & ADIN2111_OA_DATA_FTR_EBO_MSK) >> ADIN2111_OA_DATA_FTR_EBO) + 1 :
 		       ctx->oa_cps;
+
+		if (ctx->scur + len > CONFIG_ETH_ADIN2111_BUFFER_SIZE) {
+			ctx->scur = 0;
+			LOG_ERR("OA RX: Frame is larger than maximum size !");
+			goto update_pos;
+		}
+
 		memcpy(&ctx->buf[ctx->scur], &ctx->oa_rx_buf[rx_pos], len);
 		ctx->scur += len;
 
 		if (ftr & ADIN2111_OA_DATA_FTR_EV) {
 			pkt = net_pkt_rx_alloc_with_buffer(iface, CONFIG_ETH_ADIN2111_BUFFER_SIZE,
-							   AF_UNSPEC, 0,
+							   NET_AF_UNSPEC, 0,
 							   K_MSEC(CONFIG_ETH_ADIN2111_TIMEOUT));
 			if (!pkt) {
-				LOG_ERR("OA RX: cannot allcate packet space, skipping.");
+				LOG_ERR("OA RX: cannot allocate packet space, skipping.");
 				return -ENOMEM;
 			}
 			/* Skipping CRC32 */
@@ -439,7 +444,7 @@ static int eth_adin2111_reg_read_generic(const struct device *dev,
 #endif /* CONFIG_ETH_ADIN2111_SPI_CFG0 */
 
 	/* spi header */
-	*(uint16_t *)buf = htons((ADIN2111_READ_TXN_CTRL | reg));
+	*(uint16_t *)buf = net_htons((ADIN2111_READ_TXN_CTRL | reg));
 #if CONFIG_ETH_ADIN2111_SPI_CFG0
 	buf[2] = crc8_ccitt(0, buf, ADIN2111_SPI_HEADER_SIZE);
 	/* TA */
@@ -471,7 +476,7 @@ static int eth_adin2111_reg_read_generic(const struct device *dev,
 	}
 #endif /* CONFIG_ETH_ADIN2111_SPI_CFG0 */
 
-	*val = ntohl((*(uint32_t *)(&buf[header_len])));
+	*val = net_ntohl((*(uint32_t *)(&buf[header_len])));
 
 	return ret;
 }
@@ -490,14 +495,14 @@ static int eth_adin2111_reg_write_generic(const struct device *dev,
 #endif /* CONFIG_ETH_ADIN2111_SPI_CFG0 */
 
 	/* spi header */
-	*(uint16_t *)buf = htons((ADIN2111_WRITE_TXN_CTRL | reg));
+	*(uint16_t *)buf = net_htons((ADIN2111_WRITE_TXN_CTRL | reg));
 	#if CONFIG_ETH_ADIN2111_SPI_CFG0
 	buf[2] = crc8_ccitt(0, buf, header_size);
 	++header_size;
 #endif /* CONFIG_ETH_ADIN2111_SPI_CFG0 */
 
 	/* reg */
-	*(uint32_t *)(buf + header_size) = htonl(val);
+	*(uint32_t *)(buf + header_size) = net_htonl(val);
 #if CONFIG_ETH_ADIN2111_SPI_CFG0
 	buf[header_size + data_size] = crc8_ccitt(0, &buf[header_size], data_size);
 	++data_size;
@@ -576,7 +581,7 @@ static int adin2111_read_fifo(const struct device *dev, const uint16_t port_idx)
 	fsize -= ADIN2111_FRAME_HEADER_SIZE;
 
 	/* spi header */
-	*(uint16_t *)cmd_buf = htons((ADIN2111_READ_TXN_CTRL | rx_reg));
+	*(uint16_t *)cmd_buf = net_htons((ADIN2111_READ_TXN_CTRL | rx_reg));
 #if CONFIG_ETH_ADIN2111_SPI_CFG0
 	cmd_buf[2] = crc8_ccitt(0, cmd_buf, ADIN2111_SPI_HEADER_SIZE);
 	/* TA */
@@ -608,7 +613,7 @@ static int adin2111_read_fifo(const struct device *dev, const uint16_t port_idx)
 	/* remove CRC32 and pass to the stack */
 	fsize_real = fsize - sizeof(uint32_t);
 
-	pkt = net_pkt_rx_alloc_with_buffer(iface, fsize_real, AF_UNSPEC, 0,
+	pkt = net_pkt_rx_alloc_with_buffer(iface, fsize_real, NET_AF_UNSPEC, 0,
 					   K_MSEC(CONFIG_ETH_ADIN2111_TIMEOUT));
 	if (!pkt) {
 		eth_stats_update_errors_rx(iface);
@@ -838,7 +843,7 @@ static int adin2111_port_send(const struct device *dev, struct net_pkt *pkt)
 			eth_adin2111_lock(adin, K_FOREVER);
 		}
 
-		ret = eth_adin2111_send_oa_frame(cfg->adin, pkt, htons(cfg->port_idx));
+		ret = eth_adin2111_send_oa_frame(cfg->adin, pkt, net_htons(cfg->port_idx));
 
 		goto end_check;
 	}
@@ -887,14 +892,14 @@ static int adin2111_port_send(const struct device *dev, struct net_pkt *pkt)
 	memset(ctx->buf, 0, burst_size + ADIN2111_WRITE_HEADER_SIZE);
 
 	/* spi header */
-	*(uint16_t *)ctx->buf = htons(ADIN2111_TXN_CTRL_TX_REG);
+	*(uint16_t *)ctx->buf = net_htons(ADIN2111_TXN_CTRL_TX_REG);
 #if CONFIG_ETH_ADIN2111_SPI_CFG0
 	ctx->buf[2] = crc8_ccitt(0, ctx->buf, header_size);
 	++header_size;
 #endif /* CONFIG_ETH_ADIN2111_SPI_CFG0 */
 
 	/* frame header */
-	*(uint16_t *)(ctx->buf + header_size) = htons(cfg->port_idx);
+	*(uint16_t *)(ctx->buf + header_size) = net_htons(cfg->port_idx);
 
 	/* read pkt into tx buffer */
 	ret = net_pkt_read(pkt,
@@ -1218,9 +1223,9 @@ static void adin2111_port_iface_init(struct net_if *iface)
 	}
 }
 
-static enum ethernet_hw_caps adin2111_port_get_capabilities(const struct device *dev)
+static enum ethernet_hw_caps adin2111_port_get_capabilities(const struct device *dev __unused,
+							    struct net_if *iface __unused)
 {
-	ARG_UNUSED(dev);
 	return ETHERNET_LINK_10BASE |
 		ETHERNET_HW_FILTERING
 #if defined(CONFIG_NET_LLDP)
@@ -1230,6 +1235,7 @@ static enum ethernet_hw_caps adin2111_port_get_capabilities(const struct device 
 }
 
 static int adin2111_port_set_config(const struct device *dev,
+				    struct net_if *iface __unused,
 				    enum ethernet_config_type type,
 				    const struct ethernet_config *config)
 {
@@ -1247,10 +1253,7 @@ static int adin2111_port_set_config(const struct device *dev,
 			goto end_unlock;
 		}
 
-		(void)memcpy(data->mac_addr, config->mac_address.addr, sizeof(data->mac_addr));
-
-		(void)net_if_set_link_addr(data->iface, data->mac_addr, sizeof(data->mac_addr),
-					   NET_LINK_ETHERNET);
+		memcpy(data->mac_addr, config->mac_address.addr, sizeof(data->mac_addr));
 	}
 
 	if (type == ETHERNET_CONFIG_TYPE_FILTER) {
@@ -1278,7 +1281,8 @@ end_unlock:
 }
 
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-static struct net_stats_eth *adin2111_port_get_stats(const struct device *dev)
+static struct net_stats_eth *adin2111_port_get_stats(const struct device *dev,
+						     struct net_if *iface __unused)
 {
 	struct adin2111_port_data *data = dev->data;
 

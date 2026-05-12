@@ -19,6 +19,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <zephyr/pm/device_runtime.h>
 
 static struct gpio_callback gpio_cb;
 
@@ -256,6 +257,33 @@ ZTEST(pwm_gpio_loopback, test_pwm_cross)
 	}
 }
 
+#if defined(CONFIG_PM_DEVICE)
+ZTEST(pwm_gpio_loopback, test_pwm_pm)
+{
+	/* Test case: [Duty: 100%] */
+	test_run(&pwms_dt[0], &gpios_dt[0], 100, true);
+
+	for (int i = 1; i < TEST_PWM_COUNT; i++) {
+		/* Test case: [Duty: 75%] */
+		test_run(&pwms_dt[i], &gpios_dt[i], 75, true);
+	}
+
+	/* Set all channels, invoke sleep and check if they retain
+	 * the original configuration
+	 */
+	TC_PRINT("Entering light sleep...\n");
+	k_sleep(K_SECONDS(1));
+
+	 /* Test case: [Duty: 100%] */
+	test_run(&pwms_dt[0], &gpios_dt[0], 100, false);
+
+	for (int i = 1; i < TEST_PWM_COUNT; i++) {
+		/* Test case: [Duty: 75%] */
+		test_run(&pwms_dt[i], &gpios_dt[i], 75, false);
+	}
+}
+#endif
+
 static void *pwm_gpio_loopback_setup(void)
 {
 	for (int i = 0; i < TEST_GPIO_COUNT; i++) {
@@ -270,4 +298,19 @@ static void *pwm_gpio_loopback_setup(void)
 	return NULL;
 }
 
-ZTEST_SUITE(pwm_gpio_loopback, NULL, pwm_gpio_loopback_setup, NULL, NULL, NULL);
+static void pwm_gpio_loopback_before(void *f)
+{
+	for (int i = 0; i < TEST_PWM_COUNT; i++) {
+		zassert_ok(pm_device_runtime_get(pwms_dt[i].dev));
+	}
+}
+
+static void pwm_gpio_loopback_after(void *f)
+{
+	for (int i = 0; i < TEST_PWM_COUNT; i++) {
+		zassert_ok(pm_device_runtime_put(pwms_dt[i].dev));
+	}
+}
+
+ZTEST_SUITE(pwm_gpio_loopback, NULL, pwm_gpio_loopback_setup, pwm_gpio_loopback_before,
+	    pwm_gpio_loopback_after, NULL);

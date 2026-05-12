@@ -13,7 +13,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/init.h>
-#include <zephyr/sys/byteorder.h>
 #include <zephyr/drivers/usb/uhc.h>
 #include <zephyr/drivers/pinctrl.h>
 
@@ -28,8 +27,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(uhc_mcux);
 
-K_MEM_SLAB_DEFINE_STATIC(mcux_uhc_transfer_pool, sizeof(usb_host_transfer_t),
-			 USB_HOST_CONFIG_MAX_TRANSFERS, sizeof(void *));
+K_MEM_SLAB_DEFINE_STATIC_TYPE(mcux_uhc_transfer_pool, usb_host_transfer_t,
+			      USB_HOST_CONFIG_MAX_TRANSFERS);
 
 #if defined(CONFIG_NOCACHE_MEMORY)
 K_HEAP_DEFINE_NOCACHE(mcux_transfer_alloc_pool,
@@ -80,7 +79,7 @@ static void uhc_mcux_isr(const struct device *dev)
 	USB_HostEhciIsrFunction((void *)(&priv->mcux_host));
 }
 
-/* MCUX controller dirver uses this callback to notify upper layer suspend related event */
+/* MCUX controller driver uses this callback to notify upper layer suspend related event */
 static usb_status_t mcux_host_callback(usb_device_handle deviceHandle,
 				       usb_host_configuration_handle configurationHandle,
 				       uint32_t eventCode)
@@ -93,8 +92,7 @@ static usb_status_t mcux_host_callback(usb_device_handle deviceHandle,
 
 static int uhc_mcux_init(const struct device *dev)
 {
-	const struct uhc_mcux_config *config = dev->config;
-	usb_phy_config_struct_t *phy_config;
+	const struct uhc_mcux_ehci_config *config = dev->config;
 	struct uhc_mcux_data *priv = uhc_get_private(dev);
 	k_thread_entry_t thread_entry = NULL;
 	usb_status_t status;
@@ -109,9 +107,8 @@ static int uhc_mcux_init(const struct device *dev)
 	}
 
 #ifdef CONFIG_DT_HAS_NXP_USBPHY_ENABLED
-	phy_config = ((const struct uhc_mcux_ehci_config *)dev->config)->phy_config;
-	if (phy_config != NULL) {
-		USB_EhciPhyInit(priv->controller_id, 0u, phy_config);
+	if (config->phy_config != NULL) {
+		USB_EhciPhyInit(priv->controller_id, 0u, config->phy_config);
 	}
 #endif
 
@@ -125,8 +122,9 @@ static int uhc_mcux_init(const struct device *dev)
 	}
 
 	/* Create MCUX USB host driver task */
-	k_thread_create(&priv->drv_stack_data, config->drv_stack, CONFIG_UHC_NXP_THREAD_STACK_SIZE,
-			thread_entry, (void *)dev, NULL, NULL, K_PRIO_COOP(2), 0, K_NO_WAIT);
+	k_thread_create(&priv->drv_stack_data, config->uhc_config.drv_stack,
+			CONFIG_UHC_NXP_THREAD_STACK_SIZE, thread_entry,
+			(void *)dev, NULL, NULL, K_PRIO_COOP(2), 0, K_NO_WAIT);
 	k_thread_name_set(&priv->drv_stack_data, "uhc_mcux_ehci");
 
 	return 0;
@@ -163,22 +161,28 @@ static void uhc_mcux_transfer_callback(void *param, usb_host_transfer_t *transfe
 		}
 	}
 
+	if (status == kStatus_USB_TransferStall) {
+		err = -EPIPE;
+	}
+
 #if defined(CONFIG_NOCACHE_MEMORY)
 	if (transfer->setupPacket != NULL) {
 		uhc_mcux_nocache_free(transfer->setupPacket);
 	}
 #endif
-	if ((xfer->buf != NULL) && (transfer->transferBuffer != NULL)) {
-		if (transfer->transferSofar > 0) {
+	if ((xfer->buf != NULL) && (transfer->transferBuffer != NULL) &&
+	    USB_EP_DIR_IS_IN(xfer->ep) && (transfer->transferSofar > 0)) {
 #if defined(CONFIG_NOCACHE_MEMORY)
-			memcpy(xfer->buf->__buf, transfer->transferBuffer, transfer->transferSofar);
+		memcpy(net_buf_tail(xfer->buf), transfer->transferBuffer, transfer->transferSofar);
 #endif
-			net_buf_add(xfer->buf, transfer->transferSofar);
-		}
-#if defined(CONFIG_NOCACHE_MEMORY)
-		uhc_mcux_nocache_free(transfer->transferBuffer);
-#endif
+		net_buf_add(xfer->buf, transfer->transferSofar);
 	}
+
+#if defined(CONFIG_NOCACHE_MEMORY)
+	if (transfer->transferBuffer != NULL && transfer->transferLength != 0) {
+		uhc_mcux_nocache_free(transfer->transferBuffer);
+	}
+#endif
 
 	transfer->setupPacket = NULL;
 	transfer->transferBuffer = NULL;
@@ -198,10 +202,31 @@ static usb_host_transfer_t *uhc_mcux_hal_init_transfer(const struct device *dev,
 	(void)uhc_mcux_hal_init_transfer_common(dev, mcux_xfer, mcux_ep_handle, xfer,
 						uhc_mcux_transfer_callback);
 #if defined(CONFIG_NOCACHE_MEMORY)
-	mcux_xfer->setupPacket = uhc_mcux_nocache_alloc(8u);
-	memcpy(mcux_xfer->setupPacket, xfer->setup_pkt, 8u);
-	if (xfer->buf != NULL) {
-		mcux_xfer->transferBuffer = uhc_mcux_nocache_alloc(mcux_xfer->transferLength);
+	if (USB_EP_GET_IDX(xfer->ep) == 0) {
+		mcux_xfer->setupPacket = uhc_mcux_nocache_alloc(8u);
+		if (mcux_xfer->setupPacket == NULL) {
+			k_mem_slab_free(&mcux_uhc_transfer_pool, mcux_xfer);
+			return NULL;
+		}
+
+		memcpy(mcux_xfer->setupPacket, xfer->setup_pkt, 8u);
+	} else {
+		mcux_xfer->setupPacket = NULL;
+	}
+
+	if (mcux_xfer->transferBuffer != NULL && mcux_xfer->transferLength != 0) {
+		uint8_t *nocache_buf = uhc_mcux_nocache_alloc(mcux_xfer->transferLength);
+
+		if (nocache_buf == NULL) {
+			k_mem_slab_free(&mcux_uhc_transfer_pool, mcux_xfer);
+			return NULL;
+		}
+
+		if (USB_EP_DIR_IS_OUT(xfer->ep)) {
+			memcpy(nocache_buf, mcux_xfer->transferBuffer, mcux_xfer->transferLength);
+		}
+
+		mcux_xfer->transferBuffer = nocache_buf;
 	}
 #endif
 

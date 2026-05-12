@@ -4,7 +4,7 @@ Overview
 ********
 
 This is the standard evaluation board for the PSOC™ Control C3 family of MCU's. PSOC™ Control C3M5
-is a high-performance and low-power 32-bit single-core Arm® Cortex® M33-based MCU.
+is a high-performance and low-power 32-bit single-core Arm® Cortex®-M33-based MCU.
 In addition to the CPU subsystem, the devices contain advanced real-time control peripherals,
 such as a high-performance programmable analog subsystem, comparators, advanced timers with
 high-resolution capability, up to six SCBs, and two CAN FDs for communication.
@@ -44,7 +44,6 @@ Supported Features
 
 .. zephyr:board-supported-hw::
 
-
 Build blinking led sample
 *************************
 
@@ -53,6 +52,54 @@ Here is an example for building the :zephyr:code-sample:`blinky` sample applicat
 .. zephyr-app-commands::
    :zephyr-app: samples/basic/blinky
    :board: kit_psc3m5_evk
+   :goals: build
+
+Board Variants
+**************
+
+This board contains the following board variants:
+
+* ``kit_psc3m5_evk/psc3m5fds2afq1/norflash`` — Enables an external S25FL128P
+  SPI NOR flash connected via SCB5. This variant requires a hardware rework
+  that removes the LPCOMP1 inputs and repurposes the pins for the SCB5 SPI interface.
+
+Kit Rework for NOR Flash
+========================
+
+The following resistor rework is required per the KIT_PSC3M5_EVK user guide
+(Table 7) to enable the SCB5 SPI NOR flash interface:
+
++------------------------+----------+
+| Reference Designator   | Assembly |
++========================+==========+
+| R96                    | Stuff    |
++------------------------+----------+
+| R105                   | Stuff    |
++------------------------+----------+
+| R101                   | Stuff    |
++------------------------+----------+
+| R114                   | Stuff    |
++------------------------+----------+
+| R113                   | DNI      |
++------------------------+----------+
+| R95                    | DNI      |
++------------------------+----------+
+| R104                   | DNI      |
++------------------------+----------+
+| R100                   | DNI      |
++------------------------+----------+
+
+.. note::
+
+   This rework removes the LPCOMP1 functionality from the board. The default
+   board target (``kit_psc3m5_evk``) should be used for unmodified boards.
+
+Building for the NOR Flash Variant
+==================================
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/flash_shell
+   :board: kit_psc3m5_evk/psc3m5fds2afq1/norflash
    :goals: build
 
 Programming and Debugging

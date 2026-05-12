@@ -5,11 +5,13 @@
  */
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/lc3.h>
@@ -26,6 +28,7 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
@@ -62,21 +65,20 @@ static struct audio_sink {
 static struct audio_source {
 	struct bt_bap_stream stream;
 	uint16_t seq_num;
-	size_t send_cnt;
 } source_streams[CONFIG_BT_ASCS_MAX_ASE_SRC_COUNT];
 static size_t configured_source_stream_count;
 
 static const struct bt_bap_qos_cfg_pref qos_pref =
-	BT_BAP_QOS_CFG_PREF(true, BT_GAP_LE_PHY_2M, 0x02, 10, 40000, 40000, 40000, 40000);
+	BT_BAP_QOS_CFG_PREF(true, BT_GAP_LE_PHY_2M, 0x02U, 10U, 40000U, 40000U, 40000U, 40000U);
 
-static K_SEM_DEFINE(sem_disconnected, 0, 1);
+static K_SEM_DEFINE(sem_disconnected, 0U, 1U);
 
 static uint8_t unicast_server_addata[] = {
 	BT_UUID_16_ENCODE(BT_UUID_ASCS_VAL), /* ASCS UUID */
 	BT_AUDIO_UNICAST_ANNOUNCEMENT_TARGETED, /* Target Announcement */
 	BT_BYTES_LIST_LE16(AVAILABLE_SINK_CONTEXT),
 	BT_BYTES_LIST_LE16(AVAILABLE_SOURCE_CONTEXT),
-	0x00, /* Metadata length */
+	0x00U, /* Metadata length */
 };
 
 /* TODO: Expand with BAP data */
@@ -91,8 +93,8 @@ static const struct bt_data ad[] = {
 
 #include "lc3.h"
 
-#define MAX_SAMPLE_RATE         48000
-#define MAX_FRAME_DURATION_US   10000
+#define MAX_SAMPLE_RATE         48000U
+#define MAX_FRAME_DURATION_US   10000U
 #define MAX_NUM_SAMPLES         ((MAX_FRAME_DURATION_US * MAX_SAMPLE_RATE) / USEC_PER_SEC)
 
 static lc3_decoder_t lc3_decoder;
@@ -188,7 +190,7 @@ static enum bt_audio_dir stream_dir(const struct bt_bap_stream *stream)
 static struct bt_bap_stream *stream_alloc(enum bt_audio_dir dir)
 {
 	if (dir == BT_AUDIO_DIR_SOURCE) {
-		for (size_t i = 0; i < ARRAY_SIZE(source_streams); i++) {
+		for (size_t i = 0U; i < ARRAY_SIZE(source_streams); i++) {
 			struct bt_bap_stream *stream = &source_streams[i].stream;
 
 			if (!stream->conn) {
@@ -196,7 +198,7 @@ static struct bt_bap_stream *stream_alloc(enum bt_audio_dir dir)
 			}
 		}
 	} else {
-		for (size_t i = 0; i < ARRAY_SIZE(sink_streams); i++) {
+		for (size_t i = 0U; i < ARRAY_SIZE(sink_streams); i++) {
 			struct bt_bap_stream *stream = &sink_streams[i].stream;
 
 			if (!stream->conn) {
@@ -521,32 +523,26 @@ static struct bt_bap_stream_ops stream_ops = {
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
 	if (err != 0) {
-		printk("Failed to connect to %s %u %s\n", addr, err, bt_hci_err_to_str(err));
+		printk("Failed to connect to %s %u %s\n", bt_conn_dst_str(conn),
+		       err, bt_hci_err_to_str(err));
 
 		default_conn = NULL;
 		return;
 	}
 
-	printk("Connected: %s\n", addr);
+	printk("Connected: %s\n", bt_conn_dst_str(conn));
 	default_conn = bt_conn_ref(conn);
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
-
 	if (conn != default_conn) {
 		return;
 	}
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-	printk("Disconnected: %s, reason 0x%02x %s\n", addr, reason, bt_hci_err_to_str(reason));
+	printk("Disconnected: %s, reason 0x%02x %s\n", bt_conn_dst_str(conn),
+	       reason, bt_hci_err_to_str(reason));
 
 	bt_conn_unref(default_conn);
 	default_conn = NULL;
@@ -673,7 +669,7 @@ int main(void)
 	printk("Bluetooth initialized\n");
 
 	err = bt_pacs_register(&pacs_param);
-	if (err) {
+	if (err != 0) {
 		printk("Could not register PACS (err %d)\n", err);
 		return 0;
 	}
@@ -688,11 +684,11 @@ int main(void)
 	bt_pacs_cap_register(BT_AUDIO_DIR_SINK, &cap_sink);
 	bt_pacs_cap_register(BT_AUDIO_DIR_SOURCE, &cap_source);
 
-	for (size_t i = 0; i < ARRAY_SIZE(sink_streams); i++) {
+	for (size_t i = 0U; i < ARRAY_SIZE(sink_streams); i++) {
 		bt_bap_stream_cb_register(&sink_streams[i].stream, &stream_ops);
 	}
 
-	for (size_t i = 0; i < ARRAY_SIZE(source_streams); i++) {
+	for (size_t i = 0U; i < ARRAY_SIZE(source_streams); i++) {
 		bt_bap_stream_cb_register(&source_streams[i].stream,
 					    &stream_ops);
 	}
@@ -714,20 +710,20 @@ int main(void)
 
 	/* Create a connectable advertising set */
 	err = bt_le_ext_adv_create(BT_BAP_ADV_PARAM_CONN_QUICK, NULL, &adv);
-	if (err) {
+	if (err != 0) {
 		printk("Failed to create advertising set (err %d)\n", err);
 		return 0;
 	}
 
 	err = bt_le_ext_adv_set_data(adv, ad, ARRAY_SIZE(ad), NULL, 0);
-	if (err) {
+	if (err != 0) {
 		printk("Failed to set advertising data (err %d)\n", err);
 		return 0;
 	}
 
 	while (true) {
 		err = bt_le_ext_adv_start(adv, BT_LE_EXT_ADV_START_DEFAULT);
-		if (err) {
+		if (err != 0) {
 			printk("Failed to start advertising set (err %d)\n", err);
 			return 0;
 		}

@@ -15,4 +15,8 @@ ram: 1024
 supported:
   - uart
   - counter
+  - net
+testing:
+  binaries:
+    - flash.bin
 vendor: nxp

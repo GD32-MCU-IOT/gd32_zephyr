@@ -1,7 +1,7 @@
 # Bluetooth Audio - Call control configuration options
 #
 # Copyright (c) 2020 Bose Corporation
-# Copyright (c) 2024 Nordic Semiconductor ASA
+# Copyright (c) 2024-2026 Nordic Semiconductor ASA
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,22 +14,12 @@ config BT_TBS
 	bool "Telephone Bearer Service Support"
 	depends on BT_GATT_DYNAMIC_DB
 	depends on BT_SMP
-	depends on UTF8
 	help
 	  This option enables support for Telephone Bearer Service. By default this only
 	  initializes the GTBS service. If specific TBS services are wanted, they need to be
 	  enabled by setting BT_TBS_BEARER_COUNT to a non-zero value.
 
 if BT_TBS
-
-config BT_TBS_SUPPORTED_FEATURES
-	int "Telephone Bearer Service Supported Features"
-	default 1
-	range 0 3
-	help
-	  Bitfield to set supported features of the bearer.
-	  Bit 0: Local Hold and Retrieve
-	  Bit 1: Join calls within Telephone Bearer Service
 
 config BT_TBS_MAX_CALLS
 	int "Telephone Bearer Service Maximum Number Of Calls Supported"
@@ -70,7 +60,6 @@ config BT_TBS_CLIENT_GTBS
 	depends on BT_GATT_CLIENT
 	depends on BT_GATT_AUTO_DISCOVER_CCC
 	depends on BT_SMP
-	depends on UTF8
 	help
 	  This option enables support for the GTBS-oriented Call Control client.
 
@@ -79,7 +68,6 @@ config BT_TBS_CLIENT_TBS
 	depends on BT_GATT_CLIENT
 	depends on BT_GATT_AUTO_DISCOVER_CCC
 	depends on BT_SMP
-	depends on UTF8
 	help
 	  This option enables support for the TBS-oriented Call Control client.
 
@@ -257,15 +245,22 @@ config BT_TBS_MAX_URI_LENGTH
 	default 30
 	range 4 253
 	help
-	  Sets the maximum length of the call URI supported. Note that if this
-	  value is lower than a call URI, the call request will be rejected.
+	  Sets the maximum length of the call URI supported in octets (without NULL terminator).
+	  Note that if this value is lower than a call URI, the call request will be rejected.
 
 config BT_TBS_MAX_PROVIDER_NAME_LENGTH
 	int "The maximum length of the bearer provider name"
 	default 30
 	range 1 512
 	help
-	  Sets the maximum length of the bearer provider name.
+	  Sets the maximum length of the bearer provider name in octets (without NULL terminator).
+
+config BT_TBS_MAX_FRIENDLY_NAME_LENGTH
+	int "The maximum length of the friendly name supported"
+	default 30
+	range 1 512
+	help
+	  Sets the maximum length of the friendly name in octets (without NULL terminator).
 
 endif # BT_TBS || BT_TBS_CLIENT
 

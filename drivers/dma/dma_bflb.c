@@ -14,13 +14,12 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dma_bflb, CONFIG_DMA_LOG_LEVEL);
 
-#include <soc.h>
 #include <bflb_soc.h>
 #include <glb_reg.h>
 #include <common_defines.h>
 #include <bouffalolab/common/dma_reg.h>
 
-#ifdef CONFIG_SOC_SERIES_BL61X
+#if defined(CONFIG_SOC_SERIES_BL61X) || defined(CONFIG_SOC_SERIES_BL808)
 #define BFLB_DMA_CLOCK_ADDR (GLB_BASE + GLB_DMA_CFG0_OFFSET)
 #else
 #define BFLB_DMA_CLOCK_ADDR (GLB_BASE + GLB_CLK_CFG2_OFFSET)
@@ -153,6 +152,7 @@ static int dma_bflb_configure(const struct device *dev, uint32_t channel,
 		ch_config |= BFLB_DMA_FLOW_M_P << DMA_FLOWCNTRL_SHIFT;
 	} else if (config->channel_direction == PERIPHERAL_TO_PERIPHERAL) {
 		ch_config |= BFLB_DMA_FLOW_P_P << DMA_FLOWCNTRL_SHIFT;
+		return -ENOTSUP;
 	} else {
 		LOG_ERR("Direction error. %d", config->channel_direction);
 		return -EINVAL;
@@ -164,12 +164,12 @@ static int dma_bflb_configure(const struct device *dev, uint32_t channel,
 	sys_write32(block->dest_address, cfg->base_reg + DMA_CxDSTADDR_OFFSET
 			+ BFLB_DMA_CH_OFFSET(channel));
 
-	/* For peripherals we treat the address as the peripheral ID */
+	/* For peripherals we treat dma_slot as the peripheral ID */
 	ch_config &= ~DMA_SRCPERIPHERAL_MASK;
 	ch_config &= ~DMA_DSTPERIPHERAL_MASK;
-	ch_config |= (block->source_address << DMA_SRCPERIPHERAL_SHIFT)
+	ch_config |= (config->dma_slot << DMA_SRCPERIPHERAL_SHIFT)
 			& DMA_SRCPERIPHERAL_MASK;
-	ch_config |= (block->dest_address << DMA_DSTPERIPHERAL_SHIFT)
+	ch_config |= (config->dma_slot << DMA_DSTPERIPHERAL_SHIFT)
 			& DMA_DSTPERIPHERAL_MASK;
 
 	if (!block->source_addr_adj) {
@@ -264,7 +264,7 @@ static int dma_bflb_start(const struct device *dev, uint32_t channel)
 	const struct dma_bflb_config *cfg = dev->config;
 	uint32_t config;
 
-#ifdef CONFIG_SOC_SERIES_BL61X
+#if defined(CONFIG_SOC_SERIES_BL61X) || defined(CONFIG_SOC_SERIES_BL808)
 	/* on BL61x, we must invalidate the output address to update the memory data */
 	uint32_t control = sys_read32(
 		cfg->base_reg + DMA_CxCONTROL_OFFSET + BFLB_DMA_CH_OFFSET(channel));
@@ -273,6 +273,12 @@ static int dma_bflb_start(const struct device *dev, uint32_t channel)
 		cfg->base_reg + DMA_CxDSTADDR_OFFSET + BFLB_DMA_CH_OFFSET(channel));
 
 	pending_length *= dma_bflb_get_transfer_size(dev, channel);
+
+	sys_cache_data_flush_and_invd_range((void *)addr, pending_length);
+
+	addr = sys_read32(
+		cfg->base_reg + DMA_CxSRCADDR_OFFSET + BFLB_DMA_CH_OFFSET(channel));
+
 	sys_cache_data_flush_and_invd_range((void *)addr, pending_length);
 #endif
 

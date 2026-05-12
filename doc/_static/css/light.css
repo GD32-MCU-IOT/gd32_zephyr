@@ -26,18 +26,18 @@
     --navbar-scrollbar-active-color: #7929d2;
     --navbar-scrollbar-background: #131e2b;
 
-    --link-color: #237ab3;
-    --link-color-hover: #3091d1;
-    --link-color-active: #105078;
-    --link-color-visited: #9b59b6;
-    --external-reference-icon: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjEyIiB3aWR0aD0iMTIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjk4MGI5Ij48cGF0aCBkPSJtNy41IDcuMXYzLjRoLTZ2LTZoMy40Ii8+PHBhdGggZD0ibTUuNzY1IDFoNS4yMzV2NS4zOWwtMS41NzMgMS41NDctMS4zMS0xLjMxLTIuNzI0IDIuNzIzLTIuNjktMi42ODggMi44MS0yLjgwOC0xLjMxMy0xLjMxeiIvPjwvZz48L3N2Zz4K");
+    --link-color: #1a5a8a;
+    --link-color-hover: #2563a8;
+    --link-color-active: #0d3d5c;
+    --link-color-visited: #6b3d8a;
+    --external-reference-icon: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjEyIiB3aWR0aD0iMTIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWE1YThhIj48cGF0aCBkPSJtNy41IDcuMXYzLjRoLTZ2LTZoMy40Ii8+PHBhdGggZD0ibTUuNzY1IDFoNS4yMzV2NS4zOWwtMS41NzMgMS41NDctMS4zMS0xLjMxLTIuNzI0IDIuNzIzLTIuNjktMi42ODggMi44MS0yLjgwOC0xLjMxMy0xLjMxeiIvPjwvZz48L3N2Zz4=");
     --classref-badge-text-color: hsl(0, 0%, 45%);
 
     --hr-color: #e1e4e5;
     --table-row-odd-background-color: #f3f6f6;
     --code-background-color: #fff;
     --code-border-color: #e1e4e5;
-    --code-literal-color: #d04c60;
+    --code-literal-color: #c7254e;
     --input-background-color: #fcfcfc;
     --input-focus-border-color: #5f8cff;
 
@@ -53,31 +53,31 @@
     --highlight-background-emph-color: #dbe6c3;
     --highlight-default-color: #404040;
     --highlight-comment-color: #408090;
-    --highlight-keyword-color: #007020;
+    --highlight-keyword-color: #005a1a;
     --highlight-keyword2-color: #902000;
-    --highlight-number-color: #208050;
+    --highlight-number-color: #165a38;
     --highlight-decorator-color: #4070a0;
-    --highlight-type-color: #007020;
-    --highlight-type2-color: #0e84b5;
+    --highlight-type-color: #005a1a;
+    --highlight-type2-color: #0b668c;
     --highlight-function-color: #06287e;
     --highlight-operator-color: #666666;
-    --highlight-string-color: #4070a0;
+    --highlight-string-color: #2d5a88;
 
     --admonition-note-background-color: #e7f2fa;
     --admonition-note-color: #404040;
-    --admonition-note-title-background-color: #6ab0de;
+    --admonition-note-title-background-color: #1a5c8a;
     --admonition-note-title-color: #fff;
     --admonition-attention-background-color: #ffedcc;
     --admonition-attention-color: #404040;
-    --admonition-attention-title-background-color: #f0b37e;
+    --admonition-attention-title-background-color: #b94a00;
     --admonition-attention-title-color: #fff;
     --admonition-danger-background-color: #fcf3f2;
     --admonition-danger-color: #404040;
-    --admonition-danger-title-background-color: #e9a499;
+    --admonition-danger-title-background-color: #a93226;
     --admonition-danger-title-color: #fff;
     --admonition-tip-background-color: #dbfaf4;
     --admonition-tip-color: #404040;
-    --admonition-tip-title-background-color: #1abc9c;
+    --admonition-tip-title-background-color: #00695c;
     --admonition-tip-title-color: #fff;
 
     --kbd-background-color: #fafbfc;
@@ -93,4 +93,6 @@
     --footer-color: #747474;
 
     --graphviz-filter: none;
+
+    --landing-card-background-color: var(--admonition-note-background-color);
 }

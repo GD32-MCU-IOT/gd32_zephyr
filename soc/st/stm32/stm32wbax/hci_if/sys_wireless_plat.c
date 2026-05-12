@@ -14,6 +14,7 @@
 #if defined(CONFIG_BT_STM32WBA)
 #include "bleplat.h"
 #include "bpka.h"
+#include "baes.h"
 #endif /* CONFIG_BT_STM32WBA */
 #include "linklayer_plat.h"
 
@@ -21,7 +22,7 @@
 LOG_MODULE_REGISTER(sys_wireless_plat);
 
 RAMCFG_HandleTypeDef hramcfg_SRAM1;
-const struct device *rng_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_entropy));
+const struct device *rng_dev;
 
 struct entropy_stm32_rng_dev_data {
 	RNG_TypeDef *rng;
@@ -36,10 +37,35 @@ void BLEPLAT_Init(void)
 {
 	BPKA_Reset();
 
-	rng_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_entropy));
+	rng_dev = entropy_get_default_device();
 	if (!device_is_ready(rng_dev)) {
 		LOG_ERR("error: random device not ready");
 	}
+}
+
+int BLEPLAT_AesCcmCrypt(uint8_t mode,
+			const uint8_t *key,
+			uint8_t iv_length,
+			const uint8_t *iv,
+			uint16_t add_length,
+			const uint8_t *add,
+			uint32_t input_length,
+			const uint8_t *input,
+			uint8_t tag_length,
+			uint8_t *tag,
+			uint8_t *output)
+{
+	return BAES_CcmCrypt(mode,
+			     key,
+			     iv_length,
+			     iv,
+			     add_length,
+			     add,
+			     input_length,
+			     input,
+			     tag_length,
+			     tag,
+			     output);
 }
 
 void BLEPLAT_RngGet(uint8_t n, uint32_t *val)

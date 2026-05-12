@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 
 #include <zephyr/drivers/video.h>
@@ -126,8 +127,9 @@ int video_init_ctrl(struct video_ctrl *ctrl, const struct device *dev, uint32_t 
 	struct video_ctrl *vc;
 	struct video_device *vdev;
 
-	__ASSERT_NO_MSG(dev != NULL);
-	__ASSERT_NO_MSG(ctrl != NULL);
+	if (ctrl == NULL) {
+		return -EINVAL;
+	}
 
 	vdev = video_find_vdev(dev);
 	if (!vdev) {
@@ -232,11 +234,13 @@ static inline bool is_cluster_manual(const struct video_ctrl *primary)
 	return primary->type == VIDEO_CTRL_TYPE_INTEGER64 ? primary->val64 == 0 : primary->val == 0;
 }
 
-void video_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz)
+int video_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz)
 {
 	bool has_volatiles = false;
 
-	__ASSERT(sz && ctrls, "The 1st control, i.e. the primary control, must not be NULL");
+	if (sz == 0 || ctrls == NULL) {
+		return -EINVAL;
+	}
 
 	for (uint8_t i = 0; i < sz; i++) {
 		ctrls[i].cluster_sz = sz;
@@ -247,15 +251,23 @@ void video_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz)
 	}
 
 	ctrls->has_volatiles = has_volatiles;
+
+	return 0;
 }
 
-void video_auto_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz, bool set_volatile)
+int video_auto_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz, bool set_volatile)
 {
-	video_cluster_ctrl(ctrls, sz);
+	int ret;
 
-	__ASSERT(sz > 1, "Control auto cluster size must be > 1");
-	__ASSERT(!(set_volatile && !DEVICE_API_GET(video, ctrls->vdev->dev)->get_volatile_ctrl),
-		 "Volatile is set but no ops");
+	if (sz <= 1 ||
+	    (set_volatile && !DEVICE_API_GET(video, ctrls->vdev->dev)->get_volatile_ctrl)) {
+		return -EINVAL;
+	}
+
+	ret = video_cluster_ctrl(ctrls, sz);
+	if (ret < 0) {
+		return ret;
+	}
 
 	ctrls->is_auto = true;
 	ctrls->has_volatiles = set_volatile;
@@ -268,6 +280,8 @@ void video_auto_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz, bool set_vola
 					  (set_volatile ? VIDEO_CTRL_FLAG_VOLATILE : 0);
 		}
 	}
+
+	return 0;
 }
 
 static int video_find_ctrl(const struct device *dev, uint32_t id, struct video_ctrl **ctrl)
@@ -291,8 +305,9 @@ int video_get_ctrl(const struct device *dev, struct video_control *control)
 {
 	struct video_ctrl *ctrl = NULL;
 
-	__ASSERT_NO_MSG(dev != NULL);
-	__ASSERT_NO_MSG(control != NULL);
+	if (dev == NULL || control == NULL) {
+		return -EINVAL;
+	}
 
 	int ret = video_find_ctrl(dev, control->id, &ctrl);
 
@@ -337,8 +352,9 @@ int video_set_ctrl(const struct device *dev, struct video_control *control)
 	int32_t val = 0;
 	int64_t val64 = 0;
 
-	__ASSERT_NO_MSG(dev != NULL);
-	__ASSERT_NO_MSG(control != NULL);
+	if (dev == NULL || control == NULL) {
+		return -EINVAL;
+	}
 
 	ret = video_find_ctrl(dev, control->id, &ctrl);
 	if (ret) {
@@ -488,6 +504,8 @@ static inline const char *video_get_ctrl_name(uint32_t id)
 		return "Brightness, Automatic";
 	case VIDEO_CID_BAND_STOP_FILTER:
 		return "Band-Stop Filter";
+	case VIDEO_CID_ROTATE:
+		return "Rotate";
 	case VIDEO_CID_ALPHA_COMPONENT:
 		return "Alpha Component";
 
@@ -544,6 +562,8 @@ static inline const char *video_get_ctrl_name(uint32_t id)
 		return "Test Pattern";
 	case VIDEO_CID_LINK_FREQ:
 		return "Link Frequency";
+	case VIDEO_CID_DIGITAL_GAIN:
+		return "Digital Gain";
 	default:
 		return NULL;
 	}
@@ -555,8 +575,9 @@ int video_query_ctrl(struct video_ctrl_query *cq)
 	struct video_device *vdev;
 	struct video_ctrl *ctrl = NULL;
 
-	__ASSERT_NO_MSG(cq != NULL);
-	__ASSERT_NO_MSG(cq->dev != NULL);
+	if (cq == NULL || cq->dev == NULL) {
+		return -EINVAL;
+	}
 
 	if (cq->id & VIDEO_CTRL_FLAG_NEXT_CTRL) {
 		cq->id &= ~VIDEO_CTRL_FLAG_NEXT_CTRL;
@@ -596,12 +617,13 @@ fill_query:
 
 void video_print_ctrl(const struct video_ctrl_query *const cq)
 {
-	uint8_t i = 0;
 	const char *type = NULL;
-	char typebuf[8];
+	char buf[11];
 
-	__ASSERT_NO_MSG(cq != NULL);
-	__ASSERT_NO_MSG(cq->dev != NULL);
+	if (cq == NULL || cq->dev == NULL) {
+		LOG_ERR("%s - Invalid parameter given", __func__);
+		return;
+	}
 
 	/* Get type of the control */
 	switch (cq->type) {
@@ -618,7 +640,7 @@ void video_print_ctrl(const struct video_ctrl_query *const cq)
 		type = "menu";
 		break;
 	case VIDEO_CTRL_TYPE_INTEGER_MENU:
-		type = "integer menu";
+		type = "int menu";
 		break;
 	case VIDEO_CTRL_TYPE_STRING:
 		type = "string";
@@ -626,7 +648,7 @@ void video_print_ctrl(const struct video_ctrl_query *const cq)
 	default:
 		break;
 	}
-	snprintf(typebuf, sizeof(typebuf), "(%s)", type);
+	snprintf(buf, sizeof(buf), "(%s)", type);
 
 	/* Get current value of the control */
 	struct video_control vc = {.id = cq->id};
@@ -635,26 +657,26 @@ void video_print_ctrl(const struct video_ctrl_query *const cq)
 
 	/* Print the control information */
 	if (cq->type == VIDEO_CTRL_TYPE_INTEGER64) {
-		LOG_INF("%32s 0x%08x %-8s (flags=0x%02x) : min=%lld max=%lld step=%lld "
+		LOG_INF("%32s 0x%08x %-10s (flags=0x%02x) : min=%lld max=%lld step=%lld "
 			"default=%lld value=%lld ",
-			cq->name, cq->id, typebuf, cq->flags, cq->range.min64, cq->range.max64,
+			cq->name, cq->id, buf, cq->flags, cq->range.min64, cq->range.max64,
 			cq->range.step64, cq->range.def64, vc.val64);
 	} else {
-		LOG_INF("%32s 0x%08x %-8s (flags=0x%02x) : min=%d max=%d step=%d default=%d "
+		LOG_INF("%32s 0x%08x %-10s (flags=0x%02x) : min=%d max=%d step=%d default=%d "
 			"value=%d ",
-			cq->name, cq->id, typebuf, cq->flags, cq->range.min, cq->range.max,
+			cq->name, cq->id, buf, cq->flags, cq->range.min, cq->range.max,
 			cq->range.step, cq->range.def, vc.val);
 	}
 
-	if (cq->type == VIDEO_CTRL_TYPE_MENU && cq->menu) {
-		while (cq->menu[i]) {
-			LOG_INF("%*s %u: %s", 32, "", i, cq->menu[i]);
-			i++;
-		}
-	} else if (cq->type == VIDEO_CTRL_TYPE_INTEGER_MENU && cq->int_menu) {
-		while (cq->int_menu[i]) {
-			LOG_INF("%*s %u: %lld", 12, "", i, cq->int_menu[i]);
-			i++;
+	if ((cq->type == VIDEO_CTRL_TYPE_MENU && cq->menu) ||
+	    (cq->type == VIDEO_CTRL_TYPE_INTEGER_MENU && cq->int_menu)) {
+		for (uint8_t i = 0; i <= cq->range.max; i++) {
+			if (cq->type == VIDEO_CTRL_TYPE_INTEGER_MENU) {
+				snprintf(buf, sizeof(buf), "%" PRId64, cq->int_menu[i]);
+			}
+
+			LOG_INF("%*s %u: %s", 32, "", i,
+				(cq->type == VIDEO_CTRL_TYPE_MENU) ? cq->menu[i] : buf);
 		}
 	}
 }

@@ -21,6 +21,7 @@
 	};
 
 	aliases {
+		sdhc0 = &sdhc0;
 		watchdog0 = &wdt0;
 	};
 
@@ -32,9 +33,9 @@
 	soc {
 		ctrl0: soc_controller@e0000000 {
 			compatible = "litex,soc-controller";
-			reg = <0xe0000000 0x4
-			       0xe0000004 0x4
-			       0xe0000008 0x4>;
+			reg = <0xe0000000 0x4>,
+			      <0xe0000004 0x4>,
+			      <0xe0000008 0x4>;
 			reg-names = "reset",
 				    "scratch",
 				    "bus_errors";
@@ -45,14 +46,14 @@
 			compatible = "litex,uart";
 			interrupt-parent = <&intc0>;
 			interrupts = <2 10>;
-			reg = <0xe0001800 0x4
-			       0xe0001804 0x4
-			       0xe0001808 0x4
-			       0xe000180c 0x4
-			       0xe0001810 0x4
-			       0xe0001814 0x4
-			       0xe0001818 0x4
-			       0xe000181c 0x4>;
+			reg = <0xe0001800 0x4>,
+			      <0xe0001804 0x4>,
+			      <0xe0001808 0x4>,
+			      <0xe000180c 0x4>,
+			      <0xe0001810 0x4>,
+			      <0xe0001814 0x4>,
+			      <0xe0001818 0x4>,
+			      <0xe000181c 0x4>;
 			reg-names = "rxtx",
 				    "txfull",
 				    "rxempty",
@@ -69,16 +70,16 @@
 			compatible = "litex,timer0";
 			interrupt-parent = <&intc0>;
 			interrupts = <1 0>;
-			reg = <0xe0002800 0x4
-			       0xe0002804 0x4
-			       0xe0002808 0x4
-			       0xe000280c 0x4
-			       0xe0002810 0x4
-			       0xe0002814 0x4
-			       0xe0002818 0x4
-			       0xe000281c 0x4
-			       0xe0002820 0x4
-			       0xe0002824 0x8>;
+			reg = <0xe0002800 0x4>,
+			      <0xe0002804 0x4>,
+			      <0xe0002808 0x4>,
+			      <0xe000280c 0x4>,
+			      <0xe0002810 0x4>,
+			      <0xe0002814 0x4>,
+			      <0xe0002818 0x4>,
+			      <0xe000281c 0x4>,
+			      <0xe0002820 0x4>,
+			      <0xe0002824 0x8>;
 			reg-names = "load",
 				    "reload",
 				    "en",
@@ -134,21 +135,21 @@
 			compatible = "litex,liteeth";
 			interrupt-parent = <&intc0>;
 			interrupts = <3 0>;
-			reg = <0xe0009800 0x4
-			       0xe0009804 0x4
-			       0xe0009808 0x4
-			       0xe000980c 0x4
-			       0xe0009810 0x4
-			       0xe0009814 0x4
-			       0xe0009818 0x4
-			       0xe000981c 0x4
-			       0xe0009820 0x4
-			       0xe0009824 0x4
-			       0xe0009828 0x4
-			       0xe000982c 0x4
-			       0xe0009830 0x4
-			       0xe0009834 0x4
-			       0xb0000000 0x2000>;
+			reg = <0xe0009800 0x4>,
+			      <0xe0009804 0x4>,
+			      <0xe0009808 0x4>,
+			      <0xe000980c 0x4>,
+			      <0xe0009810 0x4>,
+			      <0xe0009814 0x4>,
+			      <0xe0009818 0x4>,
+			      <0xe000981c 0x4>,
+			      <0xe0009820 0x4>,
+			      <0xe0009824 0x4>,
+			      <0xe0009828 0x4>,
+			      <0xe000982c 0x4>,
+			      <0xe0009830 0x4>,
+			      <0xe0009834 0x4>,
+			      <0xb0000000 0x2000>;
 			local-mac-address = [10 e2 d5 00 00 02];
 			reg-names = "rx_slot",
 				    "rx_length",
@@ -184,12 +185,12 @@
 
 		spi0: spi@e0002000 {
 			compatible = "litex,spi";
-			reg = <0xe0002000 0x4
-			       0xe0002004 0x4
-			       0xe0002008 0x4
-			       0xe000200c 0x4
-			       0xe0002010 0x4
-			       0xe0002014 0x4>;
+			reg = <0xe0002000 0x4>,
+			      <0xe0002004 0x4>,
+			      <0xe0002008 0x4>,
+			      <0xe000200c 0x4>,
+			      <0xe0002010 0x4>,
+			      <0xe0002014 0x4>;
 			reg-names = "control",
 				    "status",
 				    "mosi",
@@ -235,6 +236,79 @@
 			};
 		};
 
+		sdhc0: sdhc@e000e800 {
+			compatible = "litex,mmc";
+			interrupt-parent = <&intc0>;
+			reg = <0xe000e800 0x4>,
+			      <0xe000e804 0x4>,
+			      <0xe000e808 0x4>,
+			      <0xe000e80c 0x4>,
+			      <0xe000e810 0x4>,
+			      <0xe000e814 0x4>,
+			      <0xe000e818 0x4>,
+			      <0xe000e81c 0x4>,
+			      <0xe000e820 0x4>,
+			      <0xe000e824 0x4>,
+			      <0xe000e828 0x10>,
+			      <0xe000e838 0x4>,
+			      <0xe000e83c 0x4>,
+			      <0xe000e840 0x4>,
+			      <0xe000e844 0x4>,
+			      <0xe000e848 0x8>,
+			      <0xe000e850 0x4>,
+			      <0xe000e854 0x4>,
+			      <0xe000e858 0x4>,
+			      <0xe000e85c 0x4>,
+			      <0xe000e860 0x4>,
+			      <0xe000e864 0x8>,
+			      <0xe000e86c 0x4>,
+			      <0xe000e870 0x4>,
+			      <0xe000e874 0x4>,
+			      <0xe000e878 0x4>,
+			      <0xe000e87c 0x4>,
+			      <0xe000e880 0x4>,
+			      <0xe000e884 0x4>,
+			      <0xe000e888 0x4>;
+			reg-names = "phy_card_detect",
+				    "phy_clocker_divider",
+				    "phy_init_initialize",
+				    "phy_cmdr_timeout",
+				    "phy_dataw_status",
+				    "phy_datar_timeout",
+				    "phy_settings",
+				    "core_cmd_argument",
+				    "core_cmd_command",
+				    "core_cmd_send",
+				    "core_cmd_response",
+				    "core_cmd_event",
+				    "core_data_event",
+				    "core_block_length",
+				    "core_block_count",
+				    "block2mem_dma_base",
+				    "block2mem_dma_length",
+				    "block2mem_dma_enable",
+				    "block2mem_dma_done",
+				    "block2mem_dma_loop",
+				    "block2mem_dma_offset",
+				    "mem2block_dma_base",
+				    "mem2block_dma_length",
+				    "mem2block_dma_enable",
+				    "mem2block_dma_done",
+				    "mem2block_dma_loop",
+				    "mem2block_dma_offset",
+				    "ev_status",
+				    "ev_pending",
+				    "ev_enable";
+			interrupts = <5 1>;
+			status = "okay";
+
+			mmc {
+				compatible = "zephyr,sdmmc-disk";
+				status = "okay";
+				disk-name = "SD";
+			};
+		};
+
 		prbs0: prbs@e0006800 {
 			compatible = "litex,prbs";
 			reg = <0xe0006800 0x4>;
@@ -244,8 +318,10 @@
 
 		i2c0: i2c@e0005000 {
 			compatible = "litex,i2c";
-			reg = <0xe0005000 0x4 0xe0005004 0x4>;
-			reg-names = "write", "read";
+			reg = <0xe0005000 0x4>,
+			      <0xe0005004 0x4>;
+			reg-names = "write",
+				    "read";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -282,8 +358,12 @@
 
 		pwm0: pwm@e0007000 {
 			compatible = "litex,pwm";
-			reg = <0xe0007000 0x4 0xe0007004 0x10 0xe0007014 0x10>;
-			reg-names = "enable", "width", "period";
+			reg = <0xe0007000 0x4>,
+			      <0xe0007004 0x10>,
+			      <0xe0007014 0x10>;
+			reg-names = "enable",
+				    "width",
+				    "period";
 			status = "okay";
 			#pwm-cells = <2>;
 		};
@@ -291,9 +371,8 @@
 		gpio_out: gpio@e0005800 {
 			compatible = "litex,gpio";
 			reg = <0xe0005800 0x4>;
-			reg-names = "control";
+			reg-names = "out";
 			ngpios = <4>;
-			port-is-output;
 			status = "okay";
 			gpio-controller;
 			#gpio-cells = <2>;
@@ -301,18 +380,18 @@
 
 		gpio_in: gpio@e0006000 {
 			compatible = "litex,gpio";
-			reg = <0xe0006000 0x4
-			       0xe0006004 0x4
-			       0xe0006008 0x4
-			       0xe0006010 0x4
-			       0xe0006014 0x4>;
+			reg = <0xe0006000 0x4>,
+			      <0xe0006004 0x4>,
+			      <0xe0006008 0x4>,
+			      <0xe0006010 0x4>,
+			      <0xe0006014 0x4>;
 			interrupt-parent = <&intc0>;
 			interrupts = <4 2>;
-			reg-names = "base",
-				    "irq_mode",
-				    "irq_edge",
-				    "irq_pend",
-				    "irq_en";
+			reg-names = "in",
+				    "mode",
+				    "edge",
+				    "ev_pending",
+				    "ev_enable";
 			ngpios = <4>;
 			status = "okay";
 			gpio-controller;
@@ -321,13 +400,13 @@
 
 		i2s_rx: i2s_rx@e000a800 {
 			compatible = "litex,i2s";
-			reg = <0xe000a800 0x4
-			       0xe000a804 0x4
-			       0xe000a808 0x4
-			       0xe000a80c 0x4
-			       0xe000a810 0x4
-			       0xe000a814 0x4
-			       0xb1000000 0x40000>;
+			reg = <0xe000a800 0x4>,
+			      <0xe000a804 0x4>,
+			      <0xe000a808 0x4>,
+			      <0xe000a80c 0x4>,
+			      <0xe000a810 0x4>,
+			      <0xe000a814 0x4>,
+			      <0xb1000000 0x40000>;
 			interrupt-parent = <&intc0>;
 			interrupts = <6 2>;
 			#address-cells = <1>;
@@ -345,13 +424,13 @@
 
 		i2s_tx: i2s_tx@e000b000 {
 			compatible = "litex,i2s";
-			reg = <0xe000b000 0x4
-			       0xe000b004 0x4
-			       0xe000b008 0x4
-			       0xe000b00c 0x4
-			       0xe000b010 0x4
-			       0xe000b014 0x4
-			       0xb2000000 0x40000>;
+			reg = <0xe000b000 0x4>,
+			      <0xe000b004 0x4>,
+			      <0xe000b008 0x4>,
+			      <0xe000b00c 0x4>,
+			      <0xe000b010 0x4>,
+			      <0xe000b014 0x4>,
+			      <0xb2000000 0x40000>;
 			interrupt-parent = <&intc0>;
 			interrupts = <7 2>;
 			#address-cells = <1>;
@@ -402,14 +481,14 @@
 
 		clock0: clock@e0004800 {
 			compatible = "litex,clk";
-			reg = <0xe0004800 0x4
-			       0xe0004804 0x4
-			       0xe0004808 0x4
-			       0xe000480c 0x4
-			       0xe0004810 0x4
-			       0xe0004814 0x4
-			       0xe0004818 0x4
-			       0xe000481c 0x4>;
+			reg = <0xe0004800 0x4>,
+			      <0xe0004804 0x4>,
+			      <0xe0004808 0x4>,
+			      <0xe000480c 0x4>,
+			      <0xe0004810 0x4>,
+			      <0xe0004814 0x4>,
+			      <0xe0004818 0x4>,
+			      <0xe000481c 0x4>;
 			reg-names = "drp_reset",
 				    "drp_locked",
 				    "drp_read",

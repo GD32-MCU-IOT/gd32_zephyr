@@ -101,11 +101,11 @@ class OutputSection(NamedTuple):
 
 
 PRINT_TEMPLATE = """
-                KEEP(*{obj_file_name}({section_name}))
+                KEEP(*{obj_file_name}("{section_name}"))
 """
 
 PRINT_TEMPLATE_NOKEEP = """
-                *{obj_file_name}({section_name})
+                *{obj_file_name}("{section_name}")
 """
 
 SECTION_LOAD_MEMORY_SEQ = """
@@ -208,12 +208,12 @@ MEMCPY_TEMPLATE = """
 	arch_early_memcpy(&__{mem}_{kind}_reloc_start, &__{mem}_{kind}_rom_start,
 		           (size_t) &__{mem}_{kind}_reloc_size);
 
-"""
+"""  # noqa: E101
 
 MEMSET_TEMPLATE = """
 	arch_early_memset(&__{mem}_bss_reloc_start, 0,
 		           (size_t) &__{mem}_bss_reloc_size);
-"""
+"""  # noqa: E101
 
 
 def region_is_default_ram(region_name: str) -> bool:
@@ -519,8 +519,8 @@ def dump_header_file(header_file, code_generation):
     # bss/data/text regions
 
     code_string += code_generation["extern"]
-    code_string += DATA_COPY_FUNCTION.format(code_generation["copy_code"] or "return;")
-    code_string += BSS_ZEROING_FUNCTION.format(code_generation["zero_code"] or "return;")
+    code_string += DATA_COPY_FUNCTION.format(code_generation["copy_code"] or "\treturn;")
+    code_string += BSS_ZEROING_FUNCTION.format(code_generation["zero_code"] or "\treturn;")
 
     with open(header_file, "w") as header_file_desc:
         header_file_desc.write(SOURCE_CODE_INCLUDES)

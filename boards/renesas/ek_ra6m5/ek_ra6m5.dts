@@ -6,8 +6,8 @@
 /dts-v1/;
 
 #include <renesas/ra/ra6/r7fa6m5bh3cfc.dtsi>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
 
@@ -133,6 +133,17 @@
 	};
 };
 
+&sci2 {
+	pinctrl-0 = <&sci2_default>;
+	pinctrl-names = "default";
+
+	i2c2: i2c {
+		sda-output-delay = <300>;
+		noise-filter-clock-select = <1>;
+		bit-rate-modulation;
+	};
+};
+
 &sci7 {
 	pinctrl-0 = <&sci7_default>;
 	pinctrl-names = "default";
@@ -150,7 +161,7 @@
 	#size-cells = <0>;
 	interrupts = <91 1>, <92 1>, <93 1>, <94 1>;
 	interrupt-names = "rxi", "txi", "tei", "eri";
-	clock-frequency = <DT_FREQ_M(1)>;
+	clock-frequency = <I2C_BITRATE_FAST>;
 	pinctrl-0 = <&iic1_default>;
 	pinctrl-names = "default";
 };
@@ -273,7 +284,7 @@
 
 		storage_partition: partition@0 {
 			label = "storage";
-			reg = <0X0 DT_SIZE_K(8)>;
+			reg = <0x0 DT_SIZE_K(8)>;
 		};
 	};
 };
@@ -305,7 +316,7 @@ arduino_spi: &spi0 {};
 };
 
 &eth {
-	local-mac-address = [74 90 50 B0 6D 5C];
+	local-mac-address = [74 90 50 b0 6d 5c];
 	status = "okay";
 	phy-handle = <&phy>;
 };

@@ -43,6 +43,10 @@ static inline bool handle_poll_events(struct k_msgq *msgq)
 void k_msgq_init(struct k_msgq *msgq, char *buffer, size_t msg_size,
 		 uint32_t max_msgs)
 {
+	__ASSERT_NO_MSG(!size_mul_overflow(max_msgs, msg_size, &(size_t){0}));
+	__ASSERT_NO_MSG(!size_add_overflow((size_t)(uintptr_t)buffer, max_msgs * msg_size,
+					&(size_t){0}));
+
 	msgq->msg_size = msg_size;
 	msgq->max_msgs = max_msgs;
 	msgq->buffer_start = buffer;
@@ -89,7 +93,6 @@ int z_impl_k_msgq_alloc_init(struct k_msgq *msgq, size_t msg_size,
 	}
 
 	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_msgq, alloc_init, msgq, ret);
-
 	return ret;
 }
 
@@ -106,12 +109,12 @@ int z_vrfy_k_msgq_alloc_init(struct k_msgq *msgq, size_t msg_size,
 
 int k_msgq_cleanup(struct k_msgq *msgq)
 {
+	int ret = 0;
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_msgq, cleanup, msgq);
 
 	CHECKIF(z_waitq_head(&msgq->wait_q) != NULL) {
-		SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_msgq, cleanup, msgq, -EBUSY);
-
-		return -EBUSY;
+		ret = -EBUSY;
+		goto exit;
 	}
 
 	if ((msgq->flags & K_MSGQ_FLAG_ALLOC) != 0U) {
@@ -119,9 +122,9 @@ int k_msgq_cleanup(struct k_msgq *msgq)
 		msgq->flags &= ~K_MSGQ_FLAG_ALLOC;
 	}
 
-	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_msgq, cleanup, msgq, 0);
-
-	return 0;
+exit:
+	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_msgq, cleanup, msgq, ret);
+	return ret;
 }
 
 static inline int put_msg_in_queue(struct k_msgq *msgq, const void *data,
@@ -154,8 +157,10 @@ static inline int put_msg_in_queue(struct k_msgq *msgq, const void *data,
 			arch_thread_return_value_set(pending_thread, 0);
 			z_ready_thread(pending_thread);
 		} else {
-			__ASSERT_NO_MSG(msgq->write_ptr >= msgq->buffer_start &&
-					msgq->write_ptr < msgq->buffer_end);
+			__ASSERT_NO_MSG((msgq->write_ptr >= msgq->buffer_start) &&
+					(msgq->write_ptr <= (msgq->buffer_end - 1)) &&
+					((size_t)(uintptr_t)(msgq->buffer_end - msgq->write_ptr) >=
+						msgq->msg_size));
 			if (put_at_back) {
 				/*
 				 * to write a message to the back of the queue,
@@ -300,8 +305,10 @@ int z_impl_k_msgq_get(struct k_msgq *msgq, void *data, k_timeout_t timeout)
 			SYS_PORT_TRACING_OBJ_FUNC_BLOCKING(k_msgq, get, msgq, timeout);
 
 			/* add thread's message to queue */
-			__ASSERT_NO_MSG(msgq->write_ptr >= msgq->buffer_start &&
-					msgq->write_ptr < msgq->buffer_end);
+			__ASSERT_NO_MSG((msgq->write_ptr >= msgq->buffer_start) &&
+					(msgq->write_ptr <= (msgq->buffer_end - 1)) &&
+					((size_t)(uintptr_t)(msgq->buffer_end - msgq->write_ptr) >=
+						msgq->msg_size));
 			(void)memcpy(msgq->write_ptr, (char *)pending_thread->base.swap_data,
 			       msgq->msg_size);
 			msgq->write_ptr += msgq->msg_size;

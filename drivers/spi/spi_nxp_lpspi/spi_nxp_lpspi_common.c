@@ -1,5 +1,5 @@
 /*
- * Copyright 2018, 2024-2025 NXP
+ * Copyright 2018, 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -298,10 +298,10 @@ int lpspi_configure(const struct device *dev, const struct spi_config *spi_cfg)
 	int ret = 0;
 
 	/* fast path to avoid reconfigure */
-	/* TODO: S32K3 errata ERR050456 requiring module reset before every transfer,
-	 * investigate alternative workaround so we don't have this latency for S32.
+	/* TODO: Investigate alternative workaround for Erratum ERR050456 to avoid
+	 * module reset before each transfer and reduce latency.
 	 */
-	if (already_configured && !IS_ENABLED(CONFIG_SOC_FAMILY_NXP_S32)) {
+	if (already_configured && !IS_ENABLED(CONFIG_SPI_NXP_LPSPI_ERR050456)) {
 		return 0;
 	}
 
@@ -359,15 +359,38 @@ int lpspi_configure(const struct device *dev, const struct spi_config *spi_cfg)
 	return lpspi_wait_tx_fifo_empty(dev);
 }
 
-static void lpspi_module_system_init(LPSPI_Type *base)
+static int lpspi_module_system_init(const struct device *dev)
 {
+	const struct lpspi_config *config = dev->config;
+
+#if defined(LPSPI_CLOCKS) || defined(LPSPI_RSTS)
+	LPSPI_Type *base = (LPSPI_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+#endif
+
 #ifdef LPSPI_CLOCKS
 	CLOCK_EnableClock(lpspi_get_clock(base));
 #endif
 
+	if (config->reset.dev != NULL) {
+		int ret;
+
+		if (!device_is_ready(config->reset.dev)) {
+			LOG_ERR("reset controller not ready");
+			return -ENODEV;
+		}
+
+		ret = reset_line_deassert_dt(&config->reset);
+		if (ret != 0) {
+			LOG_ERR("Failed to deassert reset line (%d)", ret);
+			return ret;
+		}
+	} else {
 #ifdef LPSPI_RSTS
-	RESET_ReleasePeripheralReset(lpspi_get_reset(base));
+		RESET_ReleasePeripheralReset(lpspi_get_reset(base));
 #endif
+	}
+
+	return 0;
 }
 
 int spi_nxp_init_common(const struct device *dev)
@@ -384,7 +407,20 @@ int spi_nxp_init_common(const struct device *dev)
 		return -ENODEV;
 	}
 
-	lpspi_module_system_init(base);
+	err = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
+	if (err != 0) {
+		/* Check if error is due to lack of support */
+		if (err != -ENOSYS) {
+			/* Real error occurred */
+			LOG_ERR("Failed to configure clock: %d", err);
+			return err;
+		}
+	}
+
+	err = lpspi_module_system_init(dev);
+	if (err != 0) {
+		return err;
+	}
 
 	data->major_version = (base->VERID & LPSPI_VERID_MAJOR_MASK) >> LPSPI_VERID_MAJOR_SHIFT;
 

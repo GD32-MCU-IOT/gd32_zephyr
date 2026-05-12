@@ -62,6 +62,7 @@ set(INCL_GENERATED_DIR ${APPLICATION_BINARY_DIR}/zephyr/include/generated/zephyr
 set(INCL_GENERATED_SYSCALL_DIR ${INCL_GENERATED_DIR}/syscalls)
 list(APPEND INCL_GENERATED_HEADERS
   ${INCL_GENERATED_DIR}/devicetree_generated.h
+  ${INCL_GENERATED_DIR}/heap_constants.h
   ${INCL_GENERATED_DIR}/offsets.h
   ${INCL_GENERATED_DIR}/syscall_list.h
   ${INCL_GENERATED_DIR}/syscall_macros.h
@@ -130,7 +131,7 @@ if(CONFIG_COVERAGE)
   target_link_libraries(testbinary PRIVATE $<TARGET_PROPERTY:linker,coverage>)
 endif()
 
-if (CONFIG_COMPILER_WARNINGS_AS_ERRORS)
+if(CONFIG_COMPILER_WARNINGS_AS_ERRORS)
   target_compile_options(test_interface INTERFACE $<TARGET_PROPERTY:compiler,warnings_as_errors>)
 endif()
 

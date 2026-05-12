@@ -54,7 +54,7 @@ typedef uint32_t k_mem_partition_attr_t;
 #define K_MEM_PARTITION_P_RW_U_RW \
 	((k_mem_partition_attr_t) {XTENSA_MMU_PERM_W | XTENSA_MMU_MAP_USER})
 #define K_MEM_PARTITION_P_RW_U_NA \
-	((k_mem_partition_attr_t) {0})
+	((k_mem_partition_attr_t) {XTENSA_MMU_PERM_W})
 #define K_MEM_PARTITION_P_RO_U_RO \
 	((k_mem_partition_attr_t) {XTENSA_MMU_MAP_USER})
 #define K_MEM_PARTITION_P_RO_U_NA \
@@ -154,6 +154,32 @@ void xtensa_mmu_tlb_ipi(void);
  * as they may have been modified by other processors.
  */
 void xtensa_mmu_tlb_shootdown(void);
+
+#ifdef CONFIG_XTENSA_MMU_PAGE_TABLE_STATS
+/**
+ * Struct for reporting page table statistics.
+ */
+struct xtensa_mmu_page_table_stats {
+	/** Current number of L1 page tables allocated. */
+	uint32_t cur_num_l1_alloced;
+
+	/** Current number of L2 page tables allocated. */
+	uint32_t cur_num_l2_alloced;
+
+	/** Maximum number of L1 page tables allocated. */
+	uint32_t max_num_l1_alloced;
+
+	/** Maximum number of L2 page tables allocated. */
+	uint32_t max_num_l2_alloced;
+};
+
+/**
+ * @brief Get page table statistics.
+ *
+ * @param[out] Pointer to statistics struct to write into.
+ */
+void xtensa_mmu_page_table_stats_get(struct xtensa_mmu_page_table_stats *stats);
+#endif /* CONFIG_XTENSA_MMU_PAGE_TABLE_STATS */
 
 /**
  * @}

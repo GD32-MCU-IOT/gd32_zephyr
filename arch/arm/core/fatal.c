@@ -18,6 +18,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
+extern void z_arm_unwind_stack(const struct arch_esf *esf);
+
 #ifdef CONFIG_EXCEPTION_DEBUG
 static void esf_dump(const struct arch_esf *esf)
 {
@@ -84,6 +86,10 @@ void z_arm_fatal_error(unsigned int reason, const struct arch_esf *esf)
 	}
 #endif
 
+#ifdef CONFIG_EXCEPTION_STACK_TRACE
+	z_arm_unwind_stack(esf);
+#endif /* CONFIG_EXCEPTION_STACK_TRACE */
+
 	z_fatal_error(reason, esf);
 }
 
@@ -137,26 +143,18 @@ void z_do_kernel_oops(const struct arch_esf *esf, _callee_saved_t *callee_regs, 
 	struct arch_esf esf_copy;
 
 	memcpy(&esf_copy, esf, offsetof(struct arch_esf, extra_info));
-#if defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
-	/* extra exception info is collected in callee_reg param
-	 * on CONFIG_ARMV7_M_ARMV8_M_MAINLINE
-	 */
+	/* extra exception info is collected in callee_reg. */
 
 	esf_copy.extra_info = (struct __extra_esf_info) {
 		.callee = callee_regs,
+		.exc_return = exc_return,
 	};
-#else
-	/* extra exception info is not collected for kernel oops
-	 * path today so we make a copy of the ESF and zero out
-	 * that information
-	 */
-	esf_copy.extra_info = (struct __extra_esf_info) { 0 };
-#endif /* CONFIG_ARMV7_M_ARMV8_M_MAINLINE */
 
 	z_arm_fatal_error(reason, &esf_copy);
 #endif /* CONFIG_EXTRA_EXCEPTION_INFO */
 }
 
+#ifdef CONFIG_USERSPACE
 FUNC_NORETURN void arch_syscall_oops(void *ssf_ptr)
 {
 	uint32_t *ssf_contents = ssf_ptr;
@@ -168,3 +166,4 @@ FUNC_NORETURN void arch_syscall_oops(void *ssf_ptr)
 	z_arm_fatal_error(K_ERR_KERNEL_OOPS, &oops_esf);
 	CODE_UNREACHABLE;
 }
+#endif

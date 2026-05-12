@@ -1,12 +1,12 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /dts-v1/;
 
-#include <nxp/nxp_ke17z.dtsi>
+#include <nxp/kinetis/nxp_ke17z.dtsi>
 #include "frdm_ke17z-pinctrl.dtsi"
 #include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -36,6 +36,7 @@
 		zephyr,uart-mcumgr = &lpuart0;
 		zephyr,console = &lpuart0;
 		zephyr,shell-uart = &lpuart0;
+		zephyr,system-timer-companion = &lptmr0;
 	};
 
 	leds {
@@ -124,11 +125,6 @@
 
 &idle {
 	min-residency-us = <1>;
-};
-
-&stop {
-	min-residency-us = <20000>;
-	exit-latency-us = <13>;
 };
 
 &lpuart0 {

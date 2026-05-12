@@ -20,7 +20,7 @@ Installation
 
 #. :ref:`Set these environment variables <env_vars>`:
 
-   - Set :envvar:`ZEPHYR_TOOLCHAIN_VARIANT` to ``llvm``.
+   - Set :envvar:`ZEPHYR_TOOLCHAIN_VARIANT` to ``host/llvm``.
    - Set :envvar:`LLVM_TOOLCHAIN_PATH` to the toolchain installation directory.
 
 #. To check that you have set these variables correctly in your current
@@ -34,7 +34,7 @@ Installation
          .. code-block:: bash
 
             echo $ZEPHYR_TOOLCHAIN_VARIANT
-            llvm
+            host/llvm
             echo $LLVM_TOOLCHAIN_PATH
             /home/you/Downloads/ATfE
 
@@ -43,7 +43,7 @@ Installation
          .. code-block:: bash
 
             echo $ZEPHYR_TOOLCHAIN_VARIANT
-            llvm
+            host/llvm
             echo $LLVM_TOOLCHAIN_PATH
             /home/you/Downloads/ATfE
 
@@ -52,7 +52,7 @@ Installation
          .. code-block:: powershell
 
             > echo %ZEPHYR_TOOLCHAIN_VARIANT%
-            llvm
+            host/llvm
             > echo %LLVM_TOOLCHAIN_PATH%
             C:\ATfE
 
@@ -61,27 +61,27 @@ Installation
 #. You can also set ``ZEPHYR_TOOLCHAIN_VARIANT`` and ``LLVM_TOOLCHAIN_PATH`` as CMake
    variables when generating a build system for a Zephyr application, like so:
 
-      .. code-block:: console
+   .. code-block:: console
 
-      west build ... -- -DZEPHYR_TOOLCHAIN_VARIANT=llvm -DLLVM_TOOLCHAIN_PATH=...
+      west build ... -- -DZEPHYR_TOOLCHAIN_VARIANT=host/llvm -DLLVM_TOOLCHAIN_PATH=...
 
 Toolchain settings
 ******************
 
 Because LLVM is widely compatible with GNU tools, When builiding with any
-   LLVM toolchain, you have to specify some settings to let the compiler
-   know what tools to use:
+LLVM toolchain, you have to specify some settings to let the compiler
+know what tools to use:
 
-Linker:
-   Set :envvar:`CONFIG_LLVM_USE_LLD=y` to use LLVM linker.
-   set :envvar:`CONFIG_LLVM_USE_LD=y` to use the GNU LD linker.
+Linker
+   * Set :envvar:`CONFIG_LLVM_USE_LLD=y` to use LLVM linker.
+   * Set :envvar:`CONFIG_LLVM_USE_LD=y` to use the GNU LD linker.
 
-Runtime library:
-   Set :envvar:`CONFIG_COMPILER_RT_RTLIB=y` to use LLVM runtime library.
-   Set :envvar:`CONFIG_LIBGCC_RTLIB=y` to use LibGCC runtime library.
+Runtime library
+   * Set :envvar:`CONFIG_COMPILER_RT_RTLIB=y` to use LLVM runtime library.
+   * Set :envvar:`CONFIG_LIBGCC_RTLIB=y` to use LibGCC runtime library.
 
 .. code-block:: console
 
-   west build ... -- -DZEPHYR_TOOLCHAIN_VARIANT=llvm -DLLVM_TOOLCHAIN_PATH=... -DCONFIG_LLVM_USE_LLD=y -DCONFIG_COMPILER_RT_RTLIB=y
+   west build ... -- -DZEPHYR_TOOLCHAIN_VARIANT=host/llvm -DLLVM_TOOLCHAIN_PATH=... -DCONFIG_LLVM_USE_LLD=y -DCONFIG_COMPILER_RT_RTLIB=y
 
 .. _Arm Toolchain for Embedded: https://developer.arm.com/Tools%20and%20Software/Arm%20Toolchain%20for%20Embedded

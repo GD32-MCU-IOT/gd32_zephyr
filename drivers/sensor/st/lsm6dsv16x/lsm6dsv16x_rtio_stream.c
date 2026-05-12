@@ -82,9 +82,9 @@ static void lsm6dsv16x_config_fifo(const struct device *dev, struct trigger_conf
 	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&config->ctx;
 	uint8_t fifo_wtm = 0;
 	lsm6dsv16x_pin_int_route_t pin_int = { 0 };
-	lsm6dsv16x_fifo_xl_batch_t xl_batch = LSM6DSV16X_DT_XL_NOT_BATCHED;
-	lsm6dsv16x_fifo_gy_batch_t gy_batch = LSM6DSV16X_DT_GY_NOT_BATCHED;
-	lsm6dsv16x_fifo_temp_batch_t temp_batch = LSM6DSV16X_DT_TEMP_NOT_BATCHED;
+	lsm6dsv16x_fifo_xl_batch_t xl_batch = LSM6DSVXXX_DT_XL_NOT_BATCHED;
+	lsm6dsv16x_fifo_gy_batch_t gy_batch = LSM6DSVXXX_DT_GY_NOT_BATCHED;
+	lsm6dsv16x_fifo_temp_batch_t temp_batch = LSM6DSVXXX_DT_TEMP_NOT_BATCHED;
 	lsm6dsv16x_fifo_mode_t fifo_mode = LSM6DSV16X_BYPASS_MODE;
 	lsm6dsv16x_sflp_data_rate_t sflp_odr = LSM6DSV16X_SFLP_120Hz;
 	lsm6dsv16x_fifo_sflp_raw_t sflp_fifo = { 0 };
@@ -107,15 +107,15 @@ static void lsm6dsv16x_config_fifo(const struct device *dev, struct trigger_conf
 		fifo_mode = LSM6DSV16X_STREAM_MODE;
 		fifo_wtm = config->fifo_wtm;
 
-		if (config->sflp_fifo_en & LSM6DSV16X_DT_SFLP_FIFO_GAME_ROTATION) {
+		if (config->sflp_fifo_en & LSM6DSVXXX_DT_SFLP_FIFO_GAME_ROTATION) {
 			sflp_fifo.game_rotation = 1;
 		}
 
-		if (config->sflp_fifo_en & LSM6DSV16X_DT_SFLP_FIFO_GRAVITY) {
+		if (config->sflp_fifo_en & LSM6DSVXXX_DT_SFLP_FIFO_GRAVITY) {
 			sflp_fifo.gravity = 1;
 		}
 
-		if (config->sflp_fifo_en & LSM6DSV16X_DT_SFLP_FIFO_GBIAS) {
+		if (config->sflp_fifo_en & LSM6DSVXXX_DT_SFLP_FIFO_GBIAS) {
 			sflp_fifo.gbias = 1;
 		}
 
@@ -147,38 +147,38 @@ static void lsm6dsv16x_config_fifo(const struct device *dev, struct trigger_conf
 	lsm6dsv16x_sflp_game_rotation_set(ctx, PROPERTY_ENABLE);
 
 	/*
-	 * Temporarly set Accel and gyro odr same as sensor fusion LP in order to
+	 * Temporarily set Accel and gyro odr same as sensor fusion LP in order to
 	 * make the SFLP gbias setting effective. Then restore it to saved values.
 	 */
 	switch (sflp_odr) {
-	case LSM6DSV16X_DT_SFLP_ODR_AT_480Hz:
-		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_480Hz);
-		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_480Hz);
+	case LSM6DSVXXX_DT_SFLP_ODR_AT_480Hz:
+		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_480Hz);
+		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_480Hz);
 		break;
 
-	case LSM6DSV16X_DT_SFLP_ODR_AT_240Hz:
-		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_240Hz);
-		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_240Hz);
+	case LSM6DSVXXX_DT_SFLP_ODR_AT_240Hz:
+		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_240Hz);
+		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_240Hz);
 		break;
 
-	case LSM6DSV16X_DT_SFLP_ODR_AT_120Hz:
-		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_120Hz);
-		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_120Hz);
+	case LSM6DSVXXX_DT_SFLP_ODR_AT_120Hz:
+		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_120Hz);
+		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_120Hz);
 		break;
 
-	case LSM6DSV16X_DT_SFLP_ODR_AT_60Hz:
-		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_60Hz);
-		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_60Hz);
+	case LSM6DSVXXX_DT_SFLP_ODR_AT_60Hz:
+		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_60Hz);
+		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_60Hz);
 		break;
 
-	case LSM6DSV16X_DT_SFLP_ODR_AT_30Hz:
-		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_30Hz);
-		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_30Hz);
+	case LSM6DSVXXX_DT_SFLP_ODR_AT_30Hz:
+		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_30Hz);
+		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_30Hz);
 		break;
 
-	case LSM6DSV16X_DT_SFLP_ODR_AT_15Hz:
-		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_15Hz);
-		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSV16X_DT_ODR_AT_15Hz);
+	case LSM6DSVXXX_DT_SFLP_ODR_AT_15Hz:
+		lsm6dsv16x_accel_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_15Hz);
+		lsm6dsv16x_gyro_set_odr_raw(dev, LSM6DSVXXX_DT_ODR_AT_15Hz);
 		break;
 	}
 
@@ -324,7 +324,7 @@ static void lsm6dsv16x_read_fifo_cb(struct rtio *r, const struct rtio_sqe *sqe,
 	bool has_fifo_ths_trig = fifo_ths_cfg != NULL && fifo_th == 1;
 	bool has_fifo_full_trig = fifo_full_cfg != NULL && fifo_full == 1;
 
-	/* check if no theshold/full fifo interrupt or spurious interrupts */
+	/* check if no threshold/full fifo interrupt or spurious interrupts */
 	if (!has_fifo_ths_trig && !has_fifo_full_trig) {
 		/* complete operation with no error */
 		rtio_iodev_sqe_ok(sqe->userdata, 0);
@@ -418,8 +418,9 @@ static void lsm6dsv16x_read_fifo_cb(struct rtio *r, const struct rtio_sqe *sqe,
 	}
 
 	uint8_t *buf, *read_buf;
-	uint32_t buf_len, buf_avail;
-	uint32_t req_len = LSM6DSV16X_FIFO_SIZE(fifo_count) + sizeof(struct lsm6dsv16x_fifo_data);
+	uint32_t buf_len;
+	uint32_t fifo_read_size = LSM6DSV16X_FIFO_SIZE(fifo_count);
+	uint32_t req_len = fifo_read_size + sizeof(struct lsm6dsv16x_fifo_data);
 
 	if (rtio_sqe_rx_buf(lsm6dsv16x->streaming_sqe, req_len, req_len, &buf, &buf_len) != 0) {
 		LOG_ERR("Failed to get buffer");
@@ -452,7 +453,6 @@ static void lsm6dsv16x_read_fifo_cb(struct rtio *r, const struct rtio_sqe *sqe,
 
 	memcpy(buf, &hdr, sizeof(hdr));
 	read_buf = buf + sizeof(hdr);
-	buf_avail = buf_len - sizeof(hdr);
 
 	uint8_t reg_addr = lsm6dsv16x_bus_reg(lsm6dsv16x->bus_type, LSM6DSV16X_FIFO_DATA_OUT_TAG);
 	struct rtio_regs fifo_regs;
@@ -460,7 +460,7 @@ static void lsm6dsv16x_read_fifo_cb(struct rtio *r, const struct rtio_sqe *sqe,
 		{
 			reg_addr,
 			read_buf,
-			buf_avail,
+			fifo_read_size,
 		},
 	};
 

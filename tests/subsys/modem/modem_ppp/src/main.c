@@ -107,7 +107,8 @@ static struct net_l2 test_net_l2 = {
 	.recv = test_net_l2_recv,
 };
 static struct ppp_context test_net_l2_data = {
-	.lcp.peer_options.async_map = 0xffffffff,
+	.phase = PPP_RUNNING,
+	.lcp.peer_options.async_map = NET_PPP_DEFAULT_ASYNC_MAP,
 };
 
 /* This emulates the network interface device which will receive unwrapped network packets */
@@ -311,12 +312,16 @@ static void test_modem_ppp_before(void *f)
 
 	/* Reset mock pipe */
 	modem_backend_mock_reset(&mock);
+
+	/* Reset the attached pipe */
+	modem_ppp_release(&ppp);
+	modem_ppp_attach(&ppp, mock_pipe);
 }
 
 /*************************************************************************************************/
 /*                                             Tests                                             */
 /*************************************************************************************************/
-ZTEST(modem_ppp, test_ppp_frame_receive)
+static void put_and_validate_wrapped_frame(void)
 {
 	struct net_pkt *pkt;
 	size_t pkt_len;
@@ -341,7 +346,54 @@ ZTEST(modem_ppp, test_ppp_frame_receive)
 	net_pkt_read(pkt, buffer, pkt_len);
 
 	zassert_true(memcmp(buffer, ppp_frame_unwrapped, pkt_len) == 0,
-		     "Recevied net pkt data incorrect");
+		     "Received net pkt data incorrect");
+}
+
+ZTEST(modem_ppp, test_ppp_frame_receive)
+{
+	/* Basic wrapped frame */
+	put_and_validate_wrapped_frame();
+}
+
+ZTEST(modem_ppp, test_ppp_no_connect_received)
+{
+	static const char *unsolicited_no_connect = "\r\nNO CARRIER\r\n";
+
+	/* Not dead to start with */
+	zassert_false(ppp.state & BIT(MODEM_PPP_STATE_DEAD_BIT));
+
+	/* Partial message doesn't result in anything */
+	modem_backend_mock_put(&mock, unsolicited_no_connect, strlen(unsolicited_no_connect) - 1);
+
+	/* Link continues to work */
+	put_and_validate_wrapped_frame();
+
+	/* Put full 'NO CONNECT' message */
+	modem_backend_mock_put(&mock, unsolicited_no_connect, strlen(unsolicited_no_connect));
+
+	/* Give modem ppp time to process received frame */
+	k_msleep(1000);
+
+	/* Dead after receiving the 'NO CARRIER' message */
+	zassert_true(ppp.state & BIT(MODEM_PPP_STATE_DEAD_BIT));
+}
+
+
+ZTEST(modem_ppp, test_ppp_no_connect_received_first)
+{
+	static const char *unsolicited_no_connect = "\r\nNO CARRIER\r\n";
+
+	/* Not dead to start with */
+	zassert_false(ppp.state & BIT(MODEM_PPP_STATE_DEAD_BIT));
+
+	/* Put full 'NO CONNECT' message as first message on pipe */
+	modem_backend_mock_put(&mock, unsolicited_no_connect, strlen(unsolicited_no_connect));
+
+	/* Give modem ppp time to process received frame */
+	k_msleep(1000);
+
+	/* Dead after receiving the 'NO CARRIER' message */
+	zassert_true(ppp.state & BIT(MODEM_PPP_STATE_DEAD_BIT));
 }
 
 ZTEST(modem_ppp, test_corrupt_start_end_ppp_frame_receive)
@@ -368,7 +420,7 @@ ZTEST(modem_ppp, test_corrupt_start_end_ppp_frame_receive)
 	net_pkt_cursor_init(pkt);
 	net_pkt_read(pkt, buffer, pkt_len);
 	zassert_true(memcmp(buffer, ppp_frame_unwrapped, pkt_len) == 0,
-		     "Recevied net pkt data incorrect");
+		     "Received net pkt data incorrect");
 }
 
 ZTEST(modem_ppp, test_ppp_frame_send)
@@ -377,7 +429,7 @@ ZTEST(modem_ppp, test_ppp_frame_send)
 	int ret;
 
 	/* Allocate net pkt */
-	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, NET_AF_UNSPEC, 0, K_NO_WAIT);
 
 	zassert_true(pkt != NULL, "Failed to allocate network packet");
 
@@ -406,7 +458,7 @@ ZTEST(modem_ppp, test_ppp_frame_send_custom_accm1)
 	int ret;
 
 	/* Allocate net pkt */
-	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, NET_AF_UNSPEC, 0, K_NO_WAIT);
 
 	zassert_true(pkt != NULL, "Failed to allocate network packet");
 
@@ -437,7 +489,7 @@ ZTEST(modem_ppp, test_ppp_frame_send_custom_accm2)
 	int ret;
 
 	/* Allocate net pkt */
-	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, NET_AF_UNSPEC, 0, K_NO_WAIT);
 
 	zassert_true(pkt != NULL, "Failed to allocate network packet");
 
@@ -486,7 +538,7 @@ ZTEST(modem_ppp, test_ip_frame_receive)
 	net_pkt_cursor_init(pkt);
 	net_pkt_read(pkt, buffer, pkt_len);
 	zassert_true(memcmp(buffer, ip_frame_unwrapped_with_protocol, pkt_len) == 0,
-		     "Recevied net pkt data incorrect");
+		     "Received net pkt data incorrect");
 }
 
 ZTEST(modem_ppp, test_ip_frame_send)
@@ -495,14 +547,14 @@ ZTEST(modem_ppp, test_ip_frame_send)
 	int ret;
 
 	/* Allocate net pkt */
-	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_alloc_with_buffer(&test_iface, 256, NET_AF_UNSPEC, 0, K_NO_WAIT);
 	zassert_true(pkt != NULL, "Failed to allocate network packet");
 
 	/* Set network packet data */
 	net_pkt_cursor_init(pkt);
 	ret = net_pkt_write(pkt, ip_frame_unwrapped, sizeof(ip_frame_unwrapped));
 	zassert_true(ret == 0, "Failed to write data to allocated network packet");
-	net_pkt_set_family(pkt, AF_INET);
+	net_pkt_set_family(pkt, NET_AF_INET);
 
 	/* Send network packet */
 	test_net_send(pkt);
@@ -524,12 +576,12 @@ ZTEST(modem_ppp, test_ip_frame_send_multiple)
 
 	/* Allocate net pkts */
 	for (uint8_t i = 0; i < TEST_MODEM_PPP_IP_FRAME_SEND_MULT_N; i++) {
-		pkts[i] = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC, 0, K_NO_WAIT);
+		pkts[i] = net_pkt_alloc_with_buffer(&test_iface, 256, NET_AF_UNSPEC, 0, K_NO_WAIT);
 		zassert_true(pkts[i] != NULL, "Failed to allocate network packet");
 		net_pkt_cursor_init(pkts[i]);
 		ret = net_pkt_write(pkts[i], ip_frame_unwrapped, sizeof(ip_frame_unwrapped));
 		zassert_true(ret == 0, "Failed to write data to allocated network packet");
-		net_pkt_set_family(pkts[i], AF_INET);
+		net_pkt_set_family(pkts[i], NET_AF_INET);
 	}
 
 	/* Send net pkts */
@@ -551,10 +603,10 @@ ZTEST(modem_ppp, test_ip_frame_send_large)
 	int ret;
 
 	pkt = net_pkt_alloc_with_buffer(&test_iface, TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N,
-					AF_UNSPEC, 0, K_NO_WAIT);
+					NET_AF_UNSPEC, 0, K_NO_WAIT);
 
 	net_pkt_cursor_init(pkt);
-	net_pkt_set_family(pkt, AF_INET);
+	net_pkt_set_family(pkt, NET_AF_INET);
 	size = test_modem_ppp_fill_net_pkt(pkt, TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N);
 	zassert_true(size == TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N, "Failed to fill net pkt");
 	test_net_send(pkt);

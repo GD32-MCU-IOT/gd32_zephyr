@@ -32,13 +32,15 @@ static char dev_hostname[MAX_HOSTNAME_LEN + 1];
 
 static uint8_t output_buf[CONFIG_LOG_BACKEND_NET_MAX_BUF_SIZE];
 static bool net_init_done;
-struct sockaddr server_addr;
+static struct net_sockaddr_storage server_addr;
 static bool panic_mode;
 static uint32_t log_format_current = CONFIG_LOG_BACKEND_NET_OUTPUT_DEFAULT;
 
 static struct log_backend_net_ctx {
 	int sock;
+#if defined(CONFIG_NET_TCP)
 	bool is_tcp;
+#endif
 } ctx = {
 	.sock = -1,
 };
@@ -46,9 +48,10 @@ static struct log_backend_net_ctx {
 static int line_out(uint8_t *data, size_t length, void *output_ctx)
 {
 	struct log_backend_net_ctx *ctx = (struct log_backend_net_ctx *)output_ctx;
-	struct msghdr msg = { 0 };
-	struct iovec io_vector[2];
+	struct net_msghdr msg = { 0 };
+	struct net_iovec io_vector[2];
 	int pos = 0;
+	int sock_flags = ZSOCK_MSG_DONTWAIT;
 	int ret;
 
 	if (ctx == NULL) {
@@ -63,10 +66,8 @@ static int line_out(uint8_t *data, size_t length, void *output_ctx)
 		io_vector[pos].iov_base = (void *)len;
 		io_vector[pos].iov_len = strlen(len);
 		pos++;
-	}
-#else
-	if (ctx->is_tcp) {
-		return -ENOTSUP;
+
+		sock_flags = 0;
 	}
 #endif
 
@@ -77,7 +78,7 @@ static int line_out(uint8_t *data, size_t length, void *output_ctx)
 	msg.msg_iov = io_vector;
 	msg.msg_iovlen = pos;
 
-	ret = zsock_sendmsg(ctx->sock, &msg, ctx->is_tcp ? 0 : ZSOCK_MSG_DONTWAIT);
+	ret = zsock_sendmsg(ctx->sock, &msg, sock_flags);
 	if (ret < 0) {
 		goto fail;
 	}
@@ -91,15 +92,15 @@ LOG_OUTPUT_DEFINE(log_output_net, line_out, output_buf, sizeof(output_buf));
 
 static int do_net_init(struct log_backend_net_ctx *ctx)
 {
-	socklen_t server_addr_len = 0;
-	int ret, proto = IPPROTO_UDP, type = SOCK_DGRAM;
+	net_socklen_t server_addr_len = 0;
+	int ret, proto = NET_IPPROTO_UDP, type = NET_SOCK_DGRAM;
 
-	if (IS_ENABLED(CONFIG_NET_IPV4) && server_addr.sa_family == AF_INET) {
-		server_addr_len = sizeof(struct sockaddr_in);
+	if (IS_ENABLED(CONFIG_NET_IPV4) && server_addr.ss_family == NET_AF_INET) {
+		server_addr_len = sizeof(struct net_sockaddr_in);
 	}
 
-	if (IS_ENABLED(CONFIG_NET_IPV6) && server_addr.sa_family == AF_INET6) {
-		server_addr_len = sizeof(struct sockaddr_in6);
+	if (IS_ENABLED(CONFIG_NET_IPV6) && server_addr.ss_family == NET_AF_INET6) {
+		server_addr_len = sizeof(struct net_sockaddr_in6);
 	}
 
 	if (server_addr_len == 0) {
@@ -107,12 +108,14 @@ static int do_net_init(struct log_backend_net_ctx *ctx)
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_NET_TCP)
 	if (ctx->is_tcp) {
-		proto = IPPROTO_TCP;
-		type = SOCK_STREAM;
+		proto = NET_IPPROTO_TCP;
+		type = NET_SOCK_STREAM;
 	}
+#endif
 
-	ret = zsock_socket(server_addr.sa_family, type, proto);
+	ret = zsock_socket(server_addr.ss_family, type, proto);
 	if (ret < 0) {
 		ret = -errno;
 		DBG("Cannot get socket (%d)\n", ret);
@@ -125,7 +128,7 @@ static int do_net_init(struct log_backend_net_ctx *ctx)
 		(void)strncpy(dev_hostname, net_hostname_get(), MAX_HOSTNAME_LEN);
 	}
 
-	ret = zsock_connect(ctx->sock, &server_addr, server_addr_len);
+	ret = zsock_connect(ctx->sock, net_sad(&server_addr), server_addr_len);
 	if (ret < 0) {
 		ret = -errno;
 		DBG("Cannot connect socket (%d)\n", ret);
@@ -219,9 +222,9 @@ bool log_backend_net_set_addr(const char *addr)
 		return ret;
 	}
 
-	net_sin(&server_addr)->sin_port = htons(514);
+	net_sin(net_sad(&server_addr))->sin_port = net_htons(514);
 
-	ret = net_ipaddr_parse(addr, strlen(addr), &server_addr);
+	ret = net_ipaddr_parse(addr, strlen(addr), net_sad(&server_addr));
 	if (!ret) {
 		LOG_ERR("Cannot parse syslog server address");
 		return ret;
@@ -230,7 +233,7 @@ bool log_backend_net_set_addr(const char *addr)
 	return ret;
 }
 
-bool log_backend_net_set_ip(const struct sockaddr *addr)
+bool log_backend_net_set_ip(const struct net_sockaddr *addr)
 {
 	bool ret = check_net_init_done();
 
@@ -238,11 +241,11 @@ bool log_backend_net_set_ip(const struct sockaddr *addr)
 		return ret;
 	}
 
-	if ((IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == AF_INET) ||
-	    (IS_ENABLED(CONFIG_NET_IPV6) && addr->sa_family == AF_INET6)) {
-		memcpy(&server_addr, addr, sizeof(server_addr));
+	if ((IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == NET_AF_INET) ||
+	    (IS_ENABLED(CONFIG_NET_IPV6) && addr->sa_family == NET_AF_INET6)) {
+		memcpy(&server_addr, addr, net_family2size(addr->sa_family));
 
-		net_port_set_default(&server_addr, 514);
+		net_port_set_default(net_sad(&server_addr), 514);
 	} else {
 		LOG_ERR("Unknown address family");
 		return false;
@@ -279,7 +282,11 @@ static void init_net(struct log_backend const *const backend)
 
 		if (memcmp(server, "tcp://", sizeof("tcp://") - 1) == 0) {
 			server += sizeof("tcp://") - 1;
+#if defined(CONFIG_NET_TCP)
 			ctx.is_tcp = true;
+#else
+			LOG_ERR("tcp:// server requires CONFIG_NET_TCP. Using UDP");
+#endif
 		}
 
 		ret = log_backend_net_set_addr(server);

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import os
 
 import pytest
 from abstract.PowerMonitor import PowerMonitor
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("probe_class", ['stm_powershield'], indirect=True)
-def test_power_harness(probe_class: PowerMonitor, test_data, request, dut: DeviceAdapter):
+def test_power_harness(probe_class: PowerMonitor, test_data, dut: DeviceAdapter):
     """
     This test measures and validates the RMS current values from the power monitor
     and compares them against expected RMS values.
@@ -20,12 +21,16 @@ def test_power_harness(probe_class: PowerMonitor, test_data, request, dut: Devic
     Arguments:
     probe_class -- The Abstract class of the power monitor.
     test_data -- Fixture to prepare data.
-    request -- Request object that provides access to test configuration.
     dut -- The Device Under Test (DUT) that the power monitor is measuring.
     """
 
     # Initialize the probe with the provided path
     probe = probe_class  # Instantiate the power monitor probe
+
+    # Set path for raw output data
+    build_dir_path = dut.device_config.build_dir
+    if os.path.exists(build_dir_path):
+        probe.power_shield_conf.output_file = os.path.join(build_dir_path, "power_raw_data.csv")
 
     # Get test data
     measurements_dict = test_data

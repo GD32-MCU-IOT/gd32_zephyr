@@ -5,22 +5,19 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# TODO: Use DTS generated Kconfig once the board support is added
-DT_COMPAT_NORDIC_WIFI71 := nordic,nrf7120
-
 menuconfig WIFI_NRF70
 	bool "nRF70 driver"
 	select NET_L2_WIFI_MGMT if NETWORKING
 	select NET_L2_ETHERNET_MGMT if NETWORKING && NET_L2_ETHERNET
 	select WIFI_USE_NATIVE_NETWORKING if NETWORKING
-	select EXPERIMENTAL if !SOC_SERIES_NRF53X && !SOC_SERIES_NRF91X
+	select EXPERIMENTAL if !SOC_SERIES_NRF53 && !SOC_SERIES_NRF91
 	select NRF70_BUSLIB
+	select NET_CHECKSUM_OFFLOAD_SUPPORTED if NET_L2_ETHERNET
 	default y
 	depends on \
 		DT_HAS_NORDIC_NRF7002_SPI_ENABLED || DT_HAS_NORDIC_NRF7002_QSPI_ENABLED || \
 		DT_HAS_NORDIC_NRF7001_SPI_ENABLED || DT_HAS_NORDIC_NRF7001_QSPI_ENABLED || \
-		DT_HAS_NORDIC_NRF7000_SPI_ENABLED || DT_HAS_NORDIC_NRF7000_QSPI_ENABLED || \
-		$(dt_compat_enabled,$(DT_COMPAT_NORDIC_WIFI71))
+		DT_HAS_NORDIC_NRF7000_SPI_ENABLED || DT_HAS_NORDIC_NRF7000_QSPI_ENABLED
 	help
 	  Nordic Wi-Fi Driver
 
@@ -28,7 +25,7 @@ if WIFI_NRF70
 # Hidden symbols for internal use
 config WIFI_NRF7002
 	bool
-	default y if DT_HAS_NORDIC_NRF7002_SPI_ENABLED || DT_HAS_NORDIC_NRF7002_QSPI_ENABLED || $(dt_compat_enabled,$(DT_COMPAT_NORDIC_WIFI71))
+	default y if DT_HAS_NORDIC_NRF7002_SPI_ENABLED || DT_HAS_NORDIC_NRF7002_QSPI_ENABLED
 
 config WIFI_NRF7001
 	bool
@@ -89,7 +86,7 @@ config NRF70_OFFLOADED_RAW_TX
 
 endchoice
 
-config NET_L2_ETHERNET
+configdefault NET_L2_ETHERNET
 	default y if (!NRF70_RADIO_TEST && !NRF70_OFFLOADED_RAW_TX)
 
 if NRF70_SYSTEM_MODE
@@ -119,6 +116,7 @@ config NRF70_ENABLE_DUAL_VIF
 
 config NRF70_P2P_MODE
 	bool "P2P support in driver"
+	default y if WIFI_NM_WPA_SUPPLICANT_P2P
 
 config NRF70_SYSTEM_WITH_RAW_MODES
 	bool "nRF70 system mode with raw modes"
@@ -169,12 +167,11 @@ endchoice
 config NRF_WIFI_LOW_POWER
 	bool "Low power mode in nRF Wi-Fi chipsets"
 	depends on !NRF70_RADIO_TEST && !NRF70_AP_MODE
-	depends on !NRF71_ON_IPC
 	default y
 
 config NRF70_TCP_IP_CHECKSUM_OFFLOAD
 	bool "TCP/IP checksum offload"
-	depends on !NRF71_ON_IPC
+	depends on NET_CHECKSUM_OFFLOAD
 	default y
 
 config NRF70_REG_DOMAIN
@@ -222,7 +219,6 @@ config NRF70_SR_COEX_RF_SWITCH
 
 config NRF70_SR_COEX_SLEEP_CTRL_GPIO_CTRL
 	bool "Configuration of GPIO control for coexistence"
-	depends on !NRF71_ON_IPC
 	default y
 
 config NRF70_SR_COEX_SWCTRL1_OUTPUT
@@ -232,6 +228,13 @@ config NRF70_SR_COEX_SWCTRL1_OUTPUT
 config NRF70_SR_COEX_BT_GRANT_ACTIVE_LOW
 	int "Configure BT grant active low"
 	default 1
+
+config NRF70_BT_SLOT_TIME
+	int "BT slot allocation time in Wi-Fi scan (ms)"
+	range 0 255
+	default 0
+	help
+	  Time allocated in milliseconds for SR between successive Wi-Fi channel scan.
 endif # NRF70_SR_COEX
 
 config NRF70_WORKQ_STACK_SIZE
@@ -448,6 +451,8 @@ config NRF70_BAND_UNII_4_UPPER_EDGE_BACKOFF_HE
 
 config NRF70_RX_NUM_BUFS
 	int "Number of RX buffers"
+	range 3 256
+	default 6 if !NRF70_DATA_TX
 	default 48
 
 config NRF70_MAX_TX_AGGREGATION
@@ -465,6 +470,8 @@ config NRF70_TX_MAX_DATA_SIZE
 
 config NRF70_RX_MAX_DATA_SIZE
 	int "Maximum size of RX data"
+	range 400 65536
+	default 1000 if !NRF70_DATA_TX
 	default 1600
 
 config NRF70_TX_DONE_WQ_ENABLED
@@ -538,7 +545,7 @@ config WIFI_FIXED_MAC_ADDRESS
 	help
 	  This option overrides the MAC address read from OTP. It is strictly for testing purposes only.
 
-choice
+choice WIFI_MAC_ADDRESS
 	prompt "Wi-Fi MAC address type"
 	default WIFI_FIXED_MAC_ADDRESS_ENABLED if WIFI_FIXED_MAC_ADDRESS != ""
 	default WIFI_OTP_MAC_ADDRESS
@@ -612,10 +619,10 @@ if NETWORKING
 # Note: These will take effect only if the symbol is not defined already
 # (i.e., the original symbol is processed after "drivers/Kconfig")
 config NET_TX_STACK_SIZE
-	default 4096
+	default 4096 if !NRF70_SCAN_ONLY
 
 config NET_RX_STACK_SIZE
-	default 4096
+	default 4096 if !NRF70_SCAN_ONLY
 
 config NET_TC_TX_COUNT
 	default 1
@@ -642,7 +649,7 @@ endif # NRF_WIFI_USE_VARIABLE_NET_BUFS
 config MAIN_STACK_SIZE
 	default 4096
 
-config SHELL_STACK_SIZE
+configdefault SHELL_STACK_SIZE
 	default 4096
 
 # Override the Wi-Fi subsystems WIFI_MGMT_SCAN_SSID_FILT_MAX parameter,
@@ -678,13 +685,7 @@ config NRF_WIFI_2G_BAND
 
 config NRF_WIFI_5G_BAND
 	bool "Set operation band to 5GHz"
-if NRF71_ON_IPC
-config NRF_WIFI_6G_BAND
-	bool "Set operation band to 6GHz"
 
-config NRF_WIFI_DUAL_BAND
-	bool "Set operation band to 2.4GHz and 5GHz"
-endif # NRF71_ON_IPC
 endchoice
 
 config NRF_WIFI_IFACE_MTU
@@ -804,6 +805,32 @@ config NRF_WIFI_FEAT_WMM
 	help
 	  This option controls disable/enable of the WMM (Wireless Multi-Media) feature.
 
+config NRF_WIFI_QOS_NOACK_POLICY
+	bool "QoS No-ACK policy for Tx packets"
+	help
+	  Enable this option to set No-ACK policy for Tx packets with a specific TID.
+	  When enabled, all Tx frames for the configured TID will be marked with
+	  the No-ACK policy flag, indicating that the receiver should not send
+	  ACK frames for these packets.
+	  Use with caution:
+	  Enabling No-ACK for BE (Best Effort) or BK (Background) can cause link
+	  issues (ARP/IP failures due to no retries).
+
+	  Recommended usage:
+	  Ideally for VI (Video) or VO (Voice) access category.
+	  The application must correctly encode TID via TOS to activate this feature.
+
+if NRF_WIFI_QOS_NOACK_POLICY
+config NRF_WIFI_QOS_NOACK_POLICY_TID
+	int "TID (Traffic Identifier) for No-ACK policy"
+	range 0 7
+	default 0
+	help
+	  Specify the TID (Traffic Identifier) for which No-ACK policy should be applied.
+	  TID values range from 0 to 7, corresponding to different QoS priority levels.
+	  All Tx frames with this TID will be marked with the No-ACK policy flag.
+endif # NRF_WIFI_QOS_NOACK_POLICY
+
 choice NRF_WIFI_PS_DATA_RETRIEVAL_MECHANISM
 	prompt "Power save data retrieval mechanism"
 	default NRF_WIFI_PS_POLL_BASED_RETRIEVAL
@@ -905,7 +932,7 @@ config NRF_WIFI_ZERO_COPY_TX
 	select NET_L2_ETHERNET_RESERVE_HEADER
 	select EXPERIMENTAL
 	# 54L has lower RAM
-	default y if SOC_SERIES_NRF54LX
+	default y if SOC_SERIES_NRF54L
 	help
 	  Enable this configuration to use zero copy Transmit path.
 	  The driver will use the network buffer directly for transmission

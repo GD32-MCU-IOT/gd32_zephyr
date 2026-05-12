@@ -10,3 +10,5 @@ testing:
 vendor: amd
 supported:
   - sdhc
+  - mbox
+  - flash

@@ -40,17 +40,16 @@ Hardware connection (OPAMP0 in differential mode):
 Sample output
 =============
 
-You will see the inverting and non-inverting gain and the output of the opamp
-in the terminal. Users can calculate the theoretical output value of the opamp
-according to the formula and compare it with the ADC measurement value.
+The application configures the OPAMP gain (if programmable gain is supported)
+and measures the OPAMP output using the ADC.
 
-The following output is printed:
+For each configured gain, the measured output voltage is printed in millivolts:
 
 .. code-block:: console
 
    *** Booting Zephyr OS build v4.2.0-2155-gb21dd897e034 ***
-   OPAMP output is: 1513(mv)
-   OPAMP output is: 907(mv)
-   OPAMP output is: 613(mv)
+   OPAMP output (@gain: 4) is: 1513(mv)
+   OPAMP output (@gain: 2) is: 907(mv)
+   OPAMP output (@gain: 1) is: 613(mv)
 
 .. note:: The values shown above might differ.

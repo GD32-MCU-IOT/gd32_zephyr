@@ -462,17 +462,85 @@ static int skip_field(struct json_obj *obj, struct json_obj_key_value *kv)
 	return 0;
 }
 
+/**
+ * @brief Unescape a JSON string, can work in-place if src == dst
+ * @param src Source string with escape sequences
+ * @param dst Destination buffer for unescaped string (can be same as src)
+ * @param src_len Length of source string
+ * @param dst_size Size of destination buffer
+ * @return int Number of bytes written to destination, or -EINVAL on error
+ */
+static int json_unescape_string(const char *src, char *dst, size_t src_len, size_t dst_size)
+{
+	const char *src_end = src + src_len;
+	char *dst_start = dst;
+	char *dst_end = dst_start + dst_size - 1; /* Point to last available byte (for null) */
+
+	while (src < src_end && dst < dst_end) {
+		if (*src == '\\') {
+			src++;
+			if (src >= src_end) {
+				return -EINVAL;
+			}
+
+			switch (*src) {
+			case '"':
+				*dst++ = '"';
+				break;
+			case '\\':
+				*dst++ = '\\';
+				break;
+			case '/':
+				*dst++ = '/';
+				break;
+			case 'b':
+				*dst++ = '\b';
+				break;
+			case 'f':
+				*dst++ = '\f';
+				break;
+			case 'n':
+				*dst++ = '\n';
+				break;
+			case 'r':
+				*dst++ = '\r';
+				break;
+			case 't':
+				*dst++ = '\t';
+				break;
+			default:
+				/* Unknown escape sequence, copy as-is */
+				*dst++ = '\\';
+				*dst++ = *src;
+				break;
+			}
+			src++;
+		} else {
+			*dst++ = *src++;
+		}
+	}
+
+	*dst = '\0';
+	return dst - dst_start;
+}
+
 static int decode_string_buf(const struct json_token *token, char *str, size_t size)
 {
-	size_t len = token->end - token->start;
+	size_t escaped_len = token->end - token->start;
+	int ret;
 
-	/* buffer 'str' must be large enough to fit string and null-terminator */
-	if (size <= len) {
+	/* Safe approach: never copy more than (size - 1) bytes to leave room for null */
+	size_t safe_len = (escaped_len < size) ? escaped_len : (size - 1);
+
+	ret = json_unescape_string(token->start, str, safe_len, size);
+	if (ret < 0) {
 		return -EINVAL;
 	}
 
-	memcpy(str, token->start, len);
-	str[len] = '\0';
+	/* Check if we had to truncate due to the original escaped string being too long */
+	if (escaped_len >= size) {
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -958,6 +1026,12 @@ static ptrdiff_t get_elem_size(const struct json_obj_descr *descr)
 	case JSON_TOK_TRUE:
 	case JSON_TOK_FALSE:
 		return sizeof(bool);
+	case JSON_TOK_NULL:
+		/*
+		 * JSON null type has no associated data, nevertheless
+		 * return the size of the field in the backing struct.
+		 */
+		return descr->field.size;
 	case JSON_TOK_ARRAY_START: {
 		ptrdiff_t size;
 
@@ -1091,6 +1165,9 @@ static int64_t obj_parse(struct json_obj *obj, const struct json_obj_descr *desc
 	int ret;
 
 	while (!obj_next(obj, &kv)) {
+		bool any_descriptor_matched_name = false;
+		bool field_decoded = false;
+
 		if (kv.value.type == JSON_TOK_OBJECT_END) {
 			return decoded_fields;
 		}
@@ -1113,15 +1190,55 @@ static int64_t obj_parse(struct json_obj *obj, const struct json_obj_descr *desc
 				continue;
 			}
 
+			any_descriptor_matched_name = true;
+
 			/* Store the decoded value */
 			ret = decode_value(obj, &descr[i], &kv.value,
 					   decode_field, val);
 			if (ret < 0) {
-				return ret;
+				/*
+				 * When decode fails, we must distinguish between two cases:
+				 *
+				 * 1. Type mismatch: The JSON token type didn't match what the
+				 *    descriptor expected (e.g., token is STRING but descriptor
+				 *    expects ARRAY). In this case, equivalent_types() returned
+				 *    false and decode_value() exited early - no parsing occurred
+				 *    and the lexer state is still valid. Safe to continue and
+				 *    try alternate descriptors.
+				 *
+				 * 2. Parse failure: The token type matched but parsing the
+				 *    complex structure (object/array) failed internally. The
+				 *    lexer has advanced through partial content and its state
+				 *    may be corrupted. Must return error immediately.
+				 *
+				 * We check the actual token type (kv.value.type) rather than
+				 * the descriptor type to determine if complex parsing was
+				 * actually attempted.
+				 */
+				if (kv.value.type == JSON_TOK_OBJECT_START ||
+				    kv.value.type == JSON_TOK_ARRAY_START) {
+					return ret;
+				}
+				continue;
 			}
 
 			decoded_fields |= (int64_t)1<<i;
+			field_decoded = true;
 			break;
+		}
+
+		/*
+		 * If the field name matched at least one descriptor but all decode
+		 * attempts failed, propagate an error.
+		 *
+		 * Note: 'ret' contains the error code from the last failed
+		 * decode_value() attempt. When multiple descriptors share the same
+		 * field name (for example, in polymorphic decoding scenarios), the
+		 * specific error code returned here is implementation-defined and may
+		 * depend on descriptor ordering.
+		 */
+		if (any_descriptor_matched_name && !field_decoded) {
+			return ret;
 		}
 
 		/* Skip field, if no descriptor was found */
@@ -1483,7 +1600,8 @@ static int float_encode(const float *num, json_append_bytes_t append_bytes, void
 	char buf[sizeof("-3.40282347e+38")];
 	int ret;
 
-	ret = print_double(buf, sizeof(buf), "%.9g", (double)*num);
+	ret = print_double(buf, sizeof(buf),
+			   "%." STRINGIFY(CONFIG_JSON_FLOAT_PRECISION) "g", (double)*num);
 
 	if (ret < 0) {
 		return ret;
@@ -1500,7 +1618,8 @@ static int double_encode(const double *num, json_append_bytes_t append_bytes, vo
 	char buf[sizeof("-1.797693134862316e+308")];
 	int ret;
 
-	ret = print_double(buf, sizeof(buf), "%.16g", *num);
+	ret = print_double(buf, sizeof(buf),
+			   "%." STRINGIFY(CONFIG_JSON_DOUBLE_PRECISION) "g", *num);
 
 	if (ret < 0) {
 		return ret;
@@ -1620,6 +1739,11 @@ static int bool_encode(const bool *value, json_append_bytes_t append_bytes,
 	return append_bytes("false", 5, data);
 }
 
+static int null_encode(json_append_bytes_t append_bytes, void *data)
+{
+	return append_bytes("null", 4, data);
+}
+
 static int encode(const struct json_obj_descr *descr, const void *val,
 		  json_append_bytes_t append_bytes, void *data)
 {
@@ -1663,6 +1787,8 @@ static int encode(const struct json_obj_descr *descr, const void *val,
 		return opaque_string_encode(ptr, append_bytes, data);
 	case JSON_TOK_ENCODED_OBJ:
 		return encoded_obj_encode(ptr, append_bytes, data);
+	case JSON_TOK_NULL:
+		return null_encode(append_bytes, data);
 	default:
 		return -EINVAL;
 	}
@@ -2008,6 +2134,9 @@ static int encode_mixed_value(const struct json_mixed_arr_descr *elem,
 	}
 	case JSON_TOK_ENCODED_OBJ: {
 		return encoded_obj_encode((const char **)field, append_bytes, data);
+	}
+	case JSON_TOK_NULL: {
+		return null_encode(append_bytes, data);
 	}
 	default:
 		return -EINVAL;

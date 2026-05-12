@@ -13,11 +13,11 @@
 #include <zephyr/sys/barrier.h>
 
 #define TEST_AREA	 storage_partition
-#define TEST_AREA_OFFSET FIXED_PARTITION_OFFSET(TEST_AREA)
-#define TEST_AREA_SIZE	 FIXED_PARTITION_SIZE(TEST_AREA)
+#define TEST_AREA_OFFSET PARTITION_OFFSET(TEST_AREA)
+#define TEST_AREA_SIZE	 PARTITION_SIZE(TEST_AREA)
 #define TEST_AREA_MAX	 (TEST_AREA_OFFSET + TEST_AREA_SIZE)
-#define TEST_AREA_DEVICE FIXED_PARTITION_DEVICE(TEST_AREA)
-#define TEST_AREA_DEVICE_REG DT_REG_ADDR(DT_MTD_FROM_FIXED_PARTITION(DT_NODELABEL(TEST_AREA)))
+#define TEST_AREA_DEVICE PARTITION_DEVICE(TEST_AREA)
+#define TEST_AREA_DEVICE_REG DT_REG_ADDR(DT_MTD_FROM_PARTITION(DT_NODELABEL(TEST_AREA)))
 
 #define EXPECTED_SIZE 512
 
@@ -278,6 +278,16 @@ ZTEST(flash_stm32, test_stm32_block_registers)
 	TC_PRINT("Try to unlock blocked OPT\n");
 	__set_FAULTMASK(1);
 	flash_stm32_option_bytes_lock(flash_dev, false);
+
+	/* Ensure the Imprecise Bus Fault caused by the illegal
+	 * access is seen now while BusFault is still masked by
+	 * triggering a Context synchronization event. This is
+	 * notably required on series such as STM32H7 when Icache
+	 * is enabled - the Imprecise Bus Fault is reported after
+	 * we unmask BusFault and triggers a kernel panic.
+	 */
+	barrier_isync_fence_full();
+
 	/* Clear Bus Fault pending bit */
 	SCB->SHCSR &= ~SCB_SHCSR_BUSFAULTPENDED_Msk;
 	barrier_dsync_fence_full();

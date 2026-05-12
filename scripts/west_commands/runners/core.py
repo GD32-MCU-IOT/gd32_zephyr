@@ -13,9 +13,12 @@ as well as some other helpers for concrete runner classes.
 
 import abc
 import argparse
+import contextlib
 import errno
 import logging
 import os
+import pathlib
+import pickle
 import platform
 import re
 import selectors
@@ -25,6 +28,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
@@ -37,6 +41,7 @@ try:
 except ImportError:
     ELFTOOLS_MISSING = True
 
+from zephyr_ext_common import ZEPHYR_SCRIPTS
 
 # Turn on to enable just logging the commands that would be run (at
 # info rather than debug level), without actually running them. This
@@ -158,14 +163,17 @@ class BuildConfiguration:
     Configuration options can be read as if the object were a dict,
     either object['CONFIG_FOO'] or object.get('CONFIG_FOO').
 
-    Kconfig configuration values are available (parsed from .config).'''
+    Kconfig configuration values are available (parsed from .config).
+
+    Devicetree configuration is available using the edtlib API as object.edt.'''
 
     config_prefix = 'CONFIG'
 
     def __init__(self, build_dir: str):
-        self.build_dir = build_dir
+        self.build_dir = pathlib.Path(build_dir)
         self.options: dict[str, str | int] = {}
-        self.path = os.path.join(self.build_dir, 'zephyr', '.config')
+        self.path = self.build_dir / 'zephyr' / '.config'
+        self._edt = None
         self._parse()
 
     def __contains__(self, item):
@@ -182,6 +190,26 @@ class BuildConfiguration:
         returns its value. Otherwise, falls back to False.
         '''
         return self.options.get(option, False)
+
+    @property
+    def edt(self):
+        '''Get the EDT representing the devicetree. The EDT is lazily loaded on
+        first access, and cached for subsequent accesses.'''
+        if self._edt is not None:
+            return self._edt
+
+        edt_path = self.build_dir / 'zephyr' / 'edt.pickle'
+        if not edt_path.exists():
+            raise RuntimeError("Can't load devicetree from " + str(edt_path))
+
+        edtlib_path = str(ZEPHYR_SCRIPTS / 'dts' / 'python-devicetree' / 'src')
+        if edtlib_path not in sys.path:
+            sys.path.insert(0, edtlib_path)
+
+        with open(edt_path, 'rb') as f:
+            self._edt = pickle.load(f)
+
+        return self._edt
 
     def _parse(self):
         filename = self.path
@@ -249,7 +277,17 @@ class MissingProgram(FileNotFoundError):
         super().__init__(errno.ENOENT, os.strerror(errno.ENOENT), program)
 
 
-_RUNNERCAPS_COMMANDS = {'flash', 'debug', 'debugserver', 'attach', 'simulate', 'robot', 'rtt'}
+_RUNNERCAPS_COMMANDS = {
+    "flash",
+    "debug",
+    "debugserver",
+    "attach",
+    "simulate",
+    "robot",
+    "rtt",
+    "reset",
+}
+
 
 @dataclass
 class RunnerCaps:
@@ -288,6 +326,19 @@ class RunnerCaps:
     - reset: whether the runner supports a --reset option, which
       resets the device after a flash operation is complete.
 
+    - reset_types: whether the runner supports a --reset-type=x option,
+      which specifies a runner specific value for selecting a specific type
+      of reset to use when resetting the device.
+
+    - reset_types_supported: a list of values allowed to be passed with the
+      --reset-type option. If the list of supported reset types is
+      dynamic/device specific, this should be omitted, allowing any value to
+      be set and passed directly to the underlying tool. In addition to these,
+      each runner implementation must always be ready to accept `None` in a
+      runner-specific fashion. For user-friendliness, it is recommended to
+      place first in the list the value which has the behavior identical or
+      most similar to `None`.
+
     - extload: whether the runner supports a --extload option, which
       must be given one time and is passed on to the underlying tool
       that the runner wraps.
@@ -304,6 +355,10 @@ class RunnerCaps:
 
     - rtt: whether the runner supports SEGGER RTT. This adds a --rtt-address
       option.
+
+    - skip_load: whether the runner supports the --load/--no-load option, which
+      allows skipping the load of image on target before starting a debug session
+      (this option only affects the 'debug' command)
     '''
 
     commands: set[str] = field(default_factory=lambda: set(_RUNNERCAPS_COMMANDS))
@@ -312,12 +367,21 @@ class RunnerCaps:
     flash_addr: bool = False
     erase: bool = False
     reset: bool = False
+    reset_types: bool = False
+    reset_types_supported: list[str] | None = None
     extload: bool = False
     tool_opt: bool = False
     file: bool = False
     hide_load_files: bool = False
     rtt: bool = False  # This capability exists separately from the rtt command
                        # to allow other commands to use the rtt address
+    dry_run: bool = False
+    skip_load: bool = False
+    batch_debug: bool = False # In batch mode, GDB exits with status 0 after loading;
+                              # for automated debugging, add --batch with 'monitor go',
+                              # 'disconnect', and 'quit' commands (named batch_debug in west),
+                              # unlike interactive debug mode (default),
+                              # which stops and waits for user input
 
     def __post_init__(self):
         if self.mult_dev_ids and not self.dev_id:
@@ -487,6 +551,9 @@ class ZephyrBinaryRunner(abc.ABC):
         self.logger = logging.getLogger(f'runners.{self.name()}')
         '''logging.Logger for this instance.'''
 
+        self.dry_run = _DRY_RUN
+        '''log commands instead of executing them. Can be set by subclasses'''
+
     @staticmethod
     def get_runners() -> list[type['ZephyrBinaryRunner']]:
         '''Get a list of all currently defined runner classes.'''
@@ -569,7 +636,8 @@ class ZephyrBinaryRunner(abc.ABC):
                                 help="path to binary file")
             parser.add_argument('-t', '--file-type',
                                 dest='file_type',
-                                help="type of binary file")
+                                help="type of binary file. If --file is not given, "
+                                     "selects the build artifact (hex, bin, elf)")
         else:
             parser.add_argument('-f', '--file', help=argparse.SUPPRESS)
             parser.add_argument('-t', '--file-type', help=argparse.SUPPRESS)
@@ -615,6 +683,11 @@ class ZephyrBinaryRunner(abc.ABC):
                                   "Default action depends on each specific runner."
                                   if caps.reset else argparse.SUPPRESS))
 
+        parser.add_argument('--reset-type', dest="reset_type", choices=caps.reset_types_supported,
+                            help=("reset type to use for resetting the device. "
+                                    "Default type depends on each specific runner and target."
+                                    if caps.reset_types else argparse.SUPPRESS))
+
         parser.add_argument('--extload', dest='extload',
                             help=(cls.extload_help() if caps.extload
                                   else argparse.SUPPRESS))
@@ -631,6 +704,20 @@ class ZephyrBinaryRunner(abc.ABC):
                                 it will be autodetected if possible""")
         else:
             parser.add_argument('--rtt-address', help=argparse.SUPPRESS)
+
+        parser.add_argument('--dry-run', action='store_true',
+                            help=('''Print all the commands without actually
+                            executing them''' if caps.dry_run else argparse.SUPPRESS))
+
+        # by default, 'west debug' is expected to flash before starting the session
+        parser.add_argument('--load', action=argparse.BooleanOptionalAction,
+                            help=("load image on target before 'west debug' session"
+                                  if caps.skip_load else argparse.SUPPRESS),
+                            default=True)
+
+        parser.add_argument('--batch', action=argparse.BooleanOptionalAction,
+                            help="enable west debug batch mode"
+                            if caps.batch_debug else argparse.SUPPRESS)
 
         # Runner-specific options.
         cls.do_add_parser(parser)
@@ -672,12 +759,12 @@ class ZephyrBinaryRunner(abc.ABC):
             _missing_cap(cls, '--tool-opt')
         if args.file and not caps.file:
             _missing_cap(cls, '--file')
-        if args.file_type and not args.file:
-            raise ValueError("--file-type requires --file")
         if args.file_type and not caps.file:
             _missing_cap(cls, '--file-type')
         if args.rtt_address and not caps.rtt:
             _missing_cap(cls, '--rtt-address')
+        if args.dry_run and not caps.dry_run:
+            _missing_cap(cls, '--dry-run')
 
         ret = cls.do_create(cfg, args)
         if args.erase:
@@ -710,11 +797,16 @@ class ZephyrBinaryRunner(abc.ABC):
 
     @staticmethod
     def flash_address_from_build_conf(build_conf: BuildConfiguration):
-        '''If CONFIG_HAS_FLASH_LOAD_OFFSET is n in build_conf,
+        '''If CONFIG_FLASH_USES_MAPPED_PARTITION is y in build_conf,
+        return the reg address of the zephyr,code-partition devicetree
+        node. Else, if CONFIG_HAS_FLASH_LOAD_OFFSET is n in build_conf,
         return the CONFIG_FLASH_BASE_ADDRESS value. Otherwise, return
         CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET.
         '''
-        if build_conf.getboolean('CONFIG_HAS_FLASH_LOAD_OFFSET'):
+        if build_conf.getboolean('CONFIG_FLASH_USES_MAPPED_PARTITION'):
+            code_partition = build_conf.edt.chosen_node('zephyr,code-partition')
+            return code_partition.regs[0].addr
+        elif build_conf.getboolean('CONFIG_HAS_FLASH_LOAD_OFFSET'):
             return (build_conf['CONFIG_FLASH_BASE_ADDRESS'] +
                     build_conf['CONFIG_FLASH_LOAD_OFFSET'])
         else:
@@ -838,22 +930,26 @@ class ZephyrBinaryRunner(abc.ABC):
         It's useful to e.g. open a GDB server and client.'''
         server_proc = self.popen_ignore_int(server, **kwargs)
         try:
-            self.run_client(client, **kwargs)
+            self.check_call_ignore_sigint(client, **kwargs)
         finally:
             server_proc.terminate()
             server_proc.wait()
 
-    def run_client(self, client, **kwargs):
-        '''Run a client that handles SIGINT.'''
+    def check_call_ignore_sigint(self, client, **kwargs):
+        '''Run a command that ignores SIGINT.'''
         previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
         try:
             self.check_call(client, **kwargs)
         finally:
             signal.signal(signal.SIGINT, previous)
 
+    def run_client(self, client, **kwargs):
+        self.logger.warning('run_client is deprecated; use check_call_ignore_sigint instead')
+        self.check_call_ignore_sigint(client, **kwargs)
+
     def _log_cmd(self, cmd: list[str]):
         escaped = ' '.join(shlex.quote(s) for s in cmd)
-        if not _DRY_RUN:
+        if not self.dry_run:
             self.logger.debug(escaped)
         else:
             self.logger.info(escaped)
@@ -866,7 +962,7 @@ class ZephyrBinaryRunner(abc.ABC):
         using subprocess directly, to keep accurate debug logs.
         '''
         self._log_cmd(cmd)
-        if _DRY_RUN:
+        if self.dry_run:
             return 0
         return subprocess.call(cmd, **kwargs)
 
@@ -878,7 +974,7 @@ class ZephyrBinaryRunner(abc.ABC):
         using subprocess directly, to keep accurate debug logs.
         '''
         self._log_cmd(cmd)
-        if _DRY_RUN:
+        if self.dry_run:
             return
         subprocess.check_call(cmd, **kwargs)
 
@@ -890,7 +986,7 @@ class ZephyrBinaryRunner(abc.ABC):
         using subprocess directly, to keep accurate debug logs.
         '''
         self._log_cmd(cmd)
-        if _DRY_RUN:
+        if self.dry_run:
             return b''
         return subprocess.check_output(cmd, **kwargs)
 
@@ -911,7 +1007,7 @@ class ZephyrBinaryRunner(abc.ABC):
             preexec = os.setsid # type: ignore
 
         self._log_cmd(cmd)
-        if _DRY_RUN:
+        if self.dry_run:
             return _DebugDummyPopen()  # type: ignore
 
         return subprocess.Popen(cmd, creationflags=cflags, preexec_fn=preexec, **kwargs)
@@ -939,18 +1035,25 @@ class ZephyrBinaryRunner(abc.ABC):
         # RuntimeError avoids a stack trace saved in run_common.
         raise RuntimeError(err)
 
-    def run_telnet_client(self, host: str, port: int, active_sock=None) -> None:
+    def run_telnet_client(
+        self, host: str, port: int, active_sock=None,
+        send_on_connect: str | None = None,
+    ) -> None:
         '''
         Run a telnet client for user interaction.
+
+        :param send_on_connect: Send the given string right after connecting to
+                                the given socket. If provided, it will result in
+                                avoiding using `nc` as the client.
         '''
         # If the caller passed in an active socket, use that
         if active_sock is not None:
             sock = active_sock
-        elif shutil.which('nc') is not None:
+        elif send_on_connect is None and shutil.which('nc') is not None:
             # If a `nc` command is available, run it, as it will provide the
             # best support for CONFIG_SHELL_VT100_COMMANDS etc.
             client_cmd = ['nc', host, str(port)]
-            # Note: netcat (nc) does not handle sigint, so cannot use run_client()
+            # Note: netcat (nc) does not handle sigint, so cannot use check_call_ignore_sigint()
             self.check_call(client_cmd)
             return
         else:
@@ -958,20 +1061,141 @@ class ZephyrBinaryRunner(abc.ABC):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((host, port))
 
-        # Otherwise, use a pure python implementation. This will work well for logging,
-        # but input is line based only.
-        sel = selectors.DefaultSelector()
-        sel.register(sys.stdin, selectors.EVENT_READ)
-        sel.register(sock, selectors.EVENT_READ)
-        while True:
-            events = sel.select()
-            for key, _ in events:
-                if key.fileobj == sys.stdin:
-                    text = sys.stdin.readline()
-                    if text:
-                        sock.send(text.encode())
+        if send_on_connect is not None:
+            # Send the given string before entering the interactive mode
+            sock.sendall(send_on_connect.encode('ascii'))
 
-                elif key.fileobj == sock:
-                    resp = sock.recv(2048)
-                    if resp:
-                        print(resp.decode(), end='')
+        if platform.system() == 'Windows':
+            with self._windows_vt_console_mode():
+                self._threaded_telnet_client(sock)
+        else:
+            with self._unix_stdin_cbreak_mode():
+                self._threaded_telnet_client(sock)
+
+    @contextlib.contextmanager
+    def _unix_stdin_cbreak_mode(self):
+        import termios
+        import tty
+
+        fd = sys.stdin.fileno()
+        orig_attr = termios.tcgetattr(fd)  # type: ignore
+        try:
+            # Enable cbreak mode on the keyboard input, that way all shell editing
+            # commands (arrow keys, backspace, etc.) work as expected.
+            tty.setcbreak(fd)  # type: ignore
+            yield
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, orig_attr)  # type: ignore
+
+    @contextlib.contextmanager
+    def _windows_vt_console_mode(self):
+        import ctypes
+        from ctypes import byref, c_ulong
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+
+        # Console mode flag constants
+        ENABLE_PROCESSED_INPUT             = 0x0001
+        ENABLE_LINE_INPUT                  = 0x0002
+        ENABLE_ECHO_INPUT                  = 0x0004
+        ENABLE_VIRTUAL_TERMINAL_INPUT      = 0x0200
+        ENABLE_PROCESSED_OUTPUT            = 0x0001
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+
+        STD_INPUT_HANDLE  = -10
+        STD_OUTPUT_HANDLE = -11
+
+        stdin = kernel32.GetStdHandle(STD_INPUT_HANDLE)
+        stdout = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+
+        old_in_mode = c_ulong(0)
+        old_out_mode = c_ulong(0)
+        kernel32.GetConsoleMode(stdin, byref(old_in_mode))
+        kernel32.GetConsoleMode(stdout, byref(old_out_mode))
+
+        # Enable raw VT input: turn on VT translation and PROCESSED_INPUT,
+        # turn off LINE and ECHO so os.read() returns each character immediately.
+        in_mode = (
+            (old_in_mode.value | ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_PROCESSED_INPUT)
+            & ~ENABLE_LINE_INPUT
+            & ~ENABLE_ECHO_INPUT
+        )
+        kernel32.SetConsoleMode(stdin, in_mode)
+
+        # Enable VT output processing so ANSI sequences from the target render
+        # correctly.
+        out_mode = (
+            old_out_mode.value
+            | ENABLE_PROCESSED_OUTPUT
+            | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        )
+        kernel32.SetConsoleMode(stdout, out_mode)
+
+        try:
+            yield
+        finally:
+            kernel32.SetConsoleMode(stdin, old_in_mode.value)
+            kernel32.SetConsoleMode(stdout, old_out_mode.value)
+
+    def _threaded_telnet_client(self, sock: socket.socket) -> None:
+
+        stop_received = threading.Event()
+
+        def send_keyboard_input(stop_received: threading.Event):
+            stdin_fd = sys.stdin.fileno()
+
+            try:
+                while not stop_received.is_set():
+                    data = os.read(stdin_fd, 2048)
+                    if data and not stop_received.is_set():
+                        sock.sendall(data)
+            except OSError as e:
+                print('\n\nCommunication was closed, reason:', e)
+                stop_received.set()
+
+        def print_rtt_output(sock: socket.socket, mask):
+            _ = mask
+
+            resp = sock.recv(2048)
+            if resp:
+                print(resp.decode(errors='replace'), end='', flush=True)
+                return
+
+            print('\n\nConnection closed by the remote host, exiting!')
+            stop_received.set()
+
+        sel = selectors.DefaultSelector()
+
+        sel.register(sock, selectors.EVENT_READ, print_rtt_output)
+
+        # Mark the keyboard thread as a daemon so it does not prevent the
+        # process from exiting if it is still blocked in os.read() after the
+        # socket has been closed.
+        kb_thread = threading.Thread(target=send_keyboard_input,
+                                     args=(stop_received,), daemon=True)
+        kb_thread.start()
+
+        try:
+            while not stop_received.is_set():
+                # Below select() waits for the sock to become ready. Once it is, the
+                # callback (print_rtt_output) is called. The timeout is needed only on
+                # Windows, where signals are processed only _after_ the syscall
+                # finishes (on Linux signals interrupt the syscall). Here this is done
+                # specifically, so that the Ctrl+C combination is quickly processed,
+                # otherwise user would need to press another key (any one) for the
+                # KeyboardInterrupt to be raised.
+                events = sel.select(timeout=0.5)
+                for key, mask in events:
+                    callback = key.data
+                    callback(key.fileobj, mask)
+        except KeyboardInterrupt:
+            stop_received.set()
+        except OSError as e:
+            print('\n\nCommunication was closed, reason:', e)
+            stop_received.set()
+        finally:
+            with contextlib.suppress(Exception):
+                sel.unregister(sock)
+            with contextlib.suppress(OSError):
+                sock.close()
+            sel.close()

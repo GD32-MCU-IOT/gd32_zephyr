@@ -179,10 +179,8 @@ SECTIONS
 #endif
 
 #include <zephyr/linker/rel-sections.ld>
-
-#ifdef CONFIG_LLEXT
 #include <zephyr/linker/llext-sections.ld>
-#endif
+
   .ResetVector.text : ALIGN(4)
   {
     _ResetVector_text_start = ABSOLUTE(.);
@@ -382,10 +380,16 @@ SECTIONS
     KEEP (*(.fw_ready_metadata))
   } >sdram0 :sdram0_phdr
 
-  .noinit : ALIGN(4)
+  .noinit (NOLOAD) : ALIGN(4)
   {
     *(.noinit)
     *(.noinit.*)
+
+/* Located in generated directory. This file is populated by the
+ * zephyr_linker_sources() CMake function.
+ */
+#include <snippets-noinit.ld>
+
   } >sdram0 :sdram0_phdr
 
   .data : ALIGN(4)

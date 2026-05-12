@@ -5,13 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/devicetree.h>
-#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_native_posix_uart)
-#define DT_DRV_COMPAT zephyr_native_posix_uart
-#warning "zephyr,native-posix-uart is deprecated in favor of zephyr,native-pty-uart"
-#else
 #define DT_DRV_COMPAT zephyr_native_pty_uart
-#endif
 
 #include <stdbool.h>
 #include <zephyr/drivers/uart.h>
@@ -39,6 +33,10 @@
  * When connected to its own pseudo terminal, it may also auto attach a terminal emulator to it,
  * if set so from command line.
  */
+
+struct native_pty_config {
+	bool on_stdinout; /* Requested on stdin/out from DT */
+};
 
 struct native_pty_status {
 	int out_fd;       /* File descriptor used for output */
@@ -143,10 +141,14 @@ static DEVICE_API(uart, np_uart_driver_api) = {
 };
 
 #define NATIVE_PTY_INSTANCE(inst)                                        \
+	static struct native_pty_config native_pty_##inst##_cfg = {      \
+		.on_stdinout = DT_INST_PROP(inst, on_stdinout),          \
+	};                                                               \
 	static struct native_pty_status native_pty_status_##inst;        \
 								         \
 	DEVICE_DT_INST_DEFINE(inst, np_uart_init, NULL,                  \
-			      (void *)&native_pty_status_##inst, NULL,   \
+			      (void *)&native_pty_status_##inst,         \
+			      &native_pty_##inst##_cfg,                  \
 			      PRE_KERNEL_1, CONFIG_SERIAL_INIT_PRIORITY, \
 			      &np_uart_driver_api);
 
@@ -164,6 +166,7 @@ static int np_uart_init(const struct device *dev)
 
 	static bool stdinout_used;
 	struct native_pty_status *d;
+	const struct native_pty_config *dt_config = (const struct native_pty_config *)dev->config;
 
 	d = (struct native_pty_status *)dev->data;
 
@@ -176,7 +179,7 @@ static int np_uart_init(const struct device *dev)
 		first_node = false;
 	}
 
-	if (d->cmd_request_stdinout) {
+	if (d->cmd_request_stdinout || dt_config->on_stdinout) {
 		if (stdinout_used) {
 			nsi_print_warning("%s requested to connect to STDIN/OUT, but another UART"
 					  " is already connected to it => ignoring request.\n",
@@ -407,6 +410,11 @@ static void native_pty_uart_async_poll_function(void *arg1, void *arg2, void *ar
 			/* Sleep if RX not disabled and last read didn't result in any data */
 			k_sleep(K_MSEC(10));
 		}
+	}
+
+	if (data->async.user_callback) {
+		evt.type = UART_RX_DISABLED;
+		data->async.user_callback(data->async.dev, &evt, data->async.user_data);
 	}
 }
 

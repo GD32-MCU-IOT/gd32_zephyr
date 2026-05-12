@@ -6,8 +6,8 @@
 /dts-v1/;
 
 #include <renesas/ra/ra6/r7fa6m2af3cfb.dtsi>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/adc/adc.h>
 
 #include "ek_ra6m2-pinctrl.dtsi"
@@ -69,7 +69,7 @@
 	#size-cells = <0>;
 	interrupts = <91 1>, <92 1>, <93 1>, <94 1>;
 	interrupt-names = "rxi", "txi", "tei", "eri";
-	clock-frequency = <DT_FREQ_M(1)>;
+	clock-frequency = <I2C_BITRATE_FAST>;
 	pinctrl-0 = <&iic2_default>;
 	pinctrl-names = "default";
 };
@@ -139,7 +139,7 @@
 
 		storage_partition: partition@0 {
 			label = "storage";
-			reg = <0X0 DT_SIZE_K(32)>;
+			reg = <0x0 DT_SIZE_K(32)>;
 		};
 	};
 };

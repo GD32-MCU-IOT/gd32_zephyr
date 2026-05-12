@@ -146,7 +146,7 @@ static struct net_pkt *eth_stellaris_rx_pkt(const struct device *dev,
 	frame_len = reg_val & 0x0000ffff;
 
 	pkt = net_pkt_rx_alloc_with_buffer(iface, frame_len,
-					   AF_UNSPEC, 0, K_NO_WAIT);
+					   NET_AF_UNSPEC, 0, K_NO_WAIT);
 	if (!pkt) {
 		return NULL;
 	}
@@ -303,7 +303,8 @@ static void eth_stellaris_init(struct net_if *iface)
 }
 
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-static struct net_stats_eth *eth_stellaris_stats(const struct device *dev)
+static struct net_stats_eth *eth_stellaris_stats(const struct device *dev,
+						struct net_if *iface __unused)
 {
 	struct eth_stellaris_runtime *dev_data = dev->data;
 

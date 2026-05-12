@@ -16,9 +16,11 @@
 
 #include "eth_stm32_hal_priv.h"
 
+#define DT_DRV_COMPAT st_stm32_ethernet
+
 LOG_MODULE_REGISTER(eth_stm32_hal_ptp, CONFIG_ETHERNET_LOG_LEVEL);
 
-/* Naming of the  ETH PTP Config Status changes depending on the stm32 serie */
+/* Naming of the  ETH PTP Config Status changes depending on the stm32 series */
 #if defined(CONFIG_SOC_SERIES_STM32F4X)
 #define ETH_STM32_PTP_CONFIGURED HAL_ETH_PTP_CONFIGURATED
 #define ETH_STM32_PTP_NOT_CONFIGURED HAL_ETH_PTP_NOT_CONFIGURATED
@@ -29,7 +31,7 @@ LOG_MODULE_REGISTER(eth_stm32_hal_ptp, CONFIG_ETHERNET_LOG_LEVEL);
 
 bool eth_stm32_is_ptp_pkt(struct net_if *iface, struct net_pkt *pkt)
 {
-	if (ntohs(NET_ETH_HDR(pkt)->type) != NET_ETH_PTYPE_PTP) {
+	if (net_ntohs(NET_ETH_HDR(pkt)->type) != NET_ETH_PTYPE_PTP) {
 		return false;
 	}
 
@@ -48,7 +50,8 @@ void HAL_ETH_TxPtpCallback(uint32_t *buff, ETH_TimeStampTypeDef *timestamp)
 	net_if_add_tx_timestamp(ctx->pkt);
 }
 
-const struct device *eth_stm32_get_ptp_clock(const struct device *dev)
+const struct device *eth_stm32_get_ptp_clock(const struct device *dev,
+					     struct net_if *iface __unused)
 {
 	struct eth_stm32_hal_dev_data *dev_data = dev->data;
 
@@ -212,6 +215,72 @@ error:
 	return ret;
 }
 
+static void eth_stm32_ptp_enable_timestamping(ETH_HandleTypeDef *heth)
+{
+	/* Mask the Timestamp Trigger interrupt and enable timestamping */
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
+	heth->Instance->MACIER &= ~(ETH_MACIER_TSIE);
+	heth->Instance->MACTSCR |= ETH_MACTSCR_TSENA;
+#else
+	heth->Instance->MACIMR &= ~(ETH_MACIMR_TSTIM);
+	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSE;
+#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+}
+
+static void eth_stm32_ptp_set_addend(ETH_HandleTypeDef *heth, uint32_t addend_val)
+{
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
+	heth->Instance->MACTSAR = addend_val;
+	heth->Instance->MACTSCR |= ETH_MACTSCR_TSADDREG;
+	while (heth->Instance->MACTSCR & ETH_MACTSCR_TSADDREG_Msk) {
+		k_yield();
+	}
+#else
+	heth->Instance->PTPTSAR = addend_val;
+	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+	while (heth->Instance->PTPTSCR & ETH_PTPTSCR_TSARU_Msk) {
+		k_yield();
+	}
+#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+}
+
+static void eth_stm32_ptp_enable_fine_timestamp_update(ETH_HandleTypeDef *heth)
+{
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
+	heth->Instance->MACTSCR |= ETH_MACTSCR_TSCFUPDT;
+#else
+	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSFCU;
+#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+}
+
+static void eth_stm32_ptp_enable_nsec_rollover(ETH_HandleTypeDef *heth)
+{
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
+	heth->Instance->MACTSCR |= ETH_MACTSCR_TSCTRLSSR;
+#else
+	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSSSR;
+#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+}
+
+static void eth_stm32_ptp_init_timestamp(ETH_HandleTypeDef *heth)
+{
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
+	heth->Instance->MACSTSUR = 0;
+	heth->Instance->MACSTNUR = 0;
+	heth->Instance->MACTSCR |= ETH_MACTSCR_TSINIT;
+	while (heth->Instance->MACTSCR & ETH_MACTSCR_TSINIT_Msk) {
+		k_yield();
+	}
+#else
+	heth->Instance->PTPTSHUR = 0;
+	heth->Instance->PTPTSLUR = 0;
+	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+	while (heth->Instance->PTPTSCR & ETH_PTPTSCR_TSSTI_Msk) {
+		k_yield();
+	}
+#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+}
+
 static DEVICE_API(ptp_clock, api) = {
 	.set = ptp_clock_stm32_set,
 	.get = ptp_clock_stm32_get,
@@ -227,37 +296,22 @@ static int ptp_stm32_init(const struct device *port)
 	struct ptp_context *ptp_context = port->data;
 	ETH_HandleTypeDef *heth = &eth_dev_data->heth;
 	int ret;
-	uint32_t ptp_hclk_rate;
+	uint32_t ptp_clk_rate;
 	uint32_t ss_incr_ns;
 	uint32_t addend_val;
 
 	eth_dev_data->ptp_clock = port;
 	ptp_context->eth_dev_data = eth_dev_data;
 
-	/* Mask the Timestamp Trigger interrupt */
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-	heth->Instance->MACIER &= ~(ETH_MACIER_TSIE);
-#else
-	heth->Instance->MACIMR &= ~(ETH_MACIMR_TSTIM);
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+	eth_stm32_ptp_enable_timestamping(heth);
 
-	/* Enable timestamping */
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-	heth->Instance->MACTSCR |= ETH_MACTSCR_TSENA;
-#else
-	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSE;
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+	/* Query the MAC timestamp reference clock rate */
+	clock_control_subsys_t rate_clk = (void *)&eth_cfg->pclken[eth_cfg->rate_pclken_idx];
 
-	/* Query ethernet clock rate */
-	ret = clock_control_get_rate(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-				     (clock_control_subsys_t)&eth_cfg->pclken,
-#else
-				     (clock_control_subsys_t)&eth_cfg->pclken_ptp,
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
-				     &ptp_hclk_rate);
+	ret = clock_control_get_rate(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE), rate_clk,
+				     &ptp_clk_rate);
 	if (ret) {
-		LOG_ERR("Failed to query ethernet clock");
+		LOG_ERR("Failed to query PTP reference clock");
 		return -EIO;
 	}
 
@@ -279,59 +333,24 @@ static int ptp_stm32_init(const struct device *port)
 
 	/* Program timestamp addend register */
 	eth_dev_data->clk_ratio =
-		((double)CONFIG_ETH_STM32_HAL_PTP_CLOCK_SRC_HZ) / ((double)ptp_hclk_rate);
+		((double)CONFIG_ETH_STM32_HAL_PTP_CLOCK_SRC_HZ) / ((double)ptp_clk_rate);
 	/*
-	 * clk_ratio is a ratio between desired PTP clock frequency and HCLK rate.
-	 * Because HCLK is defined by a physical oscillator, it might drift due
-	 * to manufacturing tolerances and environmental effects (e.g. temperature).
-	 * It gets adjusted by calling ptp_clock_stm32_rate_adjust().
+	 * clk_ratio is the ratio between the desired PTP clock frequency and the
+	 * MAC timestamp reference clock. Because that reference is derived from a
+	 * physical oscillator, it might drift due to manufacturing tolerances and
+	 * environmental effects (e.g. temperature). It gets adjusted by calling
+	 * ptp_clock_stm32_rate_adjust().
 	 */
 	addend_val =
 		UINT32_MAX * eth_dev_data->clk_ratio;
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-	heth->Instance->MACTSAR = addend_val;
-	heth->Instance->MACTSCR |= ETH_MACTSCR_TSADDREG;
-	while (heth->Instance->MACTSCR & ETH_MACTSCR_TSADDREG_Msk) {
-		k_yield();
-	}
-#else
-	heth->Instance->PTPTSAR = addend_val;
-	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
-	while (heth->Instance->PTPTSCR & ETH_PTPTSCR_TSARU_Msk) {
-		k_yield();
-	}
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
 
-	/* Enable fine timestamp correction method */
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-	heth->Instance->MACTSCR |= ETH_MACTSCR_TSCFUPDT;
-#else
-	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSFCU;
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+	eth_stm32_ptp_set_addend(heth, addend_val);
 
-	/* Enable nanosecond rollover into a new second */
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-	heth->Instance->MACTSCR |= ETH_MACTSCR_TSCTRLSSR;
-#else
-	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSSSR;
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+	eth_stm32_ptp_enable_fine_timestamp_update(heth);
 
-	/* Initialize timestamp */
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet)
-	heth->Instance->MACSTSUR = 0;
-	heth->Instance->MACSTNUR = 0;
-	heth->Instance->MACTSCR |= ETH_MACTSCR_TSINIT;
-	while (heth->Instance->MACTSCR & ETH_MACTSCR_TSINIT_Msk) {
-		k_yield();
-	}
-#else
-	heth->Instance->PTPTSHUR = 0;
-	heth->Instance->PTPTSLUR = 0;
-	heth->Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
-	while (heth->Instance->PTPTSCR & ETH_PTPTSCR_TSSTI_Msk) {
-		k_yield();
-	}
-#endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_ethernet) */
+	eth_stm32_ptp_enable_nsec_rollover(heth);
+
+	eth_stm32_ptp_init_timestamp(heth);
 
 	/* Set PTP Configuration done */
 	heth->IsPtpConfigured = ETH_STM32_PTP_CONFIGURED;

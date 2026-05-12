@@ -13,6 +13,12 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/socket.h>
 
+#include <zephyr/posix/netinet/in.h>
+#include <zephyr/posix/sys/socket.h>
+#include <zephyr/posix/arpa/inet.h>
+#include <zephyr/posix/unistd.h>
+#include <zephyr/posix/poll.h>
+
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define MY_PORT          5000
@@ -131,7 +137,10 @@ int configure_encoder(void)
 	}
 
 	buffer->type = VIDEO_BUF_TYPE_OUTPUT;
-	video_enqueue(encoder_dev, buffer);
+	if (video_enqueue(encoder_dev, buffer)) {
+		LOG_ERR("Unable to enqueue encoder output buf");
+		return -1;
+	}
 
 	/* Set input format */
 	if (strcmp(CONFIG_VIDEO_PIXEL_FORMAT, "")) {
@@ -165,12 +174,22 @@ int encode_frame(struct video_buffer *in, struct video_buffer **out)
 	int ret;
 
 	in->type = VIDEO_BUF_TYPE_INPUT;
-	video_enqueue(encoder_dev, in);
+	ret = video_enqueue(encoder_dev, in);
+	if (ret) {
+		LOG_ERR("Unable to enqueue encoder input buf");
+		return ret;
+	}
 
 	(*out)->type = VIDEO_BUF_TYPE_OUTPUT;
 	ret = video_dequeue(encoder_dev, out, K_FOREVER);
 	if (ret) {
-		LOG_ERR("Unable to dequeue encoder buf");
+		LOG_ERR("Unable to dequeue encoder output buf");
+		return ret;
+	}
+
+	ret = video_dequeue(encoder_dev, &in, K_FOREVER);
+	if (ret) {
+		LOG_ERR("Unable to dequeue encoder input buf");
 		return ret;
 	}
 
@@ -403,6 +422,8 @@ int main(void)
 
 	/* Connection loop */
 	do {
+		bool disconnected = false;
+
 		LOG_INF("TCP: Waiting for client...");
 
 		client = accept(sock, (struct sockaddr *)&client_addr, &client_addr_len);
@@ -422,7 +443,11 @@ int main(void)
 
 		/* Enqueue Buffers */
 		for (i = 0; i < ARRAY_SIZE(buffers); i++) {
-			video_enqueue(video_dev, buffers[i]);
+			ret = video_enqueue(video_dev, buffers[i]);
+			if (ret) {
+				LOG_ERR("Unable to enqueue video buf");
+				return 0;
+			}
 		}
 
 		/* Start video capture */
@@ -446,27 +471,46 @@ int main(void)
 #if DT_HAS_CHOSEN(zephyr_videoenc)
 			encode_frame(vbuf, &vbuf_out);
 
+			vbuf->type = VIDEO_BUF_TYPE_INPUT;
+			ret = video_enqueue(video_dev, vbuf);
+			if (ret) {
+				LOG_ERR("Unable to enqueue video buf");
+				return 0;
+			}
+
 			LOG_INF("Sending compressed frame %d (size=%d bytes)", i++,
 				vbuf_out->bytesused);
 			/* Send compressed video buffer to TCP client */
 			ret = sendall(client, vbuf_out->buffer, vbuf_out->bytesused);
+			disconnected = ret && ret != -EAGAIN;
 
 			vbuf_out->type = VIDEO_BUF_TYPE_OUTPUT;
-			video_enqueue(encoder_dev, vbuf_out);
+			ret = video_enqueue(encoder_dev, vbuf_out);
+			if (ret) {
+				LOG_ERR("Unable to enqueue encoder output buf");
+				return 0;
+			}
+
 #else
 			LOG_INF("Sending frame %d", i++);
 			/* Send video buffer to TCP client */
 			ret = sendall(client, vbuf->buffer, vbuf->bytesused);
+			disconnected = ret && ret != -EAGAIN;
+
+			vbuf->type = VIDEO_BUF_TYPE_INPUT;
+			ret = video_enqueue(video_dev, vbuf);
+			if (ret) {
+				LOG_ERR("Unable to enqueue video buf");
+				return 0;
+			}
 #endif
-			if (ret && ret != -EAGAIN) {
+			if (disconnected) {
 				/* client disconnected */
 				LOG_ERR("TCP: Client disconnected %d", ret);
 				close(client);
 			}
 
-			vbuf->type = VIDEO_BUF_TYPE_INPUT;
-			(void)video_enqueue(video_dev, vbuf);
-		} while (!ret);
+		} while (!ret && !disconnected);
 
 		/* stop capture */
 		if (video_stream_stop(video_dev, type)) {

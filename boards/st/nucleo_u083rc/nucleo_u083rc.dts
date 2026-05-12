@@ -14,9 +14,6 @@
 	model = "STMicroelectronics STM32U83RC-NUCLEO board";
 	compatible = "st,stm32u083rc-nucleo";
 
-	#address-cells = <1>;
-	#size-cells = <1>;
-
 	chosen {
 		zephyr,console = &usart2;
 		zephyr,shell-uart = &usart2;
@@ -120,6 +117,7 @@
 	st,adc-clock-source = "ASYNC";
 	clocks = <&rcc STM32_CLOCK(APB1_2, 20)>,
 		 <&rcc STM32_SRC_HSI ADC_SEL(2)>;
+	clock-names = "adcx", "adc_ker";
 	st,adc-prescaler = <4>;
 	status = "okay";
 	vref-mv = <3300>;

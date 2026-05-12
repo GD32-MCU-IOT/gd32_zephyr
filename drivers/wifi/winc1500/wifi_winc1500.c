@@ -108,8 +108,6 @@ typedef struct {
 	struct sockaddr_in	strRemoteAddr;
 } tstrSocketRecvMsg;
 
-#include <driver/include/m2m_wifi.h>
-#include <socket/include/m2m_socket_host_if.h>
 
 #if defined(CONFIG_WIFI_WINC1500_REGION_NORTH_AMERICA)
 #define WINC1500_REGION		NORTH_AMERICA
@@ -289,7 +287,7 @@ static char *socket_message_to_string(uint8_t message)
 /**
  * This function is called when the socket is to be opened.
  */
-static int winc1500_get(sa_family_t family,
+static int winc1500_get(net_sa_family_t family,
 			enum net_sock_type type,
 			enum net_ip_protocol ip_proto,
 			struct net_context **context)
@@ -297,18 +295,18 @@ static int winc1500_get(sa_family_t family,
 	struct socket_data *sd;
 	SOCKET sock;
 
-	if (family != AF_INET) {
-		LOG_ERR("Only AF_INET is supported!");
+	if (family != NET_AF_INET) {
+		LOG_ERR("Only NET_AF_INET is supported!");
 		return -1;
 	}
 
-	/* winc1500 atmel uses AF_INET 2 instead of zephyrs AF_INET 1
-	 * we have checked if family is AF_INET so we can hardcode this
+	/* winc1500 atmel uses NET_AF_INET 2 instead of zephyrs NET_AF_INET 1
+	 * we have checked if family is NET_AF_INET so we can hardcode this
 	 * for now.
 	 */
 	sock = winc1500_socket(2, type, 0);
-	if (sock < 0) {
-		LOG_ERR("socket error!");
+	if (sock < 0 || sock >= CONFIG_WIFI_WINC1500_OFFLOAD_MAX_SOCKETS) {
+		LOG_ERR("socket error or out of bounds: %d", sock);
 		return -1;
 	}
 
@@ -326,8 +324,8 @@ static int winc1500_get(sa_family_t family,
  * This function is called when user wants to bind to local IP address.
  */
 static int winc1500_bind(struct net_context *context,
-			 const struct sockaddr *addr,
-			 socklen_t addrlen)
+			 const struct net_sockaddr *addr,
+			 net_socklen_t addrlen)
 {
 	SOCKET socket = (intptr_t)context->offload_context;
 	int ret;
@@ -383,8 +381,8 @@ static int winc1500_listen(struct net_context *context, int backlog)
  * to a peer host.
  */
 static int winc1500_connect(struct net_context *context,
-			    const struct sockaddr *addr,
-			    socklen_t addrlen,
+			    const struct net_sockaddr *addr,
+			    net_socklen_t addrlen,
 			    net_context_connect_cb_t cb,
 			    int32_t timeout,
 			    void *user_data)
@@ -485,8 +483,8 @@ out:
  * This function is called when user wants to send data to peer host.
  */
 static int winc1500_sendto(struct net_pkt *pkt,
-			   const struct sockaddr *dst_addr,
-			   socklen_t addrlen,
+			   const struct net_sockaddr *dst_addr,
+			   net_socklen_t addrlen,
 			   net_context_send_cb_t cb,
 			   int32_t timeout,
 			   void *user_data)
@@ -592,7 +590,7 @@ static int winc1500_put(struct net_context *context)
 	struct socket_data *sd = &w1500_data.socket_data[sock];
 	int ret;
 
-	memset(&(context->remote), 0, sizeof(struct sockaddr_in));
+	memset(&(context->remote), 0, sizeof(struct net_sockaddr_in));
 	context->flags &= ~NET_CONTEXT_REMOTE_ADDR_SET;
 	ret = winc1500_close(sock);
 
@@ -654,7 +652,7 @@ static void handle_wifi_con_state_changed(void *pvMsg)
 static void handle_wifi_dhcp_conf(void *pvMsg)
 {
 	uint8_t *pu8IPAddress = (uint8_t *)pvMsg;
-	struct in_addr addr;
+	struct net_in_addr addr;
 	uint8_t i;
 
 	/* Connected and got IP address*/
@@ -873,7 +871,7 @@ static void handle_socket_msg_accept(struct socket_data *sd, void *pvMsg)
 		accept_msg->strAddr.sin_addr.s4_addr[1],
 		accept_msg->strAddr.sin_addr.s4_addr[2],
 		accept_msg->strAddr.sin_addr.s4_addr[3],
-		ntohs(accept_msg->strAddr.sin_port),
+		net_ntohs(accept_msg->strAddr.sin_port),
 		accept_msg->sock);
 
 	if (accept_msg->sock < 0) {
@@ -891,8 +889,8 @@ static void handle_socket_msg_accept(struct socket_data *sd, void *pvMsg)
 
 		memcpy(a_sd, sd, sizeof(struct socket_data));
 
-		ret = net_context_get(AF_INET, SOCK_STREAM,
-				      IPPROTO_TCP, &a_sd->context);
+		ret = net_context_get(NET_AF_INET, NET_SOCK_STREAM,
+				      NET_IPPROTO_TCP, &a_sd->context);
 		if (ret < 0) {
 			LOG_ERR("Cannot get new net context for ACCEPT");
 			return;
@@ -910,7 +908,7 @@ static void handle_socket_msg_accept(struct socket_data *sd, void *pvMsg)
 		net_context_set_state(a_sd->context, NET_CONTEXT_CONNECTED);
 
 		/** Setup remote */
-		a_sd->context->remote.sa_family = AF_INET;
+		a_sd->context->remote.sa_family = NET_AF_INET;
 		net_sin(&a_sd->context->remote)->sin_port =
 			accept_msg->strAddr.sin_port;
 		net_sin(&a_sd->context->remote)->sin_addr.s_addr =
@@ -918,8 +916,8 @@ static void handle_socket_msg_accept(struct socket_data *sd, void *pvMsg)
 		a_sd->context->flags |= NET_CONTEXT_REMOTE_ADDR_SET;
 
 		sd->accept_cb(a_sd->context,
-			      (struct sockaddr *)&accept_msg->strAddr,
-			      sizeof(struct sockaddr_in),
+			      (struct net_sockaddr *)&accept_msg->strAddr,
+			      sizeof(struct net_sockaddr_in),
 			      (accept_msg->sock > 0) ?
 			      0 : accept_msg->sock,
 			      sd->accept_user_data);
@@ -985,12 +983,11 @@ static void winc1500_thread(void *p1, void *p2, void *p3)
 	}
 }
 
-static int winc1500_mgmt_scan(const struct device *dev,
-			      struct wifi_scan_params *params,
+static int winc1500_mgmt_scan(const struct device *dev __unused,
+			      struct net_if *iface __unused,
+			      struct wifi_scan_params *params __unused,
 			      scan_result_cb_t cb)
 {
-	ARG_UNUSED(params);
-
 	if (w1500_data.scan_cb) {
 		return -EALREADY;
 	}
@@ -1006,7 +1003,8 @@ static int winc1500_mgmt_scan(const struct device *dev,
 	return 0;
 }
 
-static int winc1500_mgmt_connect(const struct device *dev,
+static int winc1500_mgmt_connect(const struct device *dev __unused,
+				 struct net_if *iface __unused,
 				 struct wifi_connect_req_params *params)
 {
 	uint8_t ssid[M2M_MAX_SSID_LEN];
@@ -1052,7 +1050,8 @@ static int winc1500_mgmt_connect(const struct device *dev,
 	return 0;
 }
 
-static int winc1500_mgmt_disconnect(const struct device *dev)
+static int winc1500_mgmt_disconnect(const struct device *dev __unused,
+				    struct net_if *iface __unused)
 {
 	if (!w1500_data.connected) {
 		return -EALREADY;
@@ -1065,8 +1064,8 @@ static int winc1500_mgmt_disconnect(const struct device *dev)
 	return 0;
 }
 
-static int winc1500_mgmt_ap_enable(const struct device *dev,
-			      struct wifi_connect_req_params *params)
+static int winc1500_mgmt_ap_enable(const struct device *dev __unused, struct net_if *iface __unused,
+				   struct wifi_connect_req_params *params)
 {
 	tstrM2MAPConfig strM2MAPConfig;
 
@@ -1089,7 +1088,8 @@ static int winc1500_mgmt_ap_enable(const struct device *dev,
 	return 0;
 }
 
-static int winc1500_mgmt_ap_disable(const struct device *dev)
+static int winc1500_mgmt_ap_disable(const struct device *dev __unused,
+				    struct net_if *iface __unused)
 {
 	if (m2m_wifi_disable_ap() != M2M_SUCCESS) {
 		return -EIO;
@@ -1108,7 +1108,7 @@ static void winc1500_iface_init(struct net_if *iface)
 	net_if_set_link_addr(iface, w1500_data.mac, sizeof(w1500_data.mac),
 			     NET_LINK_ETHERNET);
 
-	iface->if_dev->offload = &winc1500_offload;
+	net_if_offload_set(iface, &winc1500_offload);
 
 	w1500_data.iface = iface;
 }

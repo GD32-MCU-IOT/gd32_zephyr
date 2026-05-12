@@ -21,6 +21,7 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/toolchain.h>
 
 #include "bstests.h"
 #include "common.h"
@@ -143,6 +144,8 @@ static void csip_sirk_changed_cb(struct bt_csip_set_coordinator_csis_inst *inst)
 static void csip_size_changed_cb(struct bt_conn *conn,
 				 const struct bt_csip_set_coordinator_csis_inst *inst)
 {
+	ARG_UNUSED(conn);
+
 	printk("Inst %p size changed: %u\n", inst, inst->info.set_size);
 
 	SET_FLAG(flag_size_changed);
@@ -152,7 +155,9 @@ static void csip_set_coordinator_ordered_access_cb(
 	const struct bt_csip_set_coordinator_set_info *set_info, int err,
 	bool locked,  struct bt_csip_set_coordinator_set_member *member)
 {
-	if (err) {
+	ARG_UNUSED(set_info);
+
+	if (err != 0) {
 		FAIL("Ordered access failed with err %d\n", err);
 	} else if (locked) {
 		printk("Ordered access procedure locked member %p\n", member);
@@ -177,6 +182,8 @@ static bool csip_set_coordinator_oap_cb(const struct bt_csip_set_coordinator_set
 					struct bt_csip_set_coordinator_set_member *members[],
 					size_t count)
 {
+	ARG_UNUSED(set_info);
+
 	for (size_t i = 0; i < count; i++) {
 		printk("Ordered access for members[%zu]: %p\n", i, members[i]);
 	}
@@ -199,10 +206,8 @@ static bool csip_found(struct bt_data *data, void *user_data)
 	if (primary_inst == NULL ||
 	    bt_csip_set_coordinator_is_set_member(primary_inst->info.sirk, data)) {
 		const bt_addr_le_t *addr = user_data;
-		char addr_str[BT_ADDR_LE_STR_LEN];
 
-		bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
-		printk("Found CSIP advertiser with address %s\n", addr_str);
+		printk("Found CSIP advertiser with address %s\n", bt_addr_le_str(addr));
 
 		if (is_discovered(addr)) {
 			printk("Set member already found\n");
@@ -242,6 +247,8 @@ static struct bt_le_scan_cb csip_set_coordinator_scan_callbacks = {
 
 static void discover_members_timer_handler(struct k_work *work)
 {
+	ARG_UNUSED(work);
+
 	if (primary_inst->info.set_size > 0) {
 		FAIL("Could not find all members (%u / %u)\n", members_found,
 		     primary_inst->info.set_size);
@@ -314,7 +321,6 @@ static void init(void)
 
 static void connect_set(void)
 {
-	char addr[BT_ADDR_LE_STR_LEN];
 	int err;
 
 	connected_member_count = 0U;
@@ -338,15 +344,14 @@ static void connect_set(void)
 		return;
 	}
 
-	bt_addr_le_to_str(&addr_found[0], addr, sizeof(addr));
 	err = bt_conn_le_create(&addr_found[0], BT_CONN_LE_CREATE_CONN, BT_BAP_CONN_PARAM_RELAXED,
 				&conns[0]);
 	if (err != 0) {
-		FAIL("Failed to connect to %s: %d\n", err);
+		FAIL("Failed to connect to %s: %d\n", bt_addr_le_str(&addr_found[0]), err);
 
 		return;
 	}
-	printk("Connecting to %s\n", addr);
+	printk("Connecting to %s\n", bt_conn_dst_str(conns[0]));
 
 	WAIT_FOR_FLAG(flag_connected);
 	connected_member_count++;
@@ -385,19 +390,17 @@ static void connect_set(void)
 	}
 
 	for (uint8_t i = 1; i < members_found; i++) {
-		bt_addr_le_to_str(&addr_found[i], addr, sizeof(addr));
-
 		UNSET_FLAG(flag_connected);
-		printk("Connecting to member[%d] (%s)", i, addr);
+		printk("Connecting to member[%d] (%s)", i, bt_addr_le_str(&addr_found[i]));
 		err = bt_conn_le_create(&addr_found[i], BT_CONN_LE_CREATE_CONN,
 					BT_LE_CONN_PARAM_DEFAULT, &conns[i]);
 		if (err != 0) {
-			FAIL("Failed to connect to %s: %d\n", addr, err);
+			FAIL("Failed to connect to %s: %d\n", bt_addr_le_str(&addr_found[i]), err);
 
 			return;
 		}
 
-		printk("Connected to %s\n", addr);
+		printk("Connected to %s\n", bt_conn_dst_str(conns[i]));
 		WAIT_FOR_FLAG(flag_connected);
 		connected_member_count++;
 
@@ -409,12 +412,9 @@ static void connect_set(void)
 static void disconnect_set(void)
 {
 	for (uint8_t i = 0; i < connected_member_count; i++) {
-		char addr[BT_ADDR_LE_STR_LEN];
 		int err;
 
-		bt_addr_le_to_str(&addr_found[i], addr, sizeof(addr));
-
-		printk("Disconnecting member[%u] (%s)", i, addr);
+		printk("Disconnecting member[%u] (%s)", i, bt_addr_le_str(&addr_found[i]));
 		err = bt_conn_disconnect(conns[i], BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 		(void)memset(&set_members[i], 0, sizeof(set_members[i]));
 		if (err != 0) {

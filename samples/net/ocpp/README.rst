@@ -26,6 +26,37 @@ Requirements
 - SteVe Demo Server (<https://github.com/steve-community/steve/blob/master/README.md>)
 - LAN for testing purposes (Ethernet)
 
+Configuration
+*************
+
+The sample application supports several configuration options that can be set
+via Kconfig:
+
+- ``CONFIG_NET_SAMPLE_OCPP_SERVER``: OCPP central system server IP address
+
+- ``CONFIG_NET_SAMPLE_OCPP_PORT``: OCPP central system server port number
+
+- ``CONFIG_NET_SAMPLE_OCPP_WS_PATH``: WebSocket URL path.
+
+- ``CONFIG_NET_SAMPLE_SNTP_SERVER``: SNTP server IP address to get the time
+  from network
+
+Generating keys and certificate for TLS (Optional):
+***************************************************
+
+- Generate a ECDSA Private key using OpenSSL:
+
+   .. code-block:: console
+
+      openssl ecparam -name prime256v1 -genkey -noout -out ec-priv.key
+
+- Generate a self-signed certificate using OpenSSL:
+
+   .. code-block:: console
+
+      openssl req -new -x509 -key ec-priv.key -days 3650 \
+      -subj "/CN=localhost" -outform PEM -out ec.crt
+
 Building and Running
 ********************
 

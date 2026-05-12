@@ -202,7 +202,7 @@ testing:
   testing relating keywords to provide best coverage for the features of this
   board.
 
-.. _twister_default_testing_board:
+  .. _twister_default_testing_board:
 
   binaries:
     A list of custom binaries to be kept for device testing.
@@ -215,14 +215,18 @@ testing:
     tags.
   only_tags:
     Only execute tests with this list of tags on a specific platform.
-
-  .. _twister_board_timeout_multiplier:
-
   timeout_multiplier: <float> (default 1)
+    .. _twister_board_timeout_multiplier:
+
     Multiply each test scenario timeout by specified ratio. This option allows to tune timeouts only
     for required platform. It can be useful in case naturally slow platform I.e.: HW board with
     power-efficient but slow CPU or simulation platform which can perform instruction accurate
     simulation but does it slowly.
+
+  flash_before: [True|False] (default False)
+    For pytest/shell harness hardware testing, flash the device before opening the serial port.
+    This prevents serial port disconnection issues during flashing on some boards (e.g., those
+    with USB CDC that reset during flash operations).
 
 env:
   A list of environment variables. Twister will check if all these environment variables are set,
@@ -233,7 +237,7 @@ env:
 .. _twister_tests_long_version:
 
 Tests
-******
+*****
 
 Tests are detected by the presence of a ``testcase.yaml`` or a ``sample.yaml``
 files in the application's project directory. This test application
@@ -300,9 +304,6 @@ The ``--no-detailed-test-id`` command line option modifies the above rules in th
 
 #. With short Test Suite names in this mode, all corresponding Test Scenario names
    must be unique for the Twister execution scope.
-
-#. **Ztest** Test Case names have only Ztest components ``<Ztest suite name>.<Ztest test name>``.
-   Its parent Test Suite name equals to the corresponding Test Scenario identifier.
 
 
 The following is an example test configuration with a few options that are
@@ -561,6 +562,7 @@ harness: <string>
     - ctest
     - shell
     - power
+    - display_capture
 
     See :ref:`twister_harnesses` for more information.
 
@@ -592,16 +594,13 @@ harness_config: <harness configuration options>
     only those platforms that fulfill this external dependency.
 
 
-    fixture: <expression>
+    fixture: <string or list>
         Specify a test scenario dependency on an external device(e.g., sensor),
         and identify setups that fulfill this dependency. It depends on
         specific test setup and board selection logic to pick the particular
         board(s) out of multiple boards that fulfill the dependency in an
         automation setup based on ``fixture`` keyword. Some sample fixture names
         are i2c_hts221, i2c_bme280, i2c_FRAM, ble_fw and gpio_loop.
-
-        Only one fixture can be defined per test scenario and the fixture name has to
-        be unique across all tests in the test suite.
 
     ztest_suite_repeat: <int> (default 1)
         This parameter specifies the number of times the entire test suite should be repeated.
@@ -665,7 +664,11 @@ filter: <expression>
             }
 
     Twister will first evaluate the expression to find if a "limited" cmake call, i.e. using package_helper cmake script,
-    can be done. Existence of "dt_*" entries indicates devicetree is needed.
+    can be done.
+
+    Existence of "dt_*" entries indicates devicetree is needed. Refer to :ref:`twister_dt_filter_expressions`
+    for detailed description of the different DT expressions available.
+
     Existence of "CONFIG*" entries indicates kconfig is needed.
     If there are no other types of entries in the expression a filtration can be done without creating a complete build system.
     If there are entries of other types a full cmake is required.
@@ -746,6 +749,8 @@ required_snippets: <list of needed snippets>
               - cdc-acm-console
               - user-snippet-example
 
+.. _required_applications:
+
 required_applications: <list of required applications> (default empty)
     Specify a list of test applications that must be built before current test can run.
     It enables sharing of built applications between test scenarios, allowing tests
@@ -781,7 +786,9 @@ required_applications: <list of required applications> (default empty)
           sample.shared_app:
             build_only: true
 
-    Limitations: Not supported with ``--subset`` or ``--runtime-artifact-cleanup`` options.
+    Limitations: Not supported with the ``--runtime-artifact-cleanup`` option,
+    as build artifacts of required applications must be retained for use
+    by the main test application.
 
 expect_reboot: <True|False> (default False)
     Notify twister that the test scenario is expected to reboot while executing.
@@ -803,6 +810,119 @@ To load arguments from a file, add ``+`` before the file name, e.g.,
 line break instead of white spaces.
 
 Most everyday users will run with no arguments.
+
+.. _twister_dt_filter_expressions:
+
+Devicetree Filtering Expressions
+================================
+
+Expressions starting with "dt_*" are used to filter boards based on specific
+devicetree properties, such as compatibles, aliases, node labels, node
+properties, chosen nodes, etc. when selecting test scenarios.
+
+.. note::
+
+   The source code for these expressions can be found at
+   :zephyr_file:`scripts/pylib/twister/expr_parser.py`.
+
+Expressions
+-----------
+
+``dt_compat_enabled(compat)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if any DT node with the specified compatible string (``compat``) is enabled.
+
+**Parameters:**
+   - ``compat``: The compatible string to match.
+
+``dt_alias_exists(alias)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if any DT node with the specified alias exists and is enabled.
+
+**Parameters:**
+   - ``alias``: The alias (defined in ``aliases`` node) to match.
+
+``dt_enabled_alias_with_parent_compat(alias, compat)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if the DT has an enabled alias node whose parent has the specified compatible string.
+   Useful for nodes like ``gpio-leds`` child nodes, which may not have their own compatible.
+
+**Parameters:**
+   - ``alias``: The alias (defined in ``aliases`` node) to match.
+   - ``compat``: The parent node’s compatible string to match.
+
+``dt_label_with_parent_compat_enabled(label, compat)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if a DT node with the specified label exists, is enabled, and its parent has the
+   specified compatible string.
+
+**Parameters:**
+   - ``label``: The node label to match.
+   - ``compat``: The parent node’s compatible string to match.
+
+``dt_chosen_enabled(chosen)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if a DT chosen property with the specified name exists and the node assigned to it
+   is enabled.
+
+**Parameters:**
+   - ``chosen``: The name of the chosen property.
+
+``dt_nodelabel_enabled(label)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if a DT node with the specified label exists and is enabled.
+
+**Parameters:**
+   - ``label``: The node label to match.
+
+``dt_nodelabel_prop_enabled(label, prop)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if a DT node with the specified label exists, is enabled, and has the specified property
+   with a non-empty value.
+
+**Parameters:**
+   - ``label``: The node label to match.
+   - ``prop``: The node's property to check.
+
+``dt_node_has_prop(node_id, prop)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Purpose:**
+   Checks if a DT node (specified by alias or path) has the specified property, regardless of its
+   status. Useful for nodes that do not have a status, like ``zephyr,user`` node.
+
+**Parameters:**
+   - ``node_id``: The node alias (defined in ``aliases`` node) or node path to match.
+   - ``prop``: The node's property to check.
+
+Usage
+-----
+
+These expressions are used in Twister’s test scenarios filtering logic to select boards that match
+specific DT conditions. For example:
+
+.. code-block:: yaml
+
+   tests:
+     - test: my_test
+       filter: dt_compat_enabled("my-compat-string")
+
+The test scenario ``my_test`` will only build for boards where a DT node with ``my-compat-string``
+is enabled.
 
 .. _twister_harnesses:
 
@@ -920,6 +1040,92 @@ pytest_dut_scope: <function|class|module|package|session> (default function)
               - test_file_2.py::test_A
               - test_file_2.py::test_B[param_a]
 
+.. _required_devices:
+
+required_devices: <list of required device entries> (default empty)
+    Specify additional DUTs required for a multi-DUT test scenario.
+    Each entry configures one extra device to reserve and flash alongside
+    the main DUT. An empty entry ``{}`` reserves a second device with
+    the same platform and application as the main DUT.
+
+    Multi-DUT testing is supported for hardware device testing and
+    ``native_sim`` simulation. QEMU
+    is not supported. For simulation targets, Twister
+    automatically creates the required placeholder DUT entries, no
+    hardware map is needed. For hardware testing, provide a hardware map
+    file (``--hardware-map``) with a matching entry per required device.
+    More details in
+    :ref:`twister_multi_duts_testing` section.
+
+    Each entry supports the following optional fields:
+
+
+    platform: <string> (optional, defaults to current test's platform)
+        Platform to use for this required device. If not specified,
+        the same platform as the main DUT is used.
+
+    application: <string> (optional, defaults to current test application)
+        Test application ID to flash on this required device. When
+        specified, Twister builds the application separately and assigns its build
+        directory to the reserved DUT before flashing.
+        If not specified, the same application as the main DUT is used.
+
+        It uses same mechanism as :ref:`required_applications <required_applications>`,
+        so the application must be available in the source tree.
+
+    fixture: <list of fixture names> (optional, defaults to empty)
+        List of fixture names that must be present on the reserved device.
+        See :ref:`Fixtures <twister_fixtures>` for details.
+
+        Fixtures support an optional parameter suffix using the ``name:param``
+        syntax (e.g., ``io_adapter:channel_a``). When the main DUT has a fixture
+        with a parameter, Twister uses that parameter value to match required
+        devices - only devices carrying the **same parameter** for that fixture
+        name are considered. This ensures that physically connected DUT pairs
+        (e.g., two boards wired together and registered with the same fixture
+        parameter in the hardware map) are always reserved together and not
+        mixed with unrelated boards.
+
+        Example hardware map entries for a paired setup:
+
+        .. code-block:: yaml
+
+            - id: 01
+              platform: nrf52840dk/nrf52840
+              serial: /dev/ttyACM0
+              fixtures:
+                - io_adapter:channel_a
+            - id: 02
+              platform: nrf52840dk/nrf52840
+              serial: /dev/ttyACM1
+              fixtures:
+                - io_adapter:channel_a
+
+        With ``fixture: [io_adapter]`` on both the main DUT and the required
+        device, Twister selects only boards sharing the same ``channel_a``
+        parameter, guaranteeing the physically paired boards are picked.
+
+
+    Example configurations with multiple required devices:
+
+    .. code-block:: yaml
+
+        tests:
+          # Two DUTs, same platform and application
+          multidut.basic:
+            harness_config:
+              required_devices:
+                - {}
+          # Second DUT fixed to a specific platform
+          multidut.fixed_platform:
+            harness_config:
+              required_devices:
+                - platform: nrf52840dk/nrf52840
+          # Second DUT flashed with a different application
+          multidut.other_app:
+            harness_config:
+              required_devices:
+                - application: multidut.basic
 
 .. _twister_console_harness:
 
@@ -1066,6 +1272,193 @@ The harness executes the following steps:
 - **num_of_transitions** – Expected number of power state transitions in the DUT during test execution.
 - **expected_rms_values** – Target RMS values for each identified execution phase (in milliamps).
 - **tolerance_percentage** – Allowed deviation percentage from the expected RMS values.
+
+.. _twister_display_capture_harness:
+
+Display capture
+===============
+
+The ``display_capture`` harness is used to verify display driver functionality by capturing and
+analyzing display output using a camera. It integrates with pytest to perform automated visual
+testing using video fingerprints.
+
+.. figure:: figures/twister_display_capture_success.webp
+   :align: center
+   :alt: A window showing a camera preview of a device display with colored blocks in the corners,
+         with a text overlay indicating a successful test match.
+
+   Window being displayed for a "compare" run where fingerprint is a 90% match with the reference.
+
+Hardware setup
+--------------
+
+The display capture harness requires:
+
+- UVC compatible camera with at least 2 megapixels (e.g., 1080p resolution)
+- Light-blocking enclosure or black curtain to ensure consistent lighting
+- PC host with camera connection for capturing display output
+- DUT connected to the same PC for flashing and serial console access
+
+Configuration
+-------------
+
+The harness uses a YAML configuration file that defines camera settings, test parameters, and video
+signature analysis options. A typical configuration is shown below:
+
+.. code-block:: yaml
+   :caption: display_config.yaml
+
+    case_config:
+      device_id: 0
+      res_x: 1280
+      res_y: 720
+      fps: 30
+      run_time: 20
+    tests:
+      timeout: 30
+      prompt: "screen starts"
+      expect: ["tests.drivers.display.check.shield"]
+    plugins:
+      - name: signature
+        module: plugins.signature_plugin
+        class: VideoSignaturePlugin
+        status: enable
+        config:
+          operations: "compare"  # or "generate"
+          metadata:
+            name: "tests.drivers.display.check.shield"
+            platform: "frdm_mcxn947"
+          directory: "./fingerprints"
+          duration: 100
+          method: "combined"
+          threshold: 0.65
+          phash_weight: 0.35
+          dhash_weight: 0.25
+          histogram_weight: 0.2
+          edge_ratio_weight: 0.1
+          gradient_hist_weight: 0.1
+
+- ``case_config`` - This section defines to the general camera settings and duration of the test.
+
+  - ``device_id`` - The camera device ID (defaults to 0). Any valid OpenCV camera identifier, which
+    can be:
+
+    - An integer for local cameras (use 0 for the first camera, 1 for the second, etc).
+    - A device path string such as ``/dev/video0`` on Linux.
+    - An IP video stream URL such as ``rtsp://192.168.1.100:8554/stream`` for network cameras.
+
+  - ``res_x`` - The horizontal resolution of the camera (integer, defaults to 1280).
+  - ``res_y`` - The vertical resolution of the camera (integer, defaults to 720).
+  - ``fps`` - The frames per second of the camera (integer, defaults to 30).
+  - ``run_time`` - The duration of the test in seconds (integer, defaults to 20).
+
+- ``test`` - This section contains the test configuration for device interaction.
+
+  - ``timeout`` - Maximum time in seconds to wait for the prompt to appear on the device UART
+    output (integer, defaults to 30).
+  - ``prompt`` - The string pattern to wait for in the device UART output before starting the
+    display capture. This can be a regular expression (string, defaults to ``uart:~$``).
+  - ``expect`` - A list of expected test result strings that must match the results returned by
+    the application. The test passes if the captured results match this list (list of strings,
+    defaults to ``['PASS']``).
+
+- ``plugins`` - This section contains the configuration for the plugins processing the camera
+  frames. Only the ``VideoSignaturePlugin`` plugin is currently supported, and it takes the
+  following configuration options:
+
+  - ``operations`` - The operation to perform when running the test (string). Must be set to either
+    ``generate`` to capture fingerprints or ``compare`` to compare the captured fingerprints with
+    the reference fingerprints.
+  - ``metadata`` - Metadata information for fingerprint identification (optional).
+
+    - ``name`` - Test case name identifier (string).
+    - ``platform`` - Target platform identifier (string).
+
+  - ``directory`` - The directory where the fingerprints are stored (string, defaults to
+    ``./fingerprints``).
+  - ``duration`` - The number of frames to analyze (integer). More frames takes longer but generate
+    more accurate fingerprints).
+  - ``method`` - The method used to generate display fingerprints (string, defaults to
+    ``combined``). Must be set to either of the following values: ``phash``, ``dhash``,
+    ``histogram``, or ``combined``.
+
+    ``phash`` (Perceptual Hash)
+      Captures overall visual structure and layout. Best for detecting major rendering issues, e.g.
+      UI elements being positioned incorrectly.
+    ``dhash`` (Difference Hash)
+      Detects brightness patterns and gradients. Sensitive to contrast changes, e.g. brightness or
+      contrast problems.
+    ``histogram`` (Color Histogram)
+      Analyzes color distribution. Fast at detecting obvious color problems, e.g. color swap bugs.
+    ``combined`` (recommended method)
+      Weights all methods together ( see :samp:`{method}_weight` option below ) for robust
+      comparison. Provides balanced detection of both major and subtle visual issues.
+
+  - ``threshold`` - The similarity score above which it is considered that there is a match between
+    the reference and the captured fingerprints (optional float, defaults to 0.65).
+  - ``phash_weight`` - The weight for the phash method (optional float, defaults to 0.35)
+  - ``dhash_weight`` - The weight for the dhash method (optional float, defaults to 0.25)
+  - ``histogram_weight`` - The weight for the histogram method (optional float, defaults to 0.2)
+  - ``gradient_hist_weight`` - The weight for the gradient histogram method (optional float, defaults to 0.1)
+  - ``edge_ratio_weight`` - The weight for the edge ratio method (optional float, defaults to 0.1)
+
+The configuration file path is specified in the test's ``testcase.yaml`` via the
+``display_capture_config`` harness configuration option using the :envvar:`DISPLAY_TEST_DIR`
+environment variable:
+
+.. code-block:: yaml
+
+    harness: display_capture
+    harness_config:
+      pytest_dut_scope: session
+      fixture: fixture_display
+      display_capture_config: "${DISPLAY_TEST_DIR}/display_config.yaml"
+
+Workflow
+--------
+
+First, generate **reference fingerprints** for a known-good display output:
+
+.. code-block:: bash
+
+    # Build and flash the display test
+    west build -b <board> tests/drivers/display/display_check
+    west flash
+
+    # Configure for fingerprint generation mode by setting the 'operations' field to 'generate'
+    # in the configuration file.
+
+    # Generate fingerprints
+    export DISPLAY_TEST_DIR=<path-to-config-directory>
+    scripts/twister --device-testing --hardware-map map.yml \
+        -T tests/drivers/display/display_check/
+
+Fingerprints are stored in the directory specified in the ``directory`` field of the configuration
+file, and organized by test name and platform as defined in the ``metadata`` field of the
+configuration file.
+
+Once the fingerprints have been generated, you can run the test(s) again, this time in **comparison
+mode**:
+
+.. code-block:: bash
+
+    # Set the 'operations' field to 'compare' in the configuration file.
+
+    export DISPLAY_TEST_DIR=<path-to-fingerprints-parent-directory>
+    scripts/twister --device-testing --hardware-map map.yml \
+        -T tests/drivers/display/display_check/
+
+The harness compares captured video against reference fingerprints using the configured signature
+methods and thresholds. If the similarity score between reference and captured fingerprints exceeds
+the configured ``threshold``, the test passes.
+
+.. note::
+
+   - The test name in the DUT's ``testcase.yaml`` must match the ``name`` field in the fingerprint's
+     metadata configuration.
+   - Multiple fingerprints can be stored in one directory for comprehensive validation, though this
+     increases comparison time.
+   - Fingerprints are specific to both the test scenario and platform.
 
 .. _twister_bsim_harness:
 
@@ -1235,7 +1628,7 @@ reports for each run with detailed FAIL/PASS results.
 
 
 Executing tests on a single device
-===================================
+==================================
 
 To use this feature on a single connected device, run twister with
 the following new options:
@@ -1259,6 +1652,9 @@ the following new options:
 The ``--device-serial`` option denotes the serial device the board is connected to.
 This needs to be accessible by the user running twister. You can run this on
 only one board at a time, specified using the ``--platform`` option.
+If the platform supports multiple serial ports, you can provide ``--device-serial``
+multiple times, and it will be passed to the pytest harness. Alternatively you can use
+the hardware map, see :ref:`multi-core testing <twister_multi_core_testing>` for more details
 
 The ``--device-serial-baud`` option is only needed if your device does not run at
 115200 baud.
@@ -1507,8 +1903,10 @@ Would result in calling ``./custom_flash_script.py
 --build-dir <build directory> --board-id <board identification>
 --flag "complex, argument"``.
 
+.. _twister_fixtures:
+
 Fixtures
-+++++++++
+--------
 
 Some tests require additional setup or special wiring specific to the test.
 Running the tests without this setup or test fixture may fail. A test scenario can
@@ -1546,7 +1944,7 @@ fixture name by a ``:``. Only the fixture name is matched against the fixtures
 requested by test scenarios.
 
 Notes
-+++++
+-----
 
 It may be useful to annotate board descriptions in the hardware map file
 with additional information.  Use the ``notes`` keyword to do this.  For
@@ -1569,7 +1967,7 @@ example:
       serial: null
 
 Overriding Board Identifier
-+++++++++++++++++++++++++++
+---------------------------
 
 When (re-)generated the hardware map file will contain an ``id`` keyword
 that serves as the argument to ``--board-id`` when flashing.  In some
@@ -1588,7 +1986,7 @@ using an external J-Link probe.  The ``probe_id`` keyword overrides the
       serial: null
 
 Using Single Board For Multiple Variants
-++++++++++++++++++++++++++++++++++++++++
+----------------------------------------
 
   The ``platform`` attribute can be a list of names or a string
   with names separated by spaces. This allows to run tests for
@@ -1606,8 +2004,97 @@ Using Single Board For Multiple Variants
       runner: nrfjprog
       serial: /dev/ttyACM1
 
+.. _twister_multi_core_testing:
+
+Multi-Core testing support
+--------------------------
+
+Twister supports testing multi-core applications where different cores use
+separate UART interfaces. This feature works only with the pytest harness
+(``harness: pytest``). Generated hardware map should contain multiple entries
+for the same physical device, each representing a different core connection.
+For example:
+
+.. code-block:: yaml
+
+    - connected: true
+      id: 001234567890
+      serial: /dev/ttyACM0
+    - connected: true
+      id: 001234567890
+      platform:
+      - nrf54l15dk/nrf54l15/cpuapp
+      product: J-Link
+      runner: nrfutil
+      serial: /dev/ttyACM1
+
+Both instances share the same device ID but have different serial ports, allowing
+tests to interact with multiple cores simultaneously. Each connection
+is handled independently with separate log files.
+
+.. _twister_multi_duts_testing:
+
+Multi-DUTs testing support
+--------------------------
+
+Twister supports test scenarios that require more than one device.
+This feature works only with the pytest harness (``harness: pytest``).
+Hardware and ``native_sim`` execution environments are supported.
+
+To declare that a test needs an additional device, add
+``required_devices`` under ``harness_config`` in the test's YAML file.
+Each entry in the list describes one extra DUT. An empty entry ``{}``
+reserves a second device with the same platform and application as the
+main DUT. See :ref:`required_devices <required_devices>` for all available options.
+
+Example test configuration:
+
+.. code-block:: yaml
+
+    tests:
+      multidut.basic:
+        harness: pytest
+        harness_config:
+          required_devices:
+            - {}
+
+The hardware map must contain at least one entry per required device.
+Each entry needs a matching platform and a serial connection:
+
+.. code-block:: yaml
+
+    - connected: true
+      id: 01
+      platform: nrf52840dk/nrf52840
+      serial: /dev/ttyACM0
+    - connected: true
+      id: 02
+      platform: nrf52840dk/nrf52840
+      serial: /dev/ttyACM1
+
+Run the test on hardware with:
+
+.. code-block:: console
+
+    $ west twister -vv -ll debug -T tests/subsys/testsuite/multidut \
+      --device-testing --hardware-map map.yaml
+
+Run the test on ``native_sim`` (no hardware map required):
+
+.. code-block:: console
+
+    $ west twister -vv -ll debug -T tests/subsys/testsuite/multidut -p native_sim
+
+Twister reserves all required devices (or creates placeholder entries if ``native_sim`` is used),
+then passes them to pytest with all necessary information
+(platform, serial connection, build artifacts to flash, etc.) so the
+test can interact with all devices.
+
+An example multi-DUT test can be found at
+:zephyr_file:`tests/subsys/testsuite/multidut`.
+
 Quarantine
-++++++++++
+----------
 
 Twister allows user to provide configuration files defining a list of tests or
 platforms to be put under quarantine. Such tests will be skipped and marked

@@ -1838,6 +1838,9 @@ This has been fixed in main for v4.0.0
 - `PR 81370 fix for 3.7
   <https://github.com/zephyrproject-rtos/zephyr/pull/81370>`_
 
+CVE-2025
+========
+
 :cve:`2025-1673`
 ----------------
 
@@ -1999,3 +2002,281 @@ This has been fixed in main for v4.2.0
 
 - `PR 93174 fix for main
   <https://github.com/zephyrproject-rtos/zephyr/pull/93174>`_
+
+:cve:`2025-9408`
+----------------
+
+Userspace privilege escalation vulnerability on Cortex M
+
+System call entry on Cortex M (and possibly R and A, but I think not) has a race which allows very
+practical privilege escalation for malicious userspace processes.
+
+
+- `Zephyr project bug tracker GHSA-3r6j-5mp3-75wr
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-3r6j-5mp3-75wr>`_
+
+This has been fixed in main for v4.3.0
+
+- `PR 95101 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/95101>`_
+- `PR 96850 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/96850>`_
+
+- `PR 96014 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/96014>`_
+- `PR 97306 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97306>`_
+
+- `PR 96015 fix for 4.1
+  <https://github.com/zephyrproject-rtos/zephyr/pull/96015>`_
+- `PR 97305 fix for 4.1
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97305>`_
+
+- `PR 96030 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/96030>`_
+- `PR 97313 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97313>`_
+
+:cve:`2025-9557`
+----------------
+
+Bluetooth: Mesh: Out-of-Bound Write in gen_prov_cont
+
+An out-of-bound write can lead to an arbitrary code execution. Even on
+devices with some form of memory protection, this can still lead to a
+crash and a resultant denial of service.
+
+- `Zephyr project bug tracker GHSA-r3j3-c5v7-2ppf
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-r3j3-c5v7-2ppf>`_
+
+This has been fixed in main for v4.3.0
+
+- `PR 95061 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/95061>`_
+
+- `PR 97518 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97518>`_
+
+- `PR 97517 fix for 4.1
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97517>`_
+
+:cve:`2025-9558`
+----------------
+
+Bluetooth: Mesh: Out-of-Bound Write in gen_prov_start
+
+There is a potential OOB Write vulnerability in the gen_prov_start
+function in pb_adv.c. The full length of the received data is copied
+into the link.rx.buf receiver buffer without any validation on the
+data size.
+
+- `Zephyr project bug tracker GHSA-8wvr-688x-68vr
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-8wvr-688x-68vr>`_
+
+This has been fixed in main for v4.3.0
+
+- `PR 95064 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/95064>`_
+
+- `PR 97520 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97520>`_
+
+- `PR 97519 fix for 4.1
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97519>`_
+
+
+:cve:`2025-12035`
+-----------------
+
+Bluetooth: Integer Overflow in Bluetooth Classic (BR/EDR) L2CAP
+
+An integer overflow condition exists in Bluetooth Host stack, within the bt_br_acl_recv routine a
+critical path for processing inbound BR/EDR L2CAP traffic.
+
+
+- `Zephyr project bug tracker GHSA-p793-3456-h7w3
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-p793-3456-h7w3>`_
+
+This has been fixed in main for v4.3.0
+
+- `PR 97370 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/97370>`_
+
+
+:cve:`2025-12890`
+-----------------
+
+Bluetooth: peripheral: Invalid handling of malformed connection request
+
+Improper handling of malformed Connection Request with the interval
+set to be 1 (which supposed to be illegal) and the chM 0x7CFFFFFFFF
+triggers a crash. The peripheral will not be connectable after it.
+
+- `Zephyr project bug tracker GHSA-8hrf-pfww-83v9
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-8hrf-pfww-83v9>`_
+
+This has been fixed in main for v4.2.0
+
+- `PR 89955 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/89955>`_
+
+:cve:`2025-12899`
+-----------------
+
+net: icmp: Out of bound memory read
+
+A flaw in Zephyr’s network stack allows an IPv4 packet containing ICMP type 128 to be misclassified
+as an ICMPv6 Echo Request. This results in an out-of-bounds memory read and creates a potential
+information-leak vulnerability in the networking subsystem.
+
+
+- `Zephyr project bug tracker GHSA-c2vg-hj83-c2vg
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-c2vg-hj83-c2vg>`_
+
+This has been fixed in main for v4.3.0
+
+- `PR 98780 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/98780>`_
+
+- `PR 98983 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/98983>`_
+
+- `PR 98984 fix for 4.1
+  <https://github.com/zephyrproject-rtos/zephyr/pull/98984>`_
+
+- `PR 98985 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/98985>`_
+
+:cve:`2026-0849`
+----------------
+
+crypto: ATAES132A response length allows stack buffer overflow
+
+Malformed ATAES132A responses with an oversized length field overflow a 52-byte
+stack buffer in the Zephyr crypto driver, allowing a compromised device or bus
+attacker to corrupt kernel memory and potentially hijack execution.
+
+- `Zephyr project bug tracker GHSA-ff4p-3ggg-prp6
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-ff4p-3ggg-prp6>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 103163 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/103163>`_
+
+:cve:`2026-1677`
+----------------
+
+Under embargo until 2026-04-15
+
+:cve:`2026-1678`
+----------------
+
+dns: memory‑safety issue in the DNS name parser
+
+``dns_unpack_name()`` caches the buffer tailroom once and reuses it while appending
+DNS labels. As the buffer grows, the cached size becomes incorrect, and the final
+null terminator can be written past the buffer. With assertions disabled (default),
+a malicious DNS response can trigger an out-of-bounds write when ``CONFIG_DNS_RESOLVER``
+is enabled.
+
+
+- `Zephyr project bug tracker GHSA-536f-h63g-hj42
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-536f-h63g-hj42>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 99683 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/99683>`_
+
+- `PR 99830 fix for 4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/99830>`_
+
+- `PR 99829 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/99829>`_
+
+- `PR 99828 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/99828>`_
+
+:cve:`2026-1679`
+----------------
+
+The eswifi socket offload driver copies user-provided payloads into a fixed buffer without checking
+available space; oversized sends overflow eswifi->buf, corrupting kernel memory (CWE-120). Exploit
+requires local code that can call the socket send API; no remote attacker can reach it directly.
+
+- `Zephyr project bug tracker GHSA-qx3g-5g22-fq5w
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-qx3g-5g22-fq5w>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 102119 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/102119>`_
+
+:cve:`2026-1681`
+----------------
+
+Under embargo until 2026-04-15
+
+:cve:`2026-4179`
+----------------
+
+stm32: usb: Infinite while loop in Interrupt Handler
+
+Issues in stm32 USB device driver can lead to an infinite while loop.
+
+- `Zephyr project bug tracker GHSA-9xg7-g3q3-9prf
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-9xg7-g3q3-9prf>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 104390 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104390>`_
+
+:cve:`2026-5066`
+----------------
+
+Under embargo until 2026-06-01
+
+:cve:`2026-5067`
+----------------
+
+Under embargo until 2026-05-23
+
+:cve:`2026-5068`
+----------------
+
+Under embargo until 2026-05-21
+
+:cve:`2026-5071`
+----------------
+
+Under embargo until 2026-05-18
+
+:cve:`2026-5072`
+----------------
+
+Under embargo until 2026-05-18
+
+:cve:`2026-5589`
+----------------
+
+Under embargo until 2026-06-03
+
+:cve:`2026-5590`
+----------------
+
+net: ip/tcp: Null pointer dereference can be triggered by a race condition
+
+A race condition during TCP connection teardown can cause tcp_recv() to operate on a connection that
+has already been released. If tcp_conn_search() returns NULL while processing a SYN packet, a NULL
+pointer derived from stale context data is passed to tcp_backlog_is_full() and dereferenced without
+validation, leading to a crash.
+
+- `Zephyr project bug tracker GHSA-4vqm-pw24-g9jp
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-4vqm-pw24-g9jp>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 102110 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/102110>`_

@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <errno.h>
+#include <zephyr/sys/ringq.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/pinctrl.h>
@@ -15,6 +16,8 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/irq.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <zephyr/sys/sys_io.h>
 #include <zephyr/logging/log.h>
 #include "clock_update.h"
@@ -24,11 +27,10 @@
 #include "rsi_power_save.h"
 #include "rsi_pll.h"
 #include "rsi_ulpss_clk.h"
-#include "clock_update.h"
 
 #define DMA_MAX_TRANSFER_COUNT 1024
 #define I2S_SIWX91X_UNSUPPORTED_OPTIONS                                                            \
-	(I2S_OPT_BIT_CLK_SLAVE | I2S_OPT_FRAME_CLK_SLAVE | I2S_OPT_LOOPBACK | I2S_OPT_PINGPONG |   \
+	(I2S_OPT_BIT_CLK_TARGET | I2S_OPT_FRAME_CLK_TARGET | I2S_OPT_LOOPBACK | I2S_OPT_PINGPONG | \
 	 I2S_OPT_BIT_CLK_GATED)
 
 struct i2s_siwx91x_config {
@@ -45,13 +47,6 @@ struct i2s_siwx91x_queue_item {
 	size_t size;
 };
 
-struct i2s_siwx91x_ring_buffer {
-	struct i2s_siwx91x_queue_item *buf;
-	uint16_t len;
-	uint16_t head;
-	uint16_t tail;
-};
-
 struct i2s_siwx91x_stream {
 	int32_t state;
 	struct k_sem sem;
@@ -59,7 +54,7 @@ struct i2s_siwx91x_stream {
 	uint32_t dma_channel;
 	bool last_block;
 	struct i2s_config cfg;
-	struct i2s_siwx91x_ring_buffer mem_block_queue;
+	struct sys_ringq mem_block_queue;
 	void *mem_block;
 	bool reload_en;
 	struct dma_block_config dma_descriptors[CONFIG_I2S_SILABS_SIWX91X_DMA_MAX_BLOCKS];
@@ -71,6 +66,10 @@ struct i2s_siwx91x_data {
 	struct i2s_siwx91x_stream rx;
 	struct i2s_siwx91x_stream tx;
 	uint8_t current_resolution;
+	uint8_t rx_buffer[sizeof(struct i2s_siwx91x_queue_item) *
+			  CONFIG_I2S_SILABS_SIWX91X_RX_BLOCK_COUNT];
+	uint8_t tx_buffer[sizeof(struct i2s_siwx91x_queue_item) *
+			  CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT];
 };
 
 static void i2s_siwx91x_dma_rx_callback(const struct device *dma_dev, void *user_data,
@@ -124,50 +123,37 @@ static int i2s_siwx91x_convert_to_resolution(uint8_t word_size)
 	}
 }
 
-static int i2s_siwx91x_queue_put(struct i2s_siwx91x_ring_buffer *rb, void *mem_block, size_t size)
+static int i2s_siwx91x_queue_put(struct sys_ringq *f, void *mem_block,
+				 size_t size)
 {
-	uint16_t head_next;
+	int rc;
 	unsigned int key;
+	struct i2s_siwx91x_queue_item item = {
+		.mem_block = mem_block,
+		.size = size,
+	};
 
 	key = irq_lock();
-
-	head_next = rb->head;
-	head_next = (head_next + 1) % rb->len;
-
-	if (head_next == rb->tail) {
-		/* Ring buffer is full */
-		irq_unlock(key);
-		return -ENOMEM;
-	}
-
-	rb->buf[rb->head].mem_block = mem_block;
-	rb->buf[rb->head].size = size;
-	rb->head = head_next;
+	rc = sys_ringq_put(f, &item);
 
 	irq_unlock(key);
-
-	return 0;
+	return rc;
 }
 
-static int i2s_siwx91x_queue_get(struct i2s_siwx91x_ring_buffer *rb, void **mem_block, size_t *size)
+static int i2s_siwx91x_queue_get(struct sys_ringq *f, void **mem_block,
+				 size_t *size)
 {
+	int rc;
 	unsigned int key;
+	struct i2s_siwx91x_queue_item item;
 
 	key = irq_lock();
+	rc = sys_ringq_get(f, &item);
 
-	if (rb->tail == rb->head) {
-		/* Ring buffer is empty */
-		irq_unlock(key);
-		return -ENOMEM;
-	}
-
-	*mem_block = rb->buf[rb->tail].mem_block;
-	*size = rb->buf[rb->tail].size;
-	rb->tail = (rb->tail + 1) % rb->len;
-
+	*mem_block = item.mem_block;
+	*size = item.size;
 	irq_unlock(key);
-
-	return 0;
+	return rc;
 }
 
 static int i2s_siwx91x_dma_config(const struct device *dev, struct i2s_siwx91x_stream *stream,
@@ -440,6 +426,7 @@ static void i2s_siwx91x_dma_rx_callback(const struct device *dma_dev, void *user
 
 rx_disable:
 	i2s_siwx91x_stream_disable(stream, dma_dev);
+	pm_device_runtime_put_async(i2s_dev, K_NO_WAIT);
 }
 
 static void i2s_siwx91x_dma_tx_callback(const struct device *dma_dev, void *user_data,
@@ -506,6 +493,7 @@ static void i2s_siwx91x_dma_tx_callback(const struct device *dma_dev, void *user
 
 tx_disable:
 	i2s_siwx91x_stream_disable(stream, dma_dev);
+	pm_device_runtime_put_async(i2s_dev, K_NO_WAIT);
 }
 
 static int i2s_siwx91x_param_config(const struct device *dev, enum i2s_dir dir)
@@ -746,7 +734,13 @@ static int i2s_siwx91x_trigger(const struct device *dev, enum i2s_dir dir, enum 
 
 	switch (cmd) {
 	case I2S_TRIGGER_START:
+		ret = pm_device_runtime_get(dev);
+		if (ret < 0) {
+			return ret;
+		}
+
 		if (stream->state != I2S_STATE_READY) {
+			pm_device_runtime_put_async(dev, K_NO_WAIT);
 			return -EIO;
 		}
 
@@ -754,11 +748,13 @@ static int i2s_siwx91x_trigger(const struct device *dev, enum i2s_dir dir, enum 
 
 		ret = i2s_siwx91x_param_config(dev, dir);
 		if (ret < 0) {
+			pm_device_runtime_put_async(dev, K_NO_WAIT);
 			return ret;
 		}
 
 		ret = i2s_siwx91x_dma_channel_alloc(dev, dir);
 		if (ret < 0) {
+			pm_device_runtime_put_async(dev, K_NO_WAIT);
 			return ret;
 		}
 
@@ -770,6 +766,7 @@ static int i2s_siwx91x_trigger(const struct device *dev, enum i2s_dir dir, enum 
 
 		ret = stream->stream_start(stream, dev);
 		if (ret < 0) {
+			pm_device_runtime_put_async(dev, K_NO_WAIT);
 			return ret;
 		}
 
@@ -815,6 +812,7 @@ static int i2s_siwx91x_trigger(const struct device *dev, enum i2s_dir dir, enum 
 		i2s_siwx91x_stream_disable(stream, stream->dma_dev);
 		stream->queue_drop(stream);
 		stream->state = I2S_STATE_READY;
+		pm_device_runtime_put_async(dev, K_NO_WAIT);
 		break;
 
 	case I2S_TRIGGER_PREPARE:
@@ -833,31 +831,53 @@ static int i2s_siwx91x_trigger(const struct device *dev, enum i2s_dir dir, enum 
 	return 0;
 }
 
-static int i2s_siwx91x_init(const struct device *dev)
+static int i2s_siwx91x_pm_action(const struct device *dev, enum pm_device_action action)
 {
 	const struct i2s_siwx91x_config *cfg = dev->config;
-	struct i2s_siwx91x_data *data = dev->data;
 	int ret;
 
-	ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys_peripheral);
-	if (ret) {
-		return ret;
+	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		break;
+	case PM_DEVICE_ACTION_SUSPEND:
+		break;
+	case PM_DEVICE_ACTION_TURN_ON:
+		ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys_peripheral);
+		if (ret < 0 && ret != -EALREADY) {
+			return ret;
+		}
+
+		ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
+		if (ret < 0 && ret != -ENOENT) {
+			return ret;
+		}
+
+		cfg->reg->I2S_IER_b.IEN = 1;
+		cfg->reg->I2S_IRER_b.RXEN = 0;
+		cfg->reg->I2S_ITER_b.TXEN = 0;
+		break;
+	case PM_DEVICE_ACTION_TURN_OFF:
+		ret = clock_control_off(cfg->clock_dev, cfg->clock_subsys_peripheral);
+		if (ret < 0 && ret != -EALREADY) {
+			return ret;
+		}
+		break;
+	default:
+		return -ENOTSUP;
 	}
 
-	ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
-	if (ret) {
-		return ret;
-	}
+	return 0;
+}
 
-	cfg->reg->I2S_IER_b.IEN = 1;
-	cfg->reg->I2S_IRER_b.RXEN = 0;
-	cfg->reg->I2S_ITER_b.TXEN = 0;
+static int i2s_siwx91x_init(const struct device *dev)
+{
+	struct i2s_siwx91x_data *data = dev->data;
 
 	k_sem_init(&data->rx.sem, 0, CONFIG_I2S_SILABS_SIWX91X_RX_BLOCK_COUNT);
 	k_sem_init(&data->tx.sem, CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT,
 		   CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT);
 
-	return ret;
+	return pm_device_driver_init(dev, i2s_siwx91x_pm_action);
 }
 
 static DEVICE_API(i2s, i2s_siwx91x_driver_api) = {
@@ -870,10 +890,6 @@ static DEVICE_API(i2s, i2s_siwx91x_driver_api) = {
 
 #define SIWX91X_I2S_INIT(inst)                                                                     \
 	PINCTRL_DT_INST_DEFINE(inst);                                                              \
-	struct i2s_siwx91x_queue_item                                                              \
-		rx_ring_buf_##inst[CONFIG_I2S_SILABS_SIWX91X_RX_BLOCK_COUNT + 1];                  \
-	struct i2s_siwx91x_queue_item                                                              \
-		tx_ring_buf_##inst[CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT + 1];                  \
                                                                                                    \
 	BUILD_ASSERT((DT_INST_PROP(inst, silabs_channel_group) <                                   \
 		      DT_INST_PROP(inst, silabs_max_channel_count)),                               \
@@ -882,14 +898,16 @@ static DEVICE_API(i2s, i2s_siwx91x_driver_api) = {
 	static struct i2s_siwx91x_data i2s_data_##inst = {                                         \
 		.rx.dma_channel = DT_INST_DMAS_CELL_BY_NAME(inst, rx, channel),                    \
 		.rx.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(inst, rx)),                  \
-		.rx.mem_block_queue.buf = rx_ring_buf_##inst,                                      \
-		.rx.mem_block_queue.len = ARRAY_SIZE(rx_ring_buf_##inst),                          \
+		.rx.mem_block_queue = SYS_RINGQ_INIT(i2s_data_##inst.rx_buffer,                    \
+			sizeof(struct i2s_siwx91x_queue_item),                                     \
+			CONFIG_I2S_SILABS_SIWX91X_RX_BLOCK_COUNT),                                 \
 		.rx.stream_start = i2s_siwx91x_rx_stream_start,                                    \
 		.rx.queue_drop = i2s_siwx91x_rx_queue_drop,                                        \
-		.tx.dma_channel = DT_INST_DMAS_CELL_BY_NAME(0, tx, channel),                       \
+		.tx.dma_channel = DT_INST_DMAS_CELL_BY_NAME(inst, tx, channel),                    \
 		.tx.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(inst, tx)),                  \
-		.tx.mem_block_queue.buf = tx_ring_buf_##inst,                                      \
-		.tx.mem_block_queue.len = ARRAY_SIZE(tx_ring_buf_##inst),                          \
+		.tx.mem_block_queue = SYS_RINGQ_INIT(i2s_data_##inst.tx_buffer,                    \
+			sizeof(struct i2s_siwx91x_queue_item),                                     \
+			CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT),                                 \
 		.tx.stream_start = i2s_siwx91x_tx_stream_start,                                    \
 		.tx.queue_drop = i2s_siwx91x_tx_queue_drop,                                        \
 	};                                                                                         \
@@ -903,8 +921,9 @@ static DEVICE_API(i2s, i2s_siwx91x_driver_api) = {
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                      \
 		.channel_group = DT_INST_PROP(inst, silabs_channel_group),                         \
 	};                                                                                         \
-                                                                                                   \
-	DEVICE_DT_INST_DEFINE(inst, &i2s_siwx91x_init, NULL, &i2s_data_##inst, &i2s_config_##inst, \
-			      POST_KERNEL, CONFIG_I2S_INIT_PRIORITY, &i2s_siwx91x_driver_api);
+	PM_DEVICE_DT_INST_DEFINE(inst, i2s_siwx91x_pm_action);                                     \
+	DEVICE_DT_INST_DEFINE(inst, &i2s_siwx91x_init, PM_DEVICE_DT_INST_GET(inst),                \
+			      &i2s_data_##inst, &i2s_config_##inst, POST_KERNEL,                   \
+			      CONFIG_I2S_INIT_PRIORITY, &i2s_siwx91x_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SIWX91X_I2S_INIT)

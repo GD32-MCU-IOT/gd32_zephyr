@@ -17,6 +17,12 @@
 
 #else
 
+#include <zephyr/posix/netinet/in.h>
+#include <zephyr/posix/sys/socket.h>
+#include <zephyr/posix/arpa/inet.h>
+#include <zephyr/posix/unistd.h>
+#include <zephyr/posix/netdb.h>
+
 #include <zephyr/net/socket.h>
 #include <zephyr/kernel.h>
 
@@ -83,8 +89,10 @@ int main(void)
 	}
 
 #if 0
-	for (; res; res = res->ai_next) {
-		dump_addrinfo(res);
+	struct addrinfo *temp_res = res;
+
+	for (; temp_res; temp_res = temp_res->ai_next) {
+		dump_addrinfo(temp_res);
 	}
 #endif
 
@@ -107,6 +115,13 @@ int main(void)
 
 	CHECK(setsockopt(sock, SOL_TLS, TLS_HOSTNAME,
 			 HTTP_HOST, sizeof(HTTP_HOST)))
+
+#if defined(CONFIG_NET_SAMPLE_TLS_SESSION_CACHE)
+	int session_cache = TLS_SESSION_CACHE_ENABLED;
+
+	CHECK(setsockopt(sock, SOL_TLS, TLS_SESSION_CACHE, &session_cache, sizeof(session_cache)));
+#endif
+
 #endif
 
 	printf("Connecting to server...\n");

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,6 +23,7 @@
 		m2_bt_module: m2_bt_module {
 			sdio-reset-gpios = <&gpio1 24 GPIO_ACTIVE_HIGH>;
 			w-disable-gpios = <&gpio1 19 GPIO_ACTIVE_HIGH>;
+			wakeup-bt-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
@@ -32,6 +33,13 @@
 	detect-dat3;
 	pinctrl-4 = <&pinmux_usdhc1_dat3_nopull>;
 	pinctrl-names = "default", "slow", "med", "fast", "nopull";
+};
+
+&usdhc1 {
+	nxp_wifi {
+		pwr-gpios = <&gpio1 19 GPIO_ACTIVE_HIGH>;
+		sd-gpios = <&gpio1 24 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &pinctrl {

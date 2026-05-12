@@ -392,13 +392,7 @@ __set_comp_west_projs()
 
 __set_comp_west_boards()
 {
-	boards=( $(__west_x boards --format='{name}|{qualifiers}' "$@") )
-	for i in ${!boards[@]}; do
-		name="${boards[$i]%%|*}"
-		transformed_board="${boards[$i]//|//}"
-		boards[$i]="${transformed_board//,/\ ${name}\/}"
-	done
-	__set_comp ${boards[@]}
+	__set_comp "$(__west_x boards --all-targets "$@")"
 }
 
 __set_comp_west_shields()
@@ -663,6 +657,10 @@ __comp_west_completion()
 
 __comp_west_boards()
 {
+	local bool_opts="
+		--all-targets -a
+	"
+
 	local other_opts="
 		--format -f
 		--name -n
@@ -674,7 +672,7 @@ __comp_west_boards()
 		--soc-root
 	"
 
-	all_opts="$dir_opts $other_opts"
+	all_opts="$bool_opts $dir_opts $other_opts"
 
 	case "$prev" in
 		$(__west_to_extglob "$other_opts") )
@@ -842,7 +840,8 @@ __comp_west_runner_cmd()
 	# Common arguments for runners
 	local bool_opts="
 		--context -H
-		--skip-rebuild
+		--rebuild
+		--no-rebuild
 	"
 
 	local dir_opts="
@@ -903,6 +902,11 @@ __comp_west_debugserver()
 }
 
 __comp_west_attach()
+{
+	__comp_west_runner_cmd
+}
+
+__comp_west_rtt()
 {
 	__comp_west_runner_cmd
 }
@@ -1208,12 +1212,14 @@ __comp_west()
 		update
 		list
 		manifest
+		compare
 		diff
 		status
 		forall
+		grep
+		help
 		config
 		topdir
-		help
 	)
 
 	local zephyr_ext_cmds=(
@@ -1221,16 +1227,23 @@ __comp_west()
 		boards
 		shields
 		build
+		twister
 		sign
 		flash
 		debug
 		debugserver
 		attach
+		rtt
 		zephyr-export
 		spdx
 		blobs
-		twister
+		bindesc
+		robot
+		simulate
 		sdk
+		packages
+		patch
+		gtags
 	)
 
 	local cmds=(${builtin_cmds[*]} ${zephyr_ext_cmds[*]})

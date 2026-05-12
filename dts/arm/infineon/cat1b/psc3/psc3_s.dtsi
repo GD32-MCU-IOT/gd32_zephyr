@@ -1,9 +1,8 @@
 /*
- * copyright (c) (2016-2025), Cypress Semiconductor Corporation
- * (an Infineon company) or an affiliate of Cypress Semiconductor Corporation.
+ * Copyright (c) 2026 Infineon Technologies AG,
+ * or an affiliate of Infineon Technologies AG.
  *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include <mem.h>
@@ -17,19 +16,19 @@
 
 	soc {
 		pinctrl: pinctrl@52400000 {
-			compatible = "infineon,cat1-pinctrl";
+			compatible = "infineon,pinctrl";
 			reg = <0x52400000 0x20000>;
 		};
 
 		hsiom: hsiom@52400000 {
-			compatible = "infineon,cat1-hsiom";
+			compatible = "infineon,hsiom";
 			reg = <0x52400000 0x4000>;
 			interrupts = <22 4>, <20 4>;
 			status = "disabled";
 		};
 
 		gpio_prt0: gpio@52410000 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410000 0x80>;
 			interrupts = <10 4>;
 			gpio-controller;
@@ -39,7 +38,7 @@
 		};
 
 		gpio_prt1: gpio@52410080 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410080 0x80>;
 			interrupts = <11 4>;
 			gpio-controller;
@@ -49,7 +48,7 @@
 		};
 
 		gpio_prt2: gpio@52410100 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410100 0x80>;
 			interrupts = <12 4>;
 			gpio-controller;
@@ -59,7 +58,7 @@
 		};
 
 		gpio_prt3: gpio@52410180 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410180 0x80>;
 			interrupts = <13 4>;
 			gpio-controller;
@@ -69,7 +68,7 @@
 		};
 
 		gpio_prt4: gpio@52410200 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410200 0x80>;
 			interrupts = <14 4>;
 			gpio-controller;
@@ -79,7 +78,7 @@
 		};
 
 		gpio_prt5: gpio@52410280 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410280 0x80>;
 			interrupts = <15 4>;
 			gpio-controller;
@@ -89,7 +88,7 @@
 		};
 
 		gpio_prt6: gpio@52410300 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410300 0x80>;
 			interrupts = <16 4>;
 			gpio-controller;
@@ -99,7 +98,7 @@
 		};
 
 		gpio_prt7: gpio@52410380 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410380 0x80>;
 			interrupts = <17 4>;
 			gpio-controller;
@@ -109,7 +108,7 @@
 		};
 
 		gpio_prt8: gpio@52410400 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410400 0x80>;
 			interrupts = <18 4>;
 			gpio-controller;
@@ -119,13 +118,32 @@
 		};
 
 		gpio_prt9: gpio@52410480 {
-			compatible = "infineon,cat1-gpio";
+			compatible = "infineon,gpio";
 			reg = <0x52410480 0x80>;
 			interrupts = <19 4>;
 			gpio-controller;
 			ngpios = <6>;
 			status = "disabled";
 			#gpio-cells = <2>;
+		};
+
+		lpcomp0: comparator@52430000 {
+			compatible = "infineon,lp-comp";
+			reg = <0x52430000 0x10000>;
+			interrupts = <29 4>;
+			status = "disabled";
+
+			lpcomp0_0: lpcomp0-0 {
+				compatible = "infineon,lp-comp-channel";
+				channel = <0>;
+				status = "disabled";
+			};
+
+			lpcomp0_1: lpcomp0-1 {
+				compatible = "infineon,lp-comp-channel";
+				channel = <1>;
+				status = "disabled";
+			};
 		};
 
 		hppass_analog0: analog@52b00000 {
@@ -145,77 +163,115 @@
 		};
 
 		ipc0: ipc@521d0000 {
-			compatible = "infineon,cat1-ipc";
+			compatible = "infineon,ipc";
 			reg = <0x521d0000 0x1200>;
 			status = "disabled";
 			#ipc-config-cells = <3>;
 		};
 
+		canfd0: canfd@52800000 {
+			compatible = "infineon,canfd-controller";
+			reg = <0x52800000 0x1088>, <0x52810000 0x1000>;
+			reg-names = "wrapper", "mram";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			status = "disabled";
+
+			can0: can@52800000 {
+				compatible = "infineon,can";
+				reg = <0x52800000 0x200>, <0x52810000 0x800>;
+				reg-names = "m_can", "message_ram";
+				clk-dst = <0x405>;
+				status = "disabled";
+				bosch,mram-cfg = <0x0 15 15 8 8 0 8 8>;
+				interrupts = <99 4>, <100 4>;
+				interrupt-names = "int0", "int1";
+			};
+
+			can1: can@52800200 {
+				compatible = "infineon,can";
+				reg = <0x52800200 0x200>, <0x52810000 0x1000>;
+				reg-names = "m_can", "message_ram";
+				clk-dst = <0x406>;
+				status = "disabled";
+				bosch,mram-cfg = <0x800 15 15 8 8 0 8 8>;
+				interrupts = <101 4>, <102 4>;
+				interrupt-names = "int0", "int1";
+			};
+		};
+
 		scb0: scb@52820000 {
-			compatible = "infineon,cat1-scb";
+			compatible = "infineon,scb";
 			reg = <0x52820000 0xfd0>;
 			interrupts = <23 4>;
+			clk-dst = <0x400>;
 			status = "disabled";
 		};
 
 		scb1: scb@52840000 {
-			compatible = "infineon,cat1-scb";
+			compatible = "infineon,scb";
 			reg = <0x52840000 0xfd0>;
 			interrupts = <31 4>;
+			clk-dst = <0x401>;
 			status = "disabled";
 		};
 
 		scb2: scb@52850000 {
-			compatible = "infineon,cat1-scb";
+			compatible = "infineon,scb";
 			reg = <0x52850000 0xfd0>;
 			interrupts = <32 4>;
+			clk-dst = <0x402>;
 			status = "disabled";
 		};
 
 		scb3: scb@52860000 {
-			compatible = "infineon,cat1-scb";
+			compatible = "infineon,scb";
 			reg = <0x52860000 0xfd0>;
 			interrupts = <33 4>;
+			clk-dst = <0x403>;
 			status = "disabled";
 		};
 
 		scb4: scb@52870000 {
-			compatible = "infineon,cat1-scb";
+			compatible = "infineon,scb";
 			reg = <0x52870000 0xfd0>;
 			interrupts = <34 4>;
+			clk-dst = <0x404>;
 			status = "disabled";
 		};
 
 		scb5: scb@52c00000 {
-			compatible = "infineon,cat1-scb";
+			compatible = "infineon,scb";
 			reg = <0x52c00000 0xfd0>;
 			interrupts = <35 4>;
+			clk-dst = <0x600>;
 			status = "disabled";
 		};
 
 		watchdog0: watchdog@5220c000 {
-			compatible = "infineon,cat1-watchdog";
+			compatible = "infineon,watchdog";
 			reg = <0x5220c000 0x10>;
 			interrupts = <28 4>;
 			status = "disabled";
 		};
 
 		mcwdt0: mcwdt@5220d000 {
-			compatible = "infineon,cat1-lp-timer";
+			compatible = "infineon,lp-timer";
 			reg = <0x5220d000 0x40>;
 			interrupts = <24 4>;
 			status = "disabled";
 		};
 
 		rtc0: rtc@52220000 {
-			compatible = "infineon,cat1-rtc";
+			compatible = "infineon,rtc";
 			reg = <0x52220000 0xff0c>;
 			interrupts = <25 4>;
 			alarms-count = <2>;
 			status = "disabled";
 		};
 
-		tcpwm0: tcpwm0@52a00000  {
+		tcpwm0: tcpwm0@52a00000 {
 			reg = <0x52a00000 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -225,6 +281,7 @@
 				reg = <0x52a00000 0x100>;
 				interrupts = <76 4>;
 				resolution = <32>;
+				clk-dst = <0x500>;
 				status = "disabled";
 
 				pwm0_0: pwm0_0 {
@@ -244,6 +301,7 @@
 				reg = <0x52a00100 0x100>;
 				interrupts = <77 4>;
 				resolution = <32>;
+				clk-dst = <0x501>;
 				status = "disabled";
 
 				pwm0_1: pwm0_1 {
@@ -263,6 +321,7 @@
 				reg = <0x52a00200 0x100>;
 				interrupts = <78 4>;
 				resolution = <32>;
+				clk-dst = <0x502>;
 				status = "disabled";
 
 				pwm0_2: pwm0_2 {
@@ -282,6 +341,7 @@
 				reg = <0x52a00300 0x100>;
 				interrupts = <79 4>;
 				resolution = <32>;
+				clk-dst = <0x503>;
 				status = "disabled";
 
 				pwm0_3: pwm0_3 {
@@ -297,7 +357,7 @@
 			};
 		};
 
-		tcpwm1: tcpwm1@52a10000  {
+		tcpwm1: tcpwm1@52a10000 {
 			reg = <0x52a10000 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -307,6 +367,7 @@
 				reg = <0x52a10000 0x100>;
 				interrupts = <80 4>;
 				resolution = <16>;
+				clk-dst = <0x504>;
 				status = "disabled";
 
 				pwm1_0: pwm1_0 {
@@ -326,6 +387,7 @@
 				reg = <0x52a10100 0x100>;
 				interrupts = <81 4>;
 				resolution = <16>;
+				clk-dst = <0x505>;
 				status = "disabled";
 
 				pwm1_1: pwm1_1 {
@@ -345,6 +407,7 @@
 				reg = <0x52a10200 0x100>;
 				interrupts = <82 4>;
 				resolution = <16>;
+				clk-dst = <0x506>;
 				status = "disabled";
 
 				pwm1_2: pwm1_2 {
@@ -364,6 +427,7 @@
 				reg = <0x52a10300 0x100>;
 				interrupts = <83 4>;
 				resolution = <16>;
+				clk-dst = <0x507>;
 				status = "disabled";
 
 				pwm1_3: pwm1_3 {
@@ -383,6 +447,7 @@
 				reg = <0x52a10400 0x100>;
 				interrupts = <84 4>;
 				resolution = <16>;
+				clk-dst = <0x508>;
 				status = "disabled";
 
 				pwm1_4: pwm1_4 {
@@ -402,6 +467,7 @@
 				reg = <0x52a10500 0x100>;
 				interrupts = <85 4>;
 				resolution = <16>;
+				clk-dst = <0x509>;
 				status = "disabled";
 
 				pwm1_5: pwm1_5 {
@@ -421,6 +487,7 @@
 				reg = <0x52a10600 0x100>;
 				interrupts = <86 4>;
 				resolution = <16>;
+				clk-dst = <0x50a>;
 				status = "disabled";
 
 				pwm1_6: pwm1_6 {
@@ -440,6 +507,7 @@
 				reg = <0x52a10700 0x100>;
 				interrupts = <87 4>;
 				resolution = <16>;
+				clk-dst = <0x50b>;
 				status = "disabled";
 
 				pwm1_7: pwm1_7 {
@@ -455,7 +523,7 @@
 			};
 		};
 
-		tcpwm2: tcpwm2@52a20000  {
+		tcpwm2: tcpwm2@52a20000 {
 			reg = <0x52a20000 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -465,6 +533,7 @@
 				reg = <0x52a20000 0x100>;
 				interrupts = <88 4>;
 				resolution = <16>;
+				clk-dst = <0x50c>;
 				status = "disabled";
 
 				pwm2_0: pwm2_0 {
@@ -484,6 +553,7 @@
 				reg = <0x52a20100 0x100>;
 				interrupts = <89 4>;
 				resolution = <16>;
+				clk-dst = <0x50d>;
 				status = "disabled";
 
 				pwm2_1: pwm2_1 {
@@ -503,6 +573,7 @@
 				reg = <0x52a20200 0x100>;
 				interrupts = <90 4>;
 				resolution = <16>;
+				clk-dst = <0x50e>;
 				status = "disabled";
 
 				pwm2_2: pwm2_2 {
@@ -522,6 +593,7 @@
 				reg = <0x52a20300 0x100>;
 				interrupts = <91 4>;
 				resolution = <16>;
+				clk-dst = <0x50f>;
 				status = "disabled";
 
 				pwm2_3: pwm2_3 {
@@ -541,6 +613,7 @@
 				reg = <0x52a20400 0x100>;
 				interrupts = <92 4>;
 				resolution = <16>;
+				clk-dst = <0x510>;
 				status = "disabled";
 
 				pwm2_4: pwm2_4 {
@@ -560,6 +633,7 @@
 				reg = <0x52a20500 0x100>;
 				interrupts = <93 4>;
 				resolution = <16>;
+				clk-dst = <0x511>;
 				status = "disabled";
 
 				pwm2_5: pwm2_5 {
@@ -579,6 +653,7 @@
 				reg = <0x52a20600 0x100>;
 				interrupts = <94 4>;
 				resolution = <16>;
+				clk-dst = <0x512>;
 				status = "disabled";
 
 				pwm2_6: pwm2_6 {
@@ -598,6 +673,7 @@
 				reg = <0x52a20700 0x100>;
 				interrupts = <95 4>;
 				resolution = <16>;
+				clk-dst = <0x513>;
 				status = "disabled";
 
 				pwm2_7: pwm2_7 {
@@ -615,7 +691,7 @@
 
 		dma0: dw@52180000 {
 			#dma-cells = <1>;
-			compatible = "infineon,cat1-dma";
+			compatible = "infineon,dma";
 			reg = <0x52180000 0x10000>;
 			dma-channels = <16>;
 			interrupts = <37 4>, /* CH0 */
@@ -639,7 +715,7 @@
 
 		dma1: dw@52190000 {
 			#dma-cells = <1>;
-			compatible = "infineon,cat1-dma";
+			compatible = "infineon,dma";
 			reg = <0x52190000 0x10000>;
 			dma-channels = <16>;
 			interrupts = <53 4>, /* CH0 */

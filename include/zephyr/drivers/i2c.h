@@ -29,6 +29,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/rtio/rtio.h>
+#include <zephyr/toolchain.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,6 +69,22 @@ extern "C" {
 
 /** Peripheral to act as Controller. */
 #define I2C_MODE_CONTROLLER		BIT(4)
+
+#if CONFIG_I2C_TRANSFER_TIMEOUT_SUPPORTED
+
+/** Helper macro for CONFIG_I2C_TRANSFER_TIMEOUT_MS */
+#if CONFIG_I2C_TRANSFER_TIMEOUT_MS
+#define I2C_TRANSFER_TIMEOUT K_MSEC(CONFIG_I2C_TRANSFER_TIMEOUT_MS)
+#else
+#define I2C_TRANSFER_TIMEOUT K_FOREVER
+#endif
+
+/** Helper macro drivers that do not support infinite timeout */
+#define BUILD_ASSERT_INVALID_I2C_TRANSFER_TIMEOUT() \
+	BUILD_ASSERT(CONFIG_I2C_TRANSFER_TIMEOUT_MS != 0, \
+		     "infinite i2c transfer timeout not unsupported")
+
+#endif /* CONFIG_I2C_TRANSFER_TIMEOUT_SUPPORTED */
 
 /**
  * @brief Complete I2C DT information
@@ -222,6 +239,7 @@ typedef int (*i2c_api_target_register_t)(const struct device *dev,
 					struct i2c_target_config *cfg);
 typedef int (*i2c_api_target_unregister_t)(const struct device *dev,
 					  struct i2c_target_config *cfg);
+
 #ifdef CONFIG_I2C_CALLBACK
 typedef int (*i2c_api_transfer_cb_t)(const struct device *dev,
 				 struct i2c_msg *msgs,
@@ -230,12 +248,8 @@ typedef int (*i2c_api_transfer_cb_t)(const struct device *dev,
 				 i2c_callback_t cb,
 				 void *userdata);
 #endif /* CONFIG_I2C_CALLBACK */
-#if defined(CONFIG_I2C_RTIO) || defined(__DOXYGEN__)
 
-/**
- * @typedef i2c_api_iodev_submit
- * @brief Callback API for submitting work to a I2C device with RTIO
- */
+#ifdef CONFIG_I2C_RTIO
 typedef void (*i2c_api_iodev_submit)(const struct device *dev,
 				     struct rtio_iodev_sqe *iodev_sqe);
 #endif /* CONFIG_I2C_RTIO */
@@ -355,7 +369,7 @@ typedef int (*i2c_target_read_requested_cb_t)(
 typedef int (*i2c_target_read_processed_cb_t)(
 		struct i2c_target_config *config, uint8_t *val);
 
-#ifdef CONFIG_I2C_TARGET_BUFFER_MODE
+#if defined(CONFIG_I2C_TARGET_BUFFER_MODE) || defined(__DOXYGEN__)
 /** @brief Function called when a write to the device is completed.
  *
  * This function is invoked by the controller when it completes
@@ -414,6 +428,34 @@ typedef int (*i2c_target_buf_read_requested_cb_t)(
  */
 typedef int (*i2c_target_stop_cb_t)(struct i2c_target_config *config);
 
+/**
+ * @brief I2C error reasons.
+ *
+ * Values that correspond to events or errors responsible for stopping
+ * an I2C transfer.
+ */
+enum i2c_error_reason {
+	I2C_ERROR_TIMEOUT = 0,	/* Timeout error         */
+	I2C_ERROR_ARBITRATION,	/* Bus arbitration size  */
+	I2C_ERROR_SIZE,		/* Bad frame size        */
+	I2C_ERROR_DMA,		/* DMA transfer error    */
+	I2C_ERROR_GENERIC,	/* Any other bus error   */
+};
+
+/** @brief Function called when an error is detected on the I2C bus
+ * while acting as a target.
+ *
+ * This function is invoked by the controller when a bus error,
+ * arbitration lost, or other critical error is detected during
+ * a transaction addressed to this device.
+ *
+ * @param config the configuration structure associated with the
+ * device to which the operation is addressed.
+ * @param error_code an integer code identifying the error type.
+ */
+typedef void (*i2c_target_error_cb_t)(struct i2c_target_config *config,
+				      enum i2c_error_reason error_code);
+
 /** @brief Structure providing callbacks to be implemented for devices
  * that supports the I2C target API.
  *
@@ -421,15 +463,30 @@ typedef int (*i2c_target_stop_cb_t)(struct i2c_target_config *config);
  * same API at different addresses on the bus.
  */
 struct i2c_target_callbacks {
+	/** @copybrief i2c_target_write_requested_cb_t */
 	i2c_target_write_requested_cb_t write_requested;
+	/** @copybrief i2c_target_read_requested_cb_t */
 	i2c_target_read_requested_cb_t read_requested;
+	/** @copybrief i2c_target_write_received_cb_t */
 	i2c_target_write_received_cb_t write_received;
+	/** @copybrief i2c_target_read_processed_cb_t */
 	i2c_target_read_processed_cb_t read_processed;
-#ifdef CONFIG_I2C_TARGET_BUFFER_MODE
+#if defined(CONFIG_I2C_TARGET_BUFFER_MODE) || defined(__DOXYGEN__)
+	/**
+	 * @kconfig_dep{CONFIG_I2C_TARGET_BUFFER_MODE}
+	 * @copybrief i2c_target_buf_write_received_cb_t
+	 */
 	i2c_target_buf_write_received_cb_t buf_write_received;
+	/**
+	 * @kconfig_dep{CONFIG_I2C_TARGET_BUFFER_MODE}
+	 * @copybrief i2c_target_buf_read_requested_cb_t
+	 */
 	i2c_target_buf_read_requested_cb_t buf_read_requested;
 #endif
+	/** @copybrief i2c_target_stop_cb_t */
 	i2c_target_stop_cb_t stop;
+	/** @copybrief i2c_target_error_cb_t */
+	i2c_target_error_cb_t error;
 };
 
 /** @brief Structure describing a device that supports the I2C
@@ -493,6 +550,18 @@ static inline bool i2c_is_read_op(const struct i2c_msg *msg)
 static inline bool i2c_is_stop_op(const struct i2c_msg *msg)
 {
 	return (msg->flags & I2C_MSG_STOP) == I2C_MSG_STOP;
+}
+
+/**
+ * @brief Check if the current message includes a restart.
+ *
+ * @param msg The message to check
+ * @return true if the I2C message includes a restart
+ * @return false if the I2C message includes a restart
+ */
+static inline bool i2c_is_reset_op(const struct i2c_msg *msg)
+{
+	return (msg->flags & I2C_MSG_RESTART) == I2C_MSG_RESTART;
 }
 
 /**
@@ -739,10 +808,7 @@ __syscall int i2c_configure(const struct device *dev, uint32_t dev_config);
 static inline int z_impl_i2c_configure(const struct device *dev,
 				       uint32_t dev_config)
 {
-	const struct i2c_driver_api *api =
-		(const struct i2c_driver_api *)dev->api;
-
-	return api->configure(dev, dev_config);
+	return DEVICE_API_GET(i2c, dev)->configure(dev, dev_config);
 }
 
 /**
@@ -788,7 +854,7 @@ __syscall int i2c_get_config(const struct device *dev, uint32_t *dev_config);
 
 static inline int z_impl_i2c_get_config(const struct device *dev, uint32_t *dev_config)
 {
-	const struct i2c_driver_api *api = (const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->get_config == NULL) {
 		return -ENOSYS;
@@ -836,9 +902,6 @@ static inline int z_impl_i2c_transfer(const struct device *dev,
 				      struct i2c_msg *msgs, uint8_t num_msgs,
 				      uint16_t addr)
 {
-	const struct i2c_driver_api *api =
-		(const struct i2c_driver_api *)dev->api;
-
 	if (!num_msgs) {
 		return 0;
 	}
@@ -847,7 +910,7 @@ static inline int z_impl_i2c_transfer(const struct device *dev,
 		msgs[num_msgs - 1].flags |= I2C_MSG_STOP;
 	}
 
-	int res =  api->transfer(dev, msgs, num_msgs, addr);
+	int res =  DEVICE_API_GET(i2c, dev)->transfer(dev, msgs, num_msgs, addr);
 
 	i2c_xfer_stats(dev, msgs, num_msgs);
 
@@ -867,7 +930,7 @@ static inline int z_impl_i2c_transfer(const struct device *dev,
  * to another I2C device asynchronously with a callback completion.
  *
  * @see i2c_transfer()
- * @funcprops \isr_ok
+ * @isr_ok
  *
  * @param dev Pointer to the device structure for an I2C controller
  *            driver configured in controller mode.
@@ -889,8 +952,7 @@ static inline int i2c_transfer_cb(const struct device *dev,
 				  i2c_callback_t cb,
 				  void *userdata)
 {
-	const struct i2c_driver_api *api =
-		(const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->transfer_cb == NULL) {
 		return -ENOSYS;
@@ -953,7 +1015,7 @@ static inline int i2c_transfer_cb_dt(const struct i2c_dt_spec *spec,
  * @param userdata Userdata passed to callback.
  *
  * @retval 0 if successful
- * @retval negative on error.
+ * @retval <0 negative on error.
  */
 static inline int i2c_write_read_cb(const struct device *dev, struct i2c_msg *msgs,
 				 uint8_t num_msgs, uint16_t addr, const void *write_buf,
@@ -1018,7 +1080,7 @@ void z_i2c_transfer_signal_cb(const struct device *dev, int result, void *userda
  * to another I2C device asynchronously with a k_poll_signal completion.
  *
  * @see i2c_transfer_cb()
- * @funcprops \isr_ok
+ * @isr_ok
  *
  * @param dev Pointer to the device structure for an I2C controller
  *            driver configured in controller mode.
@@ -1038,7 +1100,7 @@ static inline int i2c_transfer_signal(const struct device *dev,
 				 uint16_t addr,
 				 struct k_poll_signal *sig)
 {
-	const struct i2c_driver_api *api = (const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->transfer_cb == NULL) {
 		return -ENOSYS;
@@ -1076,7 +1138,7 @@ static inline void i2c_iodev_submit(struct rtio_iodev_sqe *iodev_sqe)
 {
 	const struct i2c_dt_spec *dt_spec = (const struct i2c_dt_spec *)iodev_sqe->sqe.iodev->data;
 	const struct device *dev = dt_spec->bus;
-	const struct i2c_driver_api *api = (const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->iodev_submit == NULL) {
 		rtio_iodev_sqe_err(iodev_sqe, -ENOSYS);
@@ -1102,6 +1164,18 @@ extern const struct rtio_iodev_api i2c_iodev_api;
 	const struct i2c_dt_spec _i2c_dt_spec_##name =				\
 		I2C_DT_SPEC_GET(node_id);					\
 	RTIO_IODEV_DEFINE(name, &i2c_iodev_api, (void *)&_i2c_dt_spec_##name)
+
+/**
+ * @brief Define an iodev for a devicetree instance on the bus
+ *
+ * This is equivalent to
+ * <tt>I2C_DT_IODEV_DEFINE(name, DT_DRV_INST(inst))</tt>.
+ *
+ * @param name Symbolic name of the iodev to define
+ * @param inst Devicetree instance number
+ */
+#define I2C_DT_INST_IODEV_DEFINE(name, inst)					\
+	I2C_DT_IODEV_DEFINE(name, DT_DRV_INST(inst))
 
 /**
  * @brief Define an iodev for a given i2c device on a bus
@@ -1217,8 +1291,7 @@ __syscall int i2c_recover_bus(const struct device *dev);
 
 static inline int z_impl_i2c_recover_bus(const struct device *dev)
 {
-	const struct i2c_driver_api *api =
-		(const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->recover_bus == NULL) {
 		return -ENOSYS;
@@ -1254,8 +1327,7 @@ static inline int z_impl_i2c_recover_bus(const struct device *dev)
 static inline int i2c_target_register(const struct device *dev,
 				     struct i2c_target_config *cfg)
 {
-	const struct i2c_driver_api *api =
-		(const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->target_register == NULL) {
 		return -ENOSYS;
@@ -1283,8 +1355,7 @@ static inline int i2c_target_register(const struct device *dev,
 static inline int i2c_target_unregister(const struct device *dev,
 				       struct i2c_target_config *cfg)
 {
-	const struct i2c_driver_api *api =
-		(const struct i2c_driver_api *)dev->api;
+	const struct i2c_driver_api *api = DEVICE_API_GET(i2c, dev);
 
 	if (api->target_unregister == NULL) {
 		return -ENOSYS;
@@ -1310,10 +1381,7 @@ __syscall int i2c_target_driver_register(const struct device *dev);
 
 static inline int z_impl_i2c_target_driver_register(const struct device *dev)
 {
-	const struct i2c_target_driver_api *api =
-		(const struct i2c_target_driver_api *)dev->api;
-
-	return api->driver_register(dev);
+	return DEVICE_API_GET(i2c_target, dev)->driver_register(dev);
 }
 
 /**
@@ -1333,10 +1401,7 @@ __syscall int i2c_target_driver_unregister(const struct device *dev);
 
 static inline int z_impl_i2c_target_driver_unregister(const struct device *dev)
 {
-	const struct i2c_target_driver_api *api =
-		(const struct i2c_target_driver_api *)dev->api;
-
-	return api->driver_unregister(dev);
+	return DEVICE_API_GET(i2c_target, dev)->driver_unregister(dev);
 }
 
 /*

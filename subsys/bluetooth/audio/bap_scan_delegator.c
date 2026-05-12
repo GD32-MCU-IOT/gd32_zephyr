@@ -35,11 +35,17 @@
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/byteorder.h>
-#include <zephyr/sys/check.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 
 LOG_MODULE_REGISTER(bt_bap_scan_delegator, CONFIG_BT_BAP_SCAN_DELEGATOR_LOG_LEVEL);
+
+#if !defined(CONFIG_ARCH_POSIX) && defined(CONFIG_BT_BAP_SCAN_DELEGATOR_LOG_LEVEL_DBG) &&          \
+	defined(CONFIG_LOG) && !defined(CONFIG_LOG_MODE_DEFERRED)
+#warning Logging when non-deferred log mode is selected is not fully supported. \
+	 Use the CONFIG_LOG_MODE_DEFERRED Kconfig option when this feature is enabled.
+#endif
 
 #include "common/bt_str.h"
 
@@ -63,6 +69,8 @@ struct bass_recv_state_internal {
 
 	bool active;
 	uint8_t index;
+	/* Determines whether the remote has requested a PA sync request and app has accepted */
+	bool pa_sync_requested;
 	struct bt_bap_scan_delegator_recv_state state;
 	uint8_t broadcast_code[BT_ISO_BROADCAST_CODE_SIZE];
 
@@ -84,7 +92,7 @@ struct bt_bap_scan_delegator_inst {
 
 enum scan_delegator_flag {
 	SCAN_DELEGATOR_FLAG_REGISTERED_CONN_CB,
-	SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELIGATOR,
+	SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELEGATOR,
 
 	SCAN_DELEGATOR_FLAG_NUM,
 };
@@ -148,7 +156,7 @@ static bool bis_syncs_unique_or_no_pref(uint32_t requested_bis_syncs,
 		return true;
 	}
 
-	return (requested_bis_syncs & aggregated_bis_syncs) != 0U;
+	return (requested_bis_syncs & aggregated_bis_syncs) == 0U;
 }
 
 static bool valid_bis_sync_request(uint32_t requested_bis_syncs, uint32_t aggregated_bis_syncs)
@@ -175,15 +183,20 @@ static bool valid_bis_sync_request(uint32_t requested_bis_syncs, uint32_t aggreg
 	return true;
 }
 
-static void bt_debug_dump_recv_state(const struct bass_recv_state_internal *recv_state)
+static void bt_debug_dump_recv_state(struct bass_recv_state_internal *internal_state)
 {
-	if (recv_state->active) {
-		const struct bt_bap_scan_delegator_recv_state *state = &recv_state->state;
+	__maybe_unused int err;
+
+	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+
+	if (internal_state->active) {
+		const struct bt_bap_scan_delegator_recv_state *state = &internal_state->state;
 		const bool is_bad_code = state->encrypt_state == BT_BAP_BIG_ENC_STATE_BAD_CODE;
 
 		LOG_DBG("Receive State[%d]: src ID %u, addr %s, adv_sid %u, broadcast_id 0x%06X, "
 			"pa_sync_state %u, encrypt state %u%s%s, num_subgroups %u",
-			recv_state->index, state->src_id, bt_addr_le_str(&state->addr),
+			internal_state->index, state->src_id, bt_addr_le_str(&state->addr),
 			state->adv_sid, state->broadcast_id, state->pa_sync_state,
 			state->encrypt_state, is_bad_code ? ", bad code" : "",
 			is_bad_code ? bt_hex(state->bad_code, sizeof(state->bad_code)) : "",
@@ -194,13 +207,16 @@ static void bt_debug_dump_recv_state(const struct bass_recv_state_internal *recv
 
 			LOG_DBG("\tSubgroup[%u]: BIS sync %u (requested %u), metadata_len %zu, "
 				"metadata: %s",
-				i, subgroup->bis_sync, recv_state->requested_bis_sync[i],
+				i, subgroup->bis_sync, internal_state->requested_bis_sync[i],
 				subgroup->metadata_len,
 				bt_hex(subgroup->metadata, subgroup->metadata_len));
 		}
 	} else {
 		LOG_DBG("Inactive receive state");
 	}
+
+	err = k_mutex_unlock(&internal_state->mutex);
+	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 }
 
 static void receive_state_notify_cb(struct bt_conn *conn, void *data)
@@ -239,20 +255,20 @@ static void receive_state_notify_cb(struct bt_conn *conn, void *data)
 
 		LOG_DBG("Could not notify receive state: %d", err);
 		err = k_work_reschedule(&internal_state->notify_work,
-					K_USEC(BT_CONN_INTERVAL_TO_US(conn_info.le.interval)));
+					K_USEC(conn_info.le.interval_us));
 		__ASSERT(err >= 0, "Failed to reschedule work: %d", err);
 	}
 }
 
-static void net_buf_put_recv_state(const struct bass_recv_state_internal *recv_state)
+static void net_buf_put_recv_state(const struct bass_recv_state_internal *internal_state)
 {
-	const struct bt_bap_scan_delegator_recv_state *state = &recv_state->state;
+	const struct bt_bap_scan_delegator_recv_state *state = &internal_state->state;
 
 	net_buf_simple_reset(&read_buf);
 
-	__ASSERT(recv_state, "NULL receive state");
+	__ASSERT(internal_state, "NULL receive state");
 
-	if (!recv_state->active) {
+	if (!internal_state->active) {
 		/* Notify empty */
 
 		return;
@@ -285,17 +301,7 @@ static void receive_state_updated(struct bt_conn *conn,
 				  struct bass_recv_state_internal *internal_state)
 {
 	if (IS_ENABLED(CONFIG_BT_BAP_SCAN_DELEGATOR_LOG_LEVEL_DBG)) {
-		int err;
-
-		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-		if (err == 0) {
-			bt_debug_dump_recv_state(internal_state);
-			err = k_mutex_unlock(&internal_state->mutex);
-			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
-
-		} else {
-			LOG_DBG("Failed to lock mutex: %d", err);
-		}
+		bt_debug_dump_recv_state(internal_state);
 	}
 
 	if (scan_delegator_cbs != NULL && scan_delegator_cbs->recv_state_updated != NULL) {
@@ -307,15 +313,10 @@ static void notify_work_handler(struct k_work *work)
 {
 	struct bass_recv_state_internal *internal_state = CONTAINER_OF(
 		k_work_delayable_from_work(work), struct bass_recv_state_internal, notify_work);
-	int err;
+	__maybe_unused int err;
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to take mutex: %d", err);
-		err = k_work_reschedule(&internal_state->notify_work, K_NO_WAIT);
-		__ASSERT(err >= 0, "Failed to reschedule work: %d", err);
-		return;
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	net_buf_put_recv_state(internal_state);
 	bt_conn_foreach(BT_CONN_TYPE_LE, receive_state_notify_cb, internal_state);
@@ -403,18 +404,14 @@ static struct bass_recv_state_internal *bass_lookup_state(uint8_t addr_type, uin
 	struct bass_recv_state_internal *res = NULL;
 
 	ARRAY_FOR_EACH_PTR(scan_delegator.recv_states, recv_state_internal) {
-		int err;
+		__maybe_unused int err;
 
 		if (!recv_state_internal->active) {
 			continue;
 		}
 
 		err = k_mutex_lock(&recv_state_internal->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-		if (err != 0) {
-			LOG_DBG("Failed to lock mutex: %d", err);
-
-			return NULL;
-		}
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 		if (recv_state_internal->state.addr.type == addr_type &&
 		    recv_state_internal->state.adv_sid == adv_sid &&
@@ -445,6 +442,15 @@ static struct bass_recv_state_internal *get_free_recv_state(void)
 	}
 
 	return NULL;
+}
+
+static void free_recv_state(struct bass_recv_state_internal *state)
+{
+	state->active = false;
+	state->pa_sync_requested = false;
+	(void)memset(&state->state, 0, sizeof(state->state));
+	(void)memset(state->broadcast_code, 0, sizeof(state->broadcast_code));
+	(void)memset(state->requested_bis_sync, 0, sizeof(state->requested_bis_sync));
 }
 
 static bool supports_past(struct bt_conn *conn, uint8_t pa_sync_val)
@@ -529,7 +535,6 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 	bool bis_sync_requested;
 	uint16_t total_len;
 	struct bt_bap_bass_cp_add_src *add_src;
-	int ret = BT_GATT_ERR(BT_ATT_ERR_SUCCESS);
 	uint8_t adv_sid;
 	int err;
 
@@ -598,11 +603,7 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	state = &internal_state->state;
 
@@ -613,19 +614,23 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 
 	pa_sync = net_buf_simple_pull_u8(buf);
 	if (pa_sync > BT_BAP_BASS_PA_REQ_SYNC) {
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 		LOG_DBG("Invalid PA sync value %u", pa_sync);
-		ret = BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
-		goto unlock_return;
+		return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 	}
 
 	pa_interval = net_buf_simple_pull_le16(buf);
 
 	state->num_subgroups = net_buf_simple_pull_u8(buf);
 	if (state->num_subgroups > CONFIG_BT_BAP_BASS_MAX_SUBGROUPS) {
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 		LOG_WRN("Too many subgroups %u/%u", state->num_subgroups,
 			CONFIG_BT_BAP_BASS_MAX_SUBGROUPS);
-		ret = BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-		goto unlock_return;
+		return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
 	}
 
 	bis_sync_requested = false;
@@ -637,9 +642,11 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 
 		if (internal_state->requested_bis_sync[i] &&
 		    pa_sync == BT_BAP_BASS_PA_REQ_NO_SYNC) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("Cannot sync to BIS without PA");
-			ret = BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 		}
 
 		if (internal_state->requested_bis_sync[i] != 0U) {
@@ -648,9 +655,11 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 
 		if (!valid_bis_sync_request(internal_state->requested_bis_sync[i],
 					    aggregated_bis_syncs)) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("Invalid BIS Sync request[%d]", i);
-			ret = BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 		}
 
 		aggregated_bis_syncs |= internal_state->requested_bis_sync[i];
@@ -658,10 +667,12 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 		subgroup->metadata_len = net_buf_simple_pull_u8(buf);
 
 		if (subgroup->metadata_len > CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_WRN("Metadata too long %u/%u", subgroup->metadata_len,
 				CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE);
-			ret = BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
 		}
 
 		metadata = net_buf_simple_pull_mem(buf, subgroup->metadata_len);
@@ -670,12 +681,27 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 	}
 
 	if (scan_delegator_cbs != NULL && scan_delegator_cbs->add_source != NULL) {
+		/* Unlock mutex to avoid potential deadlock on app callback */
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 		err = scan_delegator_cbs->add_source(conn, state);
 		if (err != 0) {
+			err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+			__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+
+			(void)memset(state, 0, sizeof(*state));
+			internal_state->active = false;
+
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("add_source callback rejected: 0x%02x", err);
-			ret = BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
 		}
+
+		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 	}
 
 	/* The active flag shall be set before any application callbacks, so that any calls for the
@@ -691,51 +717,40 @@ static int scan_delegator_add_src(struct bt_conn *conn,
 		err = pa_sync_request(conn, state, pa_sync, pa_interval);
 		if (err != 0) {
 			err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-			if (err != 0) {
-				LOG_DBG("Failed to lock mutex: %d", err);
+			__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
-				return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-			}
-
-			(void)memset(state, 0, sizeof(*state));
-			internal_state->active = false;
-
-			LOG_DBG("PA sync %u from %p was rejected with reason %d", pa_sync,
-				(void *)conn, err);
+			free_recv_state(internal_state);
 
 			err = k_mutex_unlock(&internal_state->mutex);
 			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+			LOG_DBG("PA sync %u from %p was rejected with reason %d", pa_sync,
+				(void *)conn, err);
 
 			return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
 		}
 
 		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-		if (err != 0) {
-			LOG_DBG("Failed to lock mutex: %d", err);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
-			return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-		}
+		internal_state->pa_sync_requested = true;
 	}
-
-	LOG_DBG("Index %u: New source added: ID 0x%02x",
-		internal_state->index, state->src_id);
 
 	set_receive_state_changed(internal_state);
 
-unlock_return:
 	err = k_mutex_unlock(&internal_state->mutex);
 	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
-	if (ret == BT_GATT_ERR(BT_ATT_ERR_SUCCESS)) {
-		/* app callback */
-		receive_state_updated(conn, internal_state);
+	LOG_DBG("New source added");
 
-		if (bis_sync_requested) {
-			bis_sync_request_updated(conn, internal_state);
-		}
+	/* app callback */
+	receive_state_updated(conn, internal_state);
+
+	if (bis_sync_requested) {
+		bis_sync_request_updated(conn, internal_state);
 	}
 
-	return ret;
+	return 0;
 }
 
 static int scan_delegator_mod_src(struct bt_conn *conn,
@@ -743,6 +758,7 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 {
 	uint32_t requested_bis_sync[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS] = {};
 	struct bt_bap_scan_delegator_recv_state backup_state;
+	bool backup_pa_sync_requested;
 	struct bass_recv_state_internal *internal_state;
 	struct bt_bap_scan_delegator_recv_state *state;
 	uint8_t src_id;
@@ -756,7 +772,6 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 	bool bis_sync_change_requested;
 	uint16_t total_len;
 	struct bt_bap_bass_cp_mod_src *mod_src;
-	int ret = BT_GATT_ERR(BT_ATT_ERR_SUCCESS);
 	int err;
 
 	/* subtract 1 as the opcode has already been pulled */
@@ -822,11 +837,7 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	bis_sync_change_requested = false;
 	for (int i = 0; i < num_subgroups; i++) {
@@ -836,9 +847,11 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 		requested_bis_sync[i] = net_buf_simple_pull_le32(buf);
 
 		if (requested_bis_sync[i] != 0U && pa_sync == BT_BAP_BASS_PA_REQ_NO_SYNC) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("Cannot sync to BIS without PA");
-			ret = BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 		}
 
 		/* If the BIS sync request is different than what was previously was requested, or
@@ -850,21 +863,24 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 			bis_sync_change_requested = true;
 		}
 
-		if (!valid_bis_sync_request(internal_state->requested_bis_sync[i],
-					    aggregated_bis_syncs)) {
+		if (!valid_bis_sync_request(requested_bis_sync[i], aggregated_bis_syncs)) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("Invalid BIS Sync request[%d]", i);
-			ret = BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
 		}
 		aggregated_bis_syncs |= requested_bis_sync[i];
 
 		subgroup->metadata_len = net_buf_simple_pull_u8(buf);
 
 		if (subgroup->metadata_len > CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_WRN("Metadata too long %u/%u", subgroup->metadata_len,
 				CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE);
-			ret = BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-			goto unlock_return;
+			return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
 		}
 
 		metadata = net_buf_simple_pull_mem(buf, subgroup->metadata_len);
@@ -878,6 +894,7 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 
 	/* Store backup in case upper layers rejects */
 	(void)memcpy(&backup_state, state, sizeof(backup_state));
+	backup_pa_sync_requested = internal_state->pa_sync_requested;
 
 	if (state->num_subgroups != num_subgroups) {
 		state->num_subgroups = num_subgroups;
@@ -910,22 +927,34 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 	}
 
 	if (scan_delegator_cbs != NULL && scan_delegator_cbs->modify_source != NULL) {
+		/* Unlock mutex to avoid potential deadlock on app callback */
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 		err = scan_delegator_cbs->modify_source(conn, state);
 		if (err != 0) {
-			LOG_DBG("Modify Source rejected with reason 0x%02x", err);
+			err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+			__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+
+			/* Restore backup */
 			(void)memcpy(state, &backup_state, sizeof(backup_state));
 
 			err = k_mutex_unlock(&internal_state->mutex);
 			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
+			LOG_DBG("Modify Source rejected with reason 0x%02x", err);
+
 			return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
 		}
+
+		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 	}
 
 	/* Only send the sync request to upper layers if it is requested, and
-	 * we are not already synced to the device
+	 * we have not already sent the request to the application and if we are not already synced
 	 */
-	if (pa_sync != BT_BAP_BASS_PA_REQ_NO_SYNC &&
+	if (pa_sync != BT_BAP_BASS_PA_REQ_NO_SYNC && !internal_state->pa_sync_requested &&
 	    state->pa_sync_state != BT_BAP_PA_STATE_SYNCED) {
 		const uint8_t pa_sync_state = state->pa_sync_state;
 
@@ -936,20 +965,17 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 		err = pa_sync_request(conn, state, pa_sync, pa_interval);
 		if (err != 0) {
 			err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-			if (err != 0) {
-				LOG_DBG("Failed to lock mutex: %d", err);
-
-				return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-			}
+			__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 			/* Restore backup */
 			(void)memcpy(state, &backup_state, sizeof(backup_state));
-
-			LOG_DBG("PA sync %u from %p was rejected with reason %d", pa_sync,
-				(void *)conn, err);
+			internal_state->pa_sync_requested = backup_pa_sync_requested;
 
 			err = k_mutex_unlock(&internal_state->mutex);
 			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+			LOG_DBG("PA sync %u from %p was rejected with reason %d", pa_sync,
+				(void *)conn, err);
 
 			return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
 		} else if (pa_sync_state != state->pa_sync_state) {
@@ -961,41 +987,67 @@ static int scan_delegator_mod_src(struct bt_conn *conn,
 		}
 
 		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-		if (err != 0) {
-			LOG_DBG("Failed to lock mutex: %d", err);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
-			return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-		}
+		internal_state->pa_sync_requested = true;
 	} else if (pa_sync == BT_BAP_BASS_PA_REQ_NO_SYNC &&
-		   (state->pa_sync_state == BT_BAP_PA_STATE_INFO_REQ ||
+		   (internal_state->pa_sync_requested ||
+		    state->pa_sync_state == BT_BAP_PA_STATE_INFO_REQ ||
 		    state->pa_sync_state == BT_BAP_PA_STATE_SYNCED)) {
+		/* Only send sync term request if we have received a sync request, or if the state
+		 * reflects a pending PAST or active sync
+		 */
+
+		/* Unlock mutex to avoid potential deadlock on app callback */
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 		/* Terminate PA sync */
 		err = pa_sync_term_request(conn, &internal_state->state);
-
 		if (err != 0) {
-			LOG_DBG("PA sync term from %p was rejected with reason %d", (void *)conn,
-				err);
+			err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+			__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+
+			/* Restore backup */
+			(void)memcpy(state, &backup_state, sizeof(backup_state));
+			internal_state->pa_sync_requested = backup_pa_sync_requested;
+
 			err = k_mutex_unlock(&internal_state->mutex);
 			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+			LOG_DBG("PA sync term from %p was rejected with reason %d", (void *)conn,
+				err);
+
 			return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
 		}
+
 		state_changed = true;
+
+		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+
+		internal_state->pa_sync_requested = false;
 	}
 
 	/* Store requested_bis_sync after everything has been validated */
 	(void)memcpy(internal_state->requested_bis_sync, requested_bis_sync,
 		     sizeof(requested_bis_sync));
 
-	/* Notify if changed */
-	if (state_changed) {
-		LOG_DBG("Index %u: Source modified: ID 0x%02x", internal_state->index,
-			state->src_id);
-		set_receive_state_changed(internal_state);
-	}
-
-unlock_return:
 	err = k_mutex_unlock(&internal_state->mutex);
 	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+	/* Notify if changed */
+	if (state_changed) {
+		LOG_DBG("Source modified");
+
+		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+
+		set_receive_state_changed(internal_state);
+
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+	}
 
 	if (state_changed) {
 		/* app callback */
@@ -1006,7 +1058,7 @@ unlock_return:
 		bis_sync_request_updated(conn, internal_state);
 	}
 
-	return ret;
+	return 0;
 }
 
 static int scan_delegator_broadcast_code(struct bt_conn *conn,
@@ -1052,7 +1104,6 @@ static int scan_delegator_rem_src(struct bt_conn *conn,
 {
 	struct bass_recv_state_internal *internal_state;
 	struct bt_bap_scan_delegator_recv_state *state;
-	bool bis_sync_was_requested = false;
 	uint8_t src_id;
 	int err;
 
@@ -1071,67 +1122,70 @@ static int scan_delegator_rem_src(struct bt_conn *conn,
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	state = &internal_state->state;
 
-	/* If conn == NULL then it's a local operation and we do not need to ask the application */
-	if (conn != NULL) {
+	if (internal_state->pa_sync_requested ||
+	    state->pa_sync_state == BT_BAP_PA_STATE_INFO_REQ ||
+	    state->pa_sync_state == BT_BAP_PA_STATE_SYNCED) {
+		LOG_DBG("Cannot remove source ID 0x%02x while PA is syncing or synced",
+			state->src_id);
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
-		if (scan_delegator_cbs != NULL && scan_delegator_cbs->remove_source != NULL) {
-			err = scan_delegator_cbs->remove_source(conn, src_id);
-			if (err != 0) {
-				LOG_DBG("Remove Source rejected with reason 0x%02x", err);
-				err = k_mutex_unlock(&internal_state->mutex);
-				__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
-				return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
-			}
-		}
-
-		if (state->pa_sync_state == BT_BAP_PA_STATE_INFO_REQ ||
-		    state->pa_sync_state == BT_BAP_PA_STATE_SYNCED) {
-			/* Terminate PA sync */
-			err = pa_sync_term_request(conn, &internal_state->state);
-			if (err != 0) {
-				LOG_DBG("PA sync term from %p was rejected with reason %d",
-					(void *)conn, err);
-				err = k_mutex_unlock(&internal_state->mutex);
-				__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
-				return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
-			}
-		}
+		LOG_DBG("Cannot remove source ID 0x%02x while PA is synced", src_id);
+		/* We shouldn't return a success here, but the Test Spec requires it at the moment,
+		 * Errata to fix this: https://bluetooth.atlassian.net/browse/ES-28445
+		 */
+		return BT_GATT_ERR(BT_ATT_ERR_SUCCESS);
 	}
 
 	for (uint8_t i = 0U; i < state->num_subgroups; i++) {
 		if (internal_state->requested_bis_sync[i] != 0U &&
 		    internal_state->state.subgroups[i].bis_sync != 0U) {
-			bis_sync_was_requested = true;
-			break;
+			LOG_DBG("Cannot remove source ID 0x%02x while BIS for subgroup[%u] is "
+				"synced or syncing (0x%08X - 0x%08X)",
+				state->src_id, i, internal_state->requested_bis_sync[i],
+				internal_state->state.subgroups[i].bis_sync);
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+			LOG_DBG("Cannot remove source ID 0x%02x while BIS is synced", src_id);
+			/* We shouldn't return a success here, but the Test Spec requires it at the
+			 * moment, Errata to fix this:
+			 * https://bluetooth.atlassian.net/browse/ES-28445
+			 */
+			return BT_GATT_ERR(BT_ATT_ERR_SUCCESS);
 		}
 	}
 
-	LOG_DBG("Index %u: Removed source with ID 0x%02x",
-		internal_state->index, src_id);
+	/* If conn == NULL then it's a local operation and we do not need to ask the application */
+	if (conn != NULL && scan_delegator_cbs != NULL &&
+	    scan_delegator_cbs->remove_source != NULL) {
+		/* Unlock mutex to avoid potential deadlock on app callback */
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
-	internal_state->active = false;
-	(void)memset(&internal_state->state, 0, sizeof(internal_state->state));
-	(void)memset(internal_state->broadcast_code, 0,
-		     sizeof(internal_state->broadcast_code));
-	(void)memset(internal_state->requested_bis_sync, 0,
-		     sizeof(internal_state->requested_bis_sync));
+		err = scan_delegator_cbs->remove_source(conn, src_id);
+		if (err != 0) {
+			LOG_DBG("Remove Source rejected with reason 0x%02x", err);
+
+			return BT_GATT_ERR(BT_ATT_ERR_WRITE_REQ_REJECTED);
+		}
+
+		err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+		__ASSERT(err == 0, "Failed to lock mutex: %d", err);
+	}
+
+	free_recv_state(internal_state);
 
 	set_receive_state_changed(internal_state);
 
 	err = k_mutex_unlock(&internal_state->mutex);
 	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
-	if (bis_sync_was_requested) {
-		bis_sync_request_updated(conn, internal_state);
-	}
+	LOG_DBG("Removed source with ID 0x%02x", src_id);
 
 	/* app callback */
 	receive_state_updated(conn, internal_state);
@@ -1147,6 +1201,9 @@ static ssize_t write_control_point(struct bt_conn *conn,
 	struct net_buf_simple buf;
 	uint8_t opcode;
 	int err;
+
+	ARG_UNUSED(attr);
+	ARG_UNUSED(flags);
 
 	if (offset != 0) {
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
@@ -1240,6 +1297,8 @@ static ssize_t write_control_point(struct bt_conn *conn,
 static void recv_state_cfg_changed(const struct bt_gatt_attr *attr,
 				   uint16_t value)
 {
+	ARG_UNUSED(attr);
+
 	LOG_DBG("value 0x%04x", value);
 }
 
@@ -1248,38 +1307,33 @@ static ssize_t read_recv_state(struct bt_conn *conn,
 			       uint16_t len, uint16_t offset)
 {
 	uint8_t idx = POINTER_TO_UINT(BT_AUDIO_CHRC_USER_DATA(attr));
-	struct bass_recv_state_internal *recv_state = &scan_delegator.recv_states[idx];
-	struct bt_bap_scan_delegator_recv_state *state = &recv_state->state;
+	struct bass_recv_state_internal *internal_state = &scan_delegator.recv_states[idx];
+	__maybe_unused int err;
+	ssize_t ret_val;
 
-	if (recv_state->active) {
-		ssize_t ret_val;
-		int err;
+	if (IS_ENABLED(CONFIG_BT_BAP_SCAN_DELEGATOR_LOG_LEVEL_DBG)) {
+		bt_debug_dump_recv_state(internal_state);
+	}
 
-		LOG_DBG("Index %u: Source ID 0x%02x", idx, state->src_id);
+	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
-		err = k_mutex_lock(&recv_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-		if (err != 0) {
-			LOG_DBG("Failed to lock mutex: %d", err);
+	if (internal_state->active) {
+		net_buf_put_recv_state(internal_state);
 
-			return err;
-		}
+		ret_val = bt_gatt_attr_read(conn, attr, buf, len, offset, read_buf.data,
+					    read_buf.len);
 
-		if (IS_ENABLED(CONFIG_BT_BAP_SCAN_DELEGATOR_LOG_LEVEL_DBG)) {
-			bt_debug_dump_recv_state(recv_state);
-		}
-		net_buf_put_recv_state(recv_state);
-
-		ret_val = bt_gatt_attr_read(conn, attr, buf, len, offset,
-					    read_buf.data, read_buf.len);
-
-		err = k_mutex_unlock(&recv_state->mutex);
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+	} else {
+		err = k_mutex_unlock(&internal_state->mutex);
 		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
-		return ret_val;
+		ret_val = bt_gatt_attr_read(conn, attr, buf, len, offset, NULL, 0);
 	}
-	LOG_DBG("Index %u: Not active", idx);
-	return bt_gatt_attr_read(conn, attr, buf, len, offset, NULL, 0);
 
+	return ret_val;
 }
 
 #define RECEIVE_STATE_CHARACTERISTIC(idx) \
@@ -1311,7 +1365,7 @@ static int bass_register(void)
 	int err;
 
 	err = bt_gatt_service_register(&bass_svc);
-	if (err) {
+	if (err != 0) {
 		LOG_DBG("Failed to register BASS service (err %d)", err);
 		return err;
 	}
@@ -1326,7 +1380,7 @@ static int bass_unregister(void)
 	int err;
 
 	err = bt_gatt_service_unregister(&bass_svc);
-	if (err) {
+	if (err != 0) {
 		LOG_DBG("Failed to unregister BASS service (err %d)", err);
 		return err;
 	}
@@ -1342,15 +1396,15 @@ int bt_bap_scan_delegator_register(struct bt_bap_scan_delegator_cb *cb)
 	int err;
 
 	if (atomic_test_and_set_bit(scan_delegator_flags,
-				    SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELIGATOR)) {
+				    SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELEGATOR)) {
 		LOG_DBG("Scan delegator already registered");
 		return -EALREADY;
 	}
 
 	err = bass_register();
-	if (err) {
+	if (err != 0) {
 		atomic_clear_bit(scan_delegator_flags,
-				 SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELIGATOR);
+				 SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELEGATOR);
 		return err;
 	}
 
@@ -1385,15 +1439,14 @@ int bt_bap_scan_delegator_unregister(void)
 	int err;
 
 	if (!atomic_test_and_clear_bit(scan_delegator_flags,
-				       SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELIGATOR)) {
+				       SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELEGATOR)) {
 		LOG_DBG("Scan delegator not yet registered");
 		return -EALREADY;
 	}
 
 	err = bass_unregister();
-	if (err) {
-		atomic_set_bit(scan_delegator_flags,
-			       SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELIGATOR);
+	if (err != 0) {
+		atomic_set_bit(scan_delegator_flags, SCAN_DELEGATOR_FLAG_REGISTERED_SCAN_DELEGATOR);
 		return err;
 	}
 
@@ -1408,7 +1461,7 @@ int bt_bap_scan_delegator_set_pa_state(uint8_t src_id,
 	struct bass_recv_state_internal *internal_state = bass_lookup_src_id(src_id);
 	struct bt_bap_scan_delegator_recv_state *recv_state;
 	bool state_changed = false;
-	int err;
+	__maybe_unused int err;
 
 	if (internal_state == NULL) {
 		LOG_DBG("Could not find recv_state by src_id %u", src_id);
@@ -1416,13 +1469,13 @@ int bt_bap_scan_delegator_set_pa_state(uint8_t src_id,
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return -EBUSY;
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	recv_state = &internal_state->state;
+	/* We consider the PA sync request handled when this function is called. This will allow for
+	 * following requests to sync, if not already synced, to trigger the callback again.
+	 */
+	internal_state->pa_sync_requested = false;
 
 	if (recv_state->pa_sync_state != pa_state) {
 		recv_state->pa_sync_state = pa_state;
@@ -1446,9 +1499,8 @@ int bt_bap_scan_delegator_set_bis_sync_state(
 	uint32_t bis_synced[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS])
 {
 	struct bass_recv_state_internal *internal_state = bass_lookup_src_id(src_id);
+	__maybe_unused int err;
 	bool notify = false;
-	int ret = 0;
-	int err;
 
 	if (internal_state == NULL) {
 		LOG_DBG("Could not find recv_state by src_id %u", src_id);
@@ -1456,17 +1508,15 @@ int bt_bap_scan_delegator_set_bis_sync_state(
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return -EBUSY;
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	if (internal_state->state.pa_sync_state != BT_BAP_PA_STATE_SYNCED) {
+		err = k_mutex_unlock(&internal_state->mutex);
+		__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 		LOG_DBG("PA for src_id %u isn't synced, cannot be BIG synced",
 			src_id);
-		ret = -EINVAL;
-		goto unlock_return;
+		return -EINVAL;
 	}
 
 	/* Verify state for all subgroups before assigning any data */
@@ -1478,10 +1528,12 @@ int bt_bap_scan_delegator_set_bis_sync_state(
 		if (bis_synced[i] == BT_BAP_BIS_SYNC_NO_PREF ||
 		    !bits_subset_of(bis_synced[i],
 				    internal_state->requested_bis_sync[i])) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("Subgroup[%u] invalid bis_sync value %x for %x",
 				i, bis_synced[i], internal_state->requested_bis_sync[i]);
-			ret = -EINVAL;
-			goto unlock_return;
+			return -EINVAL;
 		}
 	}
 
@@ -1499,9 +1551,6 @@ int bt_bap_scan_delegator_set_bis_sync_state(
 		}
 	}
 
-	LOG_DBG("Index %u: Source ID 0x%02x synced",
-		internal_state->index, src_id);
-
 	if (internal_state->state.encrypt_state == BT_BAP_BIG_ENC_STATE_BAD_CODE) {
 		(void)memset(internal_state->state.bad_code, 0xFF,
 			     sizeof(internal_state->state.bad_code));
@@ -1511,16 +1560,17 @@ int bt_bap_scan_delegator_set_bis_sync_state(
 		set_receive_state_changed(internal_state);
 	}
 
-unlock_return:
 	err = k_mutex_unlock(&internal_state->mutex);
 	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+	LOG_DBG("Source ID 0x%02x synced", src_id);
 
 	if (notify) {
 		/* app callback */
 		receive_state_updated(NULL, internal_state);
 	}
 
-	return ret;
+	return 0;
 }
 
 static bool valid_bt_bap_scan_delegator_add_src_param(
@@ -1534,12 +1584,12 @@ static bool valid_bt_bap_scan_delegator_add_src_param(
 		return false;
 	}
 
-	CHECKIF(param->addr.type > BT_ADDR_LE_RANDOM) {
+	if (param->addr.type > BT_ADDR_LE_RANDOM) {
 		LOG_DBG("param->addr.type %u is invalid", param->addr.type);
 		return false;
 	}
 
-	CHECKIF(param->sid > BT_GAP_SID_MAX) {
+	if (param->sid > BT_GAP_SID_MAX) {
 		LOG_DBG("param->sid %d is invalid", param->sid);
 		return false;
 	}
@@ -1568,6 +1618,8 @@ static bool valid_bt_bap_scan_delegator_add_src_param(
 			return false;
 		}
 
+		aggregated_bis_syncs |= subgroup->bis_sync;
+
 		if (subgroup->metadata_len > CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE) {
 			LOG_DBG("subgroup[%u]: Invalid metadata_len: %u",
 				i, subgroup->metadata_len);
@@ -1583,9 +1635,9 @@ int bt_bap_scan_delegator_add_src(const struct bt_bap_scan_delegator_add_src_par
 {
 	struct bass_recv_state_internal *internal_state = NULL;
 	struct bt_bap_scan_delegator_recv_state *state;
-	int err;
+	__maybe_unused int err;
 
-	CHECKIF(!valid_bt_bap_scan_delegator_add_src_param(param)) {
+	if (!valid_bt_bap_scan_delegator_add_src_param(param)) {
 		return -EINVAL;
 	}
 
@@ -1606,11 +1658,7 @@ int bt_bap_scan_delegator_add_src(const struct bt_bap_scan_delegator_add_src_par
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return -EBUSY;
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	state = &internal_state->state;
 
@@ -1619,7 +1667,9 @@ int bt_bap_scan_delegator_add_src(const struct bt_bap_scan_delegator_add_src_par
 	state->adv_sid = param->sid;
 	state->broadcast_id = param->broadcast_id;
 	state->pa_sync_state = param->pa_state;
+	state->encrypt_state = param->encrypt_state;
 	state->num_subgroups = param->num_subgroups;
+
 	if (state->num_subgroups > 0U) {
 		(void)memcpy(state->subgroups, param->subgroups,
 			     sizeof(state->subgroups));
@@ -1636,13 +1686,12 @@ int bt_bap_scan_delegator_add_src(const struct bt_bap_scan_delegator_add_src_par
 		internal_state->requested_bis_sync[i] = BT_BAP_BIS_SYNC_NO_PREF;
 	}
 
-	LOG_DBG("Index %u: New source added: ID 0x%02x",
-		internal_state->index, state->src_id);
-
 	set_receive_state_changed(internal_state);
 
 	err = k_mutex_unlock(&internal_state->mutex);
 	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
+	LOG_DBG("New source added");
 
 	/* app callback */
 	receive_state_updated(NULL, internal_state);
@@ -1679,6 +1728,8 @@ static bool valid_bt_bap_scan_delegator_mod_src_param(
 			return false;
 		}
 
+		aggregated_bis_syncs |= subgroup->bis_sync;
+
 		if (subgroup->metadata_len > CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE) {
 			LOG_DBG("subgroup[%u]: Invalid metadata_len: %u",
 				i, subgroup->metadata_len);
@@ -1695,10 +1746,9 @@ int bt_bap_scan_delegator_mod_src(const struct bt_bap_scan_delegator_mod_src_par
 	struct bass_recv_state_internal *internal_state = NULL;
 	struct bt_bap_scan_delegator_recv_state *state;
 	bool state_changed = false;
-	int ret = 0;
-	int err;
+	__maybe_unused int err;
 
-	CHECKIF(!valid_bt_bap_scan_delegator_mod_src_param(param)) {
+	if (!valid_bt_bap_scan_delegator_mod_src_param(param)) {
 		return -EINVAL;
 	}
 
@@ -1710,11 +1760,7 @@ int bt_bap_scan_delegator_mod_src(const struct bt_bap_scan_delegator_mod_src_par
 	}
 
 	err = k_mutex_lock(&internal_state->mutex, SCAN_DELEGATOR_BUF_SEM_TIMEOUT);
-	if (err != 0) {
-		LOG_DBG("Failed to lock mutex: %d", err);
-
-		return -EBUSY;
-	}
+	__ASSERT(err == 0, "Failed to lock mutex: %d", err);
 
 	state = &internal_state->state;
 
@@ -1745,10 +1791,12 @@ int bt_bap_scan_delegator_mod_src(const struct bt_bap_scan_delegator_mod_src_par
 
 		if (bis_sync != BT_BAP_BIS_SYNC_FAILED &&
 		    !bits_subset_of(bis_sync, bis_sync_requested)) {
+			err = k_mutex_unlock(&internal_state->mutex);
+			__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
+
 			LOG_DBG("Subgroup[%d] invalid bis_sync value %x for %x",
 				i, bis_sync, bis_sync_requested);
-			ret = -EINVAL;
-			goto unlock_return;
+			return -EINVAL;
 		}
 	}
 
@@ -1783,22 +1831,20 @@ int bt_bap_scan_delegator_mod_src(const struct bt_bap_scan_delegator_mod_src_par
 	}
 
 	if (state_changed) {
-		LOG_DBG("Index %u: Source modified: ID 0x%02x",
-			internal_state->index, state->src_id);
 		set_receive_state_changed(internal_state);
 	}
 
-unlock_return:
 	err = k_mutex_unlock(&internal_state->mutex);
 	__ASSERT(err == 0, "Failed to unlock mutex: %d", err);
 
-
 	if (state_changed) {
+		LOG_DBG("Source modified");
+
 		/* app callback */
 		receive_state_updated(NULL, internal_state);
 	}
 
-	return ret;
+	return 0;
 }
 
 int bt_bap_scan_delegator_rem_src(uint8_t src_id)

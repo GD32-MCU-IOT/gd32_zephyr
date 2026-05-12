@@ -432,7 +432,12 @@ static void write_explicit_feedback(struct usbd_class_data *const c_data,
 	fb_value = ctx->ops->feedback_cb(dev, terminal, ctx->user_data);
 
 	if (usbd_bus_speed(uds_ctx) == USBD_SPEED_FS) {
-		net_buf_add_le24(buf, fb_value);
+		if (IS_ENABLED(CONFIG_USBD_UAC2_FS_WINDOWS_WORKAROUND)) {
+			/* Convert Q10.14 to Q16.16 */
+			net_buf_add_le32(buf, fb_value << 2);
+		} else {
+			net_buf_add_le24(buf, fb_value);
+		}
 	} else {
 		net_buf_add_le32(buf, fb_value);
 	}
@@ -818,33 +823,20 @@ static int uac2_request(struct usbd_class_data *const c_data, struct net_buf *bu
 	terminal = cfg->as_terminals[as_idx];
 
 	if (is_feedback) {
-		bool clear_double = buf->frags;
-
 		if (ctx->fb_queued & BIT(as_idx)) {
 			ctx->fb_queued &= ~BIT(as_idx);
 		} else {
-			clear_double = true;
-		}
-
-		if (clear_double) {
 			ctx->fb_double &= ~BIT(as_idx);
 		}
-	} else if (!atomic_test_and_clear_bit(&ctx->as_queued, as_idx) || buf->frags) {
+	} else if (!atomic_test_and_clear_bit(&ctx->as_queued, as_idx)) {
 		atomic_clear_bit(&ctx->as_double, as_idx);
 	}
 
 	if (USB_EP_DIR_IS_OUT(ep)) {
 		ctx->ops->data_recv_cb(dev, terminal, buf->__buf, buf->len,
 				       ctx->user_data);
-		if (buf->frags) {
-			ctx->ops->data_recv_cb(dev, terminal, buf->frags->__buf,
-					       buf->frags->len, ctx->user_data);
-		}
 	} else if (!is_feedback) {
 		ctx->ops->buf_release_cb(dev, terminal, buf->__buf, ctx->user_data);
-		if (buf->frags) {
-			ctx->ops->buf_release_cb(dev, terminal, buf->frags->__buf, ctx->user_data);
-		}
 	}
 
 	usbd_ep_buf_free(uds_ctx, buf);
@@ -926,6 +918,26 @@ static void *uac2_get_desc(struct usbd_class_data *const c_data,
 	return cfg->fs_descriptors;
 }
 
+static void uac2_disable(struct usbd_class_data *const c_data)
+{
+	const struct device *dev = usbd_class_get_private(c_data);
+	struct uac2_ctx *ctx = dev->data;
+	const struct uac2_cfg *cfg = dev->config;
+	const bool microframes =
+		USBD_SUPPORTS_HIGH_SPEED && usbd_bus_speed(c_data->uds_ctx) == USBD_SPEED_HS;
+	atomic_val_t as_active;
+
+	as_active = atomic_clear(&ctx->as_active);
+
+	while (as_active) {
+		unsigned int as_idx = find_lsb_set(as_active) - 1;
+
+		ctx->ops->terminal_update_cb(dev, cfg->as_terminals[as_idx], 0, microframes,
+					     ctx->user_data);
+		as_active &= ~BIT(as_idx);
+	}
+}
+
 static int uac2_init(struct usbd_class_data *const c_data)
 {
 	const struct device *dev = usbd_class_get_private(c_data);
@@ -946,6 +958,7 @@ struct usbd_class_api uac2_api = {
 	.request = uac2_request,
 	.sof = uac2_sof,
 	.get_desc = uac2_get_desc,
+	.disable = uac2_disable,
 	.init = uac2_init,
 };
 

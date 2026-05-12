@@ -47,6 +47,12 @@ extern void z_arm_pendsv(void);
 extern void sys_clock_isr(void);
 extern void z_arm_exc_spurious(void);
 
+#ifdef CONFIG_USE_SWITCH
+#define PENDSV_VEC z_arm_exc_spurious
+#else
+#define PENDSV_VEC z_arm_pendsv
+#endif
+
 __imx_boot_ivt_section void (*const image_vector_table[])(void) = {
 	(void (*)())(z_main_stack + CONFIG_MAIN_STACK_SIZE), /* 0x00 */
 	z_arm_reset,                                         /* 0x04 */
@@ -66,7 +72,7 @@ __imx_boot_ivt_section void (*const image_vector_table[])(void) = {
 	z_arm_svc,                      /* 0x2C */
 	z_arm_debug_monitor,            /* 0x30 */
 	(void (*)())image_vector_table, /* 0x34, imageLoadAddress. */
-	z_arm_pendsv,                   /* 0x38 */
+	PENDSV_VEC,                     /* 0x38 */
 #if defined(CONFIG_SYS_CLOCK_EXISTS) && defined(CONFIG_CORTEX_M_SYSTICK_INSTALL_ISR)
 	sys_clock_isr, /* 0x3C */
 #else
@@ -147,13 +153,19 @@ __weak __ramfunc void clock_init(void)
 	CLOCK_AttachClk(kNONE_to_WDT0_CLK);
 #endif
 
-#if defined(CONFIG_ADC_MCUX_GAU) || defined(CONFIG_DAC_MCUX_GAU)
-	/* Attack clock for GAU and reset */
-	CLOCK_AttachClk(kMAIN_CLK_to_GAU_CLK);
-	CLOCK_SetClkDiv(kCLOCK_DivGauClk, 1U);
+#if defined(CONFIG_ADC_MCUX_GAU) || defined(CONFIG_DAC_MCUX_GAU) || \
+	defined(CONFIG_COMPARATOR_NXP_ACOMP)
+	/* Set 64M GAU clock from T3 PLL 256M and reset */
+	CLOCK_AttachClk(kT3PLL_MCI_256M_to_GAU_CLK);
+	CLOCK_SetClkDiv(kCLOCK_DivGauClk, 4U);
 	CLOCK_EnableClock(kCLOCK_Gau);
 	RESET_PeripheralReset(kGAU_RST_SHIFT_RSTn);
+	GAU_BG->CTRL &= ~BG_CTRL_PD_MASK;
 #endif /* GAU */
+
+#if (DT_NODE_HAS_STATUS(DT_NODELABEL(gdma), okay))
+	RESET_PeripheralReset(kGDMA_RST_SHIFT_RSTn);
+#endif
 
 /* Any flexcomm can be USART */
 #if (DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm0), nxp_lpc_usart, okay)) && CONFIG_SERIAL
@@ -254,6 +266,14 @@ __weak __ramfunc void clock_init(void)
 	#if (DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm14), nxp_lpc_i2s, okay))
 		CLOCK_AttachClk(kAUDIO_PLL_to_FLEXCOMM14);
 	#endif
+
+	/* attach AUDIO PLL clock to MCLK */
+	CLOCK_AttachClk(kAUDIO_PLL_to_MCLK_CLK);
+	CLOCK_SetClkDiv(kCLOCK_DivMclkClk, 1);
+	SYSCTL1->MCLKPINDIR = SYSCTL1_MCLKPINDIR_MCLKPINDIR_MASK;
+#else
+	/* Deinitialization of the AVPLL. */
+	CLOCK_DeinitAvPll();
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lcdic)) && CONFIG_MIPI_DBI_NXP_LCDIC
@@ -289,9 +309,12 @@ __weak __ramfunc void clock_init(void)
 	CLOCK_EnableUsbhsPhyClock();
 #endif
 
-#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(enet)) && CONFIG_NET_L2_ETHERNET
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(enet)) && CONFIG_NET_L2_ETHERNET && CONFIG_ETH_DRIVER
 	RESET_PeripheralReset(kENET_IPG_RST_SHIFT_RSTn);
 	RESET_PeripheralReset(kENET_IPG_S_RST_SHIFT_RSTn);
+#else
+	/* Deinitialize TDDR PLL. */
+	CLOCK_DeinitTddrRefClk();
 #endif
 
 }

@@ -74,7 +74,8 @@ static uint32_t uart_bflb_get_clock(void)
 	uint32_t uclk;
 	const struct device *clock_ctrl =  DEVICE_DT_GET_ANY(bflb_clock_controller);
 
-#if defined(CONFIG_SOC_SERIES_BL60X) || defined(CONFIG_SOC_SERIES_BL70X)
+#if defined(CONFIG_SOC_SERIES_BL60X) || defined(CONFIG_SOC_SERIES_BL70X) \
+	|| defined(CONFIG_SOC_SERIES_BL70XL)
 	uart_divider = sys_read32(GLB_BASE + GLB_CLK_CFG2_OFFSET);
 	uart_divider = (uart_divider & GLB_UART_CLK_DIV_MSK) >> GLB_UART_CLK_DIV_POS;
 	clock_control_get_rate(clock_ctrl, (void *)BFLB_CLKID_CLK_ROOT, &uclk);
@@ -274,14 +275,19 @@ static void uart_bflb_isr(const struct device *dev)
 {
 	struct bflb_data *const data = dev->data;
 	const struct bflb_config *const cfg = dev->config;
-	uint32_t tmp = 0;
+	uint32_t tmp;
+	bool clear_err = !(sys_read32(cfg->base_reg + UART_INT_MASK_OFFSET) & UART_CR_URX_PCE_MASK);
 
 	if (data->user_cb) {
 		data->user_cb(dev, data->user_data);
 	}
 	/* clear interrupts that require ack*/
 	tmp = sys_read32(cfg->base_reg + UART_INT_CLEAR_OFFSET);
-	tmp = tmp | UART_CR_URX_RTO_CLR;
+	/* Clear PCE in case callback didn't read it and the interrupt is unmasked */
+	if (clear_err) {
+		tmp |= UART_CR_URX_PCE_CLR;
+	}
+	tmp |= UART_CR_URX_RTO_CLR;
 	sys_write32(tmp, cfg->base_reg + UART_INT_CLEAR_OFFSET);
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
@@ -443,9 +449,6 @@ static int uart_bflb_init(const struct device *dev)
 	sys_write32(0xFF, cfg->base_reg + UART_INT_CLEAR_OFFSET);
 	/* mask all IRQs */
 	sys_write32(0xFFFFFFFFU, cfg->base_reg + UART_INT_MASK_OFFSET);
-	/* unmask necessary irqs */
-	uart_bflb_irq_rx_enable(dev);
-	uart_bflb_irq_err_enable(dev);
 	/* enable all irqs */
 	sys_write32(0xFF, cfg->base_reg + UART_INT_EN_OFFSET);
 	cfg->irq_config_func(dev);
@@ -454,6 +457,7 @@ static int uart_bflb_init(const struct device *dev)
 	return rc;
 }
 
+#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
 static int uart_bflb_deinit(const struct device *dev)
 {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
@@ -472,6 +476,7 @@ static int uart_bflb_deinit(const struct device *dev)
 
 	return 0;
 }
+#endif
 
 static int uart_bflb_poll_in(const struct device *dev, unsigned char *c)
 {
@@ -513,8 +518,10 @@ static int uart_bflb_pm_control(const struct device *dev,
 		/* Ungate clock to peripheral */
 		if (cfg->base_reg == UART0_BASE) {
 			tmp |= (1 << 16);
+#ifdef UART1_BASE
 		} else if (cfg->base_reg == UART1_BASE) {
 			tmp |= (1 << 17);
+#endif
 		} else {
 			return -EINVAL;
 		}
@@ -529,8 +536,10 @@ static int uart_bflb_pm_control(const struct device *dev,
 		/* Gate clock to peripheral */
 		if (cfg->base_reg == UART0_BASE) {
 			tmp &= ~(1 << 16);
+#ifdef UART1_BASE
 		} else if (cfg->base_reg == UART1_BASE) {
 			tmp &= ~(1 << 17);
+#endif
 		} else {
 			return -EINVAL;
 		}

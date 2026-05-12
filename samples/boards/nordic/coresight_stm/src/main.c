@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(app);
 #define TEST_LOG(rpt, item)                                                                        \
 	({                                                                                         \
 		uint32_t key = irq_lock();                                                         \
+		__DEBRACKET item;                                                                  \
 		uint32_t t = k_cycle_get_32();                                                     \
 		for (uint32_t i = 0; i < rpt; i++) {                                               \
 			__DEBRACKET item;                                                          \
@@ -80,6 +81,8 @@ int main(void)
 
 	t_s = TEST_LOG(rpt, (LOG_INF("test with string %s", str)));
 	t_s -= delta;
+
+	TEST_LOG(rpt, (LOG_INF("test with 64bit argument %llu", 2LLU << 41)));
 
 #ifdef CONFIG_LOG_FRONTEND_STMESP
 	uint32_t rpt_tp = 20;

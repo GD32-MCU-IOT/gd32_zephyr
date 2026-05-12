@@ -119,8 +119,27 @@ Run following command to test user buttons connected to FRDM-IMX93 GPIO:
 Note: The overlay only supports ``mimx9352/a55``, but can be extended to support
 ``mimx9352/m33`` if I2C and PCAL6524 is enabled.
 
+PWM(TPM)
+--------
+
+For A55 Core, TPM3 is enabled for :zephyr:code-sample:`pwm-blinky` application,
+the GREEN Colored LED in RGB LED LED1 on the board will blink with different frequency.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/basic/blinky_pwm
+   :host-os: unix
+   :board: frdm_imx93/mimx9352/a55
+   :goals: build
+
 Programming and Debugging (A55)
 *******************************
+
+.. zephyr:board-supported-runners::
+
+There are multiple method to program and debug Zephyr on the A55 core:
+
+Option 1. Boot Zephyr by Using U-Boot Command
+=============================================
 
 U-Boot "cpu" command is used to load and kick Zephyr to Cortex-A secondary Core, Currently
 it is supported in : `Real-Time Edge U-Boot`_ (use the branch "uboot_vxxxx.xx-y.y.y,
@@ -170,6 +189,116 @@ display the following console output:
     thread_b: Hello World from cpu 0 on frdm_imx93!
     thread_a: Hello World from cpu 0 on frdm_imx93!
     thread_b: Hello World from cpu 0 on frdm_imx93!
+
+Option 2. Boot Zephyr by Using JLink Runner
+===========================================
+
+Hardware Setup
+--------------
+
+
+The default runner for the board is JLink runner, there is one SWD connector P14 on
+the FRDM-IMX93 board.
+
+Refer to `NXP online document`_ to rework FRDM-IMX93 board and connect SWD connector P14
+to J-Link debugger.
+
+.. _NXP online document:
+        https://community.nxp.com/t5/FRDM-Training-Hub/How-to-use-J-link-on-FRDM-IMX93/ta-p/2122902
+
+
+Flash and Run
+-------------
+
+Power up the board and stop the board at U-Boot command line.
+
+Then use "west flash" command to load the zephyr.bin image from the host computer and
+start the Zephyr application on A55 core.
+
+Here is an example for the :zephyr:code-sample:`hello_world` application.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/hello_world
+   :host-os: unix
+   :board: frdm_imx93/mimx9352/a55
+   :goals: flash
+
+Then the following log could be found on UART1 console:
+
+.. code-block:: console
+
+
+    *** Booting Zephyr OS build v4.3.0-1976-g8f0df404c2ee ***
+    Hello World! frdm_imx93/mimx9352
+
+Debug
+-----
+
+Power up the board and stop the board at U-Boot command line.
+
+Then use "west debug" command to load the zephyr.bin image from the host computer and
+debug the Zephyr application on A55 core.
+
+Here is an example for the :zephyr:code-sample:`hello_world` application.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/hello_world
+   :host-os: unix
+   :board: frdm_imx93/mimx9352/a55
+   :goals: debug
+
+Option 3. Boot Zephyr by Using SPSDK Runner
+===========================================
+
+SPSDK runner leverages SPSDK tools (https://spsdk.readthedocs.io), it builds an
+bootable flash image ``flash.bin`` which includes all necessary firmware components.
+Using west flash command will download the boot image flash.bin to DDR memory, SD card
+or eMMC flash. By using flash.bin, as no U-Boot image is available, so TF-A will boot
+up Zephyr on the first Cortex-A55 Core directly.
+
+In order to use SPSDK runner, it requires fetching binary blobs, which can be achieved
+by running the following command:
+
+.. code-block:: console
+
+   west blobs fetch hal_nxp
+
+.. note::
+
+   It is recommended running the command above after :file:`west update`.
+
+SPSDK runner is enabled by configure item :kconfig:option:`CONFIG_BOARD_NXP_SPSDK_IMAGE`, currently
+it is not enabled by default for FRDM-IMX93 board, so use this configuration to enable
+it, for example, with the :zephyr:code-sample:`synchronization` sample:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/synchronization
+   :host-os: unix
+   :board: frdm_imx93/mimx9352/a55
+   :goals: build
+   :gen-args: -DCONFIG_BOARD_NXP_SPSDK_IMAGE=y
+
+If :kconfig:option:`CONFIG_BOARD_NXP_SPSDK_IMAGE` is available and enabled for the board variant,
+``flash.bin`` will be built automatically. The programming could be through below commands.
+Before that, onboard switch SW1[3:0] should be configured to 0b0001 for USB download mode
+to boot, and USB1 and DBG ports should be connected to Linux host PC. There are 2 serial ports
+enumerated (115200 8n1), the second port will be used for Cortex-A55 Zephyr's Console.
+(The flasher is spsdk which already installed via scripts/requirements.txt.
+On Linux host, USB device permission should be configured per Installation Guide
+of https://spsdk.readthedocs.io)
+
+.. code-block:: none
+
+   # load and run without programming. for next flashing, need to reset the board firstly
+   $ west flash -r spsdk
+
+   # program to SD card, then set SW1[3:0]=0b0011 to reboot from SD
+   $ west flash -r spsdk --bootdevice sd
+
+   # program to emmc card, then set SW1[3:0]=0b0010 to reboot from EMMC
+   $ west flash -r spsdk --bootdevice=emmc
+
+Then the Zephyr log will be displayed in the second serial port's Console.
 
 System Reboot (A55)
 ===================

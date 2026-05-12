@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/bap_lc3_preset.h>
@@ -178,6 +179,7 @@ static void stream_started_cb(struct bt_bap_stream *stream)
 {
 	struct audio_test_stream *test_stream = audio_test_stream_from_bap_stream(stream);
 	struct bt_bap_ep_info info;
+	struct bt_conn *ep_conn;
 	int err;
 
 	test_stream->seq_num = 0U;
@@ -211,6 +213,12 @@ static void stream_started_cb(struct bt_bap_stream *stream)
 
 	if (info.paired_ep != NULL) {
 		FAIL("Unexpected info.paired_ep: %p\n", info.paired_ep);
+		return;
+	}
+
+	ep_conn = bt_bap_ep_get_conn(stream->ep);
+	if (ep_conn != NULL) {
+		FAIL("Invalid conn from endpoint: %p", ep_conn);
 		return;
 	}
 
@@ -346,7 +354,7 @@ static int setup_extended_adv(struct bt_bap_broadcast_source *source, struct bt_
 	setup_broadcast_adv(adv);
 
 	err = bt_rand(&broadcast_id, BT_AUDIO_BROADCAST_ID_SIZE);
-	if (err) {
+	if (err != 0) {
 		printk("Unable to generate broadcast ID: %d\n", err);
 		return err;
 	}
@@ -530,19 +538,19 @@ static int stop_extended_adv(struct bt_le_ext_adv *adv)
 	int err;
 
 	err = bt_le_per_adv_stop(adv);
-	if (err) {
+	if (err != 0) {
 		printk("Failed to stop periodic advertising: %d\n", err);
 		return err;
 	}
 
 	err = bt_le_ext_adv_stop(adv);
-	if (err) {
+	if (err != 0) {
 		printk("Failed to stop extended advertising: %d\n", err);
 		return err;
 	}
 
 	err = bt_le_ext_adv_delete(adv);
-	if (err) {
+	if (err != 0) {
 		printk("Failed to delete extended advertising: %d\n", err);
 		return err;
 	}
@@ -559,7 +567,7 @@ static void init(void)
 	int err;
 
 	err = bt_enable(NULL);
-	if (err) {
+	if (err != 0) {
 		FAIL("Bluetooth init failed (err %d)\n", err);
 		return;
 	}

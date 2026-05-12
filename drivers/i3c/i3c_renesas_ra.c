@@ -109,35 +109,6 @@ extern void i3c_tx_isr(void);
 extern void i3c_rcv_isr(void);
 extern void i3c_eei_isr(void);
 
-static enum i3c_bus_mode i3c_renesas_ra_get_bus_mode(const struct i3c_dev_list *dev_list)
-{
-	enum i3c_bus_mode mode = I3C_BUS_MODE_PURE;
-
-	for (int i = 0; i < dev_list->num_i2c; i++) {
-		switch (I3C_LVR_I2C_DEV_IDX(dev_list->i2c[i].lvr)) {
-		case I3C_LVR_I2C_DEV_IDX_0:
-			if (mode < I3C_BUS_MODE_MIXED_FAST) {
-				mode = I3C_BUS_MODE_MIXED_FAST;
-			}
-			break;
-		case I3C_LVR_I2C_DEV_IDX_1:
-			if (mode < I3C_BUS_MODE_MIXED_LIMITED) {
-				mode = I3C_BUS_MODE_MIXED_LIMITED;
-			}
-			break;
-		case I3C_LVR_I2C_DEV_IDX_2:
-			if (mode < I3C_BUS_MODE_MIXED_SLOW) {
-				mode = I3C_BUS_MODE_MIXED_SLOW;
-			}
-			break;
-		default:
-			mode = I3C_BUS_MODE_INVALID;
-			break;
-		}
-	}
-	return mode;
-}
-
 static int i3c_renesas_ra_address_slots_init(const struct device *dev)
 {
 	const struct i3c_renesas_ra_config *config = dev->config;
@@ -260,10 +231,12 @@ static void i3c_renesas_ra_handle_address_phase(const struct device *dev,
 		goto add_phase_exit;
 	}
 
-	/* Update target descriptor */
-	target->dynamic_addr = dyn_addr;
-	target->bcr = daa_rx->bcr;
-	target->dcr = daa_rx->dcr;
+	if (target != NULL) {
+		/* Update target descriptor */
+		target->dynamic_addr = dyn_addr;
+		target->bcr = daa_rx->bcr;
+		target->dcr = daa_rx->dcr;
+	}
 
 	/* Request index for this target */
 	target_index = i3c_renesas_ra_device_index_request(dev, dyn_addr, false);
@@ -301,9 +274,12 @@ static void i3c_renesas_ra_handle_address_phase(const struct device *dev,
 	}
 
 add_phase_exit:
-	if (ret == 0) {
+	if (ret == 0 && target != NULL) {
 		LOG_DBG("Attach PID[0x%016llX] DA[0x%02X] SA[0x%02X] to DAT%d", target->pid,
 			target->dynamic_addr, target->static_addr, target_index);
+	} else if (ret == 0) {
+		LOG_DBG("Attach DA[0x%02X] to DAT%d (no target descriptor)", dyn_addr,
+			target_index);
 	} else {
 		LOG_DBG("DAA address phase error");
 	}
@@ -652,7 +628,7 @@ static int i3c_renesas_ra_attach_i3c_device(const struct device *dev,
 
 	if (target->dynamic_addr == 0 && target->static_addr == 0) {
 		/*
-		 * Do notthing.
+		 * Do nothing.
 		 * This case called from address slots init process.
 		 */
 		return 0;
@@ -783,7 +759,7 @@ static int i3c_renesas_ra_do_daa(const struct device *dev)
 	uint32_t num_dev = (config->common.dev_list.num_i3c) ? config->common.dev_list.num_i3c : 1;
 	uint32_t start_index = 0;
 
-	/* Start DAA without address asignment to get device info */
+	/* Start DAA without address assignment to get device info */
 	data->address_phase_count = 0;
 	data->skip_address_phase = false;
 	fsp_err = R_I3C_DynamicAddressAssignmentStart(data->fsp_ctrl, I3C_CCC_ENTDAA, start_index,
@@ -1102,7 +1078,7 @@ static int i3c_renesas_ra_init(const struct device *dev)
 	config->bus_enable_irq();
 
 #ifdef CONFIG_I3C_CONTROLLER
-	data->mode = i3c_renesas_ra_get_bus_mode(&config->common.dev_list);
+	data->mode = i3c_bus_mode(&config->common.dev_list);
 
 	/* Clear bus internal device info */
 	memset(data->device_info, 0x00,
@@ -1122,7 +1098,8 @@ static int i3c_renesas_ra_init(const struct device *dev)
 	}
 
 	/* Check I3C is controller mode and target device exist in device tree */
-	if (config->common.dev_list.num_i3c > 0) {
+	if (config->common.dev_list.num_i3c > 0 &&
+	    !(config->common.flags & I3C_CONTROLLER_FLAG_DISABLE_BUS_INIT)) {
 		/* Perform bus initialization */
 		ret = i3c_bus_init(dev, &config->common.dev_list);
 		if (ret) {
@@ -1229,6 +1206,7 @@ static DEVICE_API(i3c, i3c_renesas_ra_api) = {
 		.common.dev_list.i2c = i3c##index##_renesas_ra_i2c_dev_list,                       \
 		.common.dev_list.num_i2c = ARRAY_SIZE(i3c##index##_renesas_ra_i2c_dev_list),       \
 		.common.primary_controller_da = DT_INST_PROP_OR(index, primary_controller_da, 0),  \
+		.common.flags = I3C_CONTROLLER_CONFIG_FLAGS_DT_INST(index),                        \
 		.pin_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),                                  \
 		.pclk_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR_BY_NAME(index, pclk)),               \
 		.tclk_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR_BY_NAME(index, tclk)),               \

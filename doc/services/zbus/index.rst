@@ -69,6 +69,8 @@ Another essential aspect of zbus is the observers. There are three types of obse
 
 * Listeners, a callback that the event dispatcher executes every time an observed channel is
   published or notified;
+* Async Listeners, a callback that the event dispatcher schedules to execute in a work
+  queue (system work queue by default) every time an observed channel is published or notified;
 * Subscriber, a thread-based observer that relies internally on a message queue where the event
   dispatcher puts a changed channel's reference every time an observed channel is published or
   notified. Note this kind of observer does not receive the message itself. It should read the
@@ -386,26 +388,27 @@ kind of need.
 Delivery guarantees
 -------------------
 
-ZBus always delivers the messages to the listeners and message subscribers. However, there are no
+ZBus always delivers the messages to the listeners, message subscribers, and async listeners. However, there are no
 message delivery guarantees for subscribers because zbus only sends the notification, but the
 message reading depends on the subscriber's implementation. It is possible to increase the delivery
 rate by following design tips:
 
-* Keep the listeners quick-as-possible (deal with them as ISRs). If some processing is needed,
-  consider submitting a work item to a work-queue;
-* Try to give producers a high priority to avoid losses;
-* Leave spare CPU for observers to consume data produced;
+* Keep the listeners as quick as possible (deal with them as ISRs). If time-consuming processing is
+  required, consider offloading some or all of it to a work queue using async listeners.
+* Try to give consumers a high priority to avoid losses.
+* Leave spare CPU for observers to consume data produced.
 * Consider using message queues or pipes for intensive byte transfers.
 
 .. warning::
    ZBus uses :zephyr_file:`include/zephyr/net_buf.h` (network buffers) to exchange data with message
    subscribers. Thus, choose carefully the configurations
    :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_POOL_SIZE` and
-   :kconfig:option:`CONFIG_HEAP_MEM_POOL_ADD_SIZE_ZBUS`. They are crucial to a proper VDED execution
-   (delivery guarantee) considering message subscribers. If you want to keep an isolated pool for a
-   specific set of channels, you can use
+   :kconfig:option:`CONFIG_HEAP_MEM_POOL_ADD_SIZE_ZBUS` are crucial to a proper VDED execution
+   (delivery guarantee) considering message subscribers and async listeners. If you want to keep an
+   isolated pool for a specific set of channels, you can use
    :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_POOL_ISOLATION` with a dedicated pool. Look
-   at the :zephyr:code-sample:`zbus-msg-subscriber` to see the isolation in action.
+   at the :zephyr:code-sample:`zbus-msg-subscriber` and :zephyr:code-sample:`zbus-async-listeners`
+   to see the isolation in action.
 
 .. warning::
    Subscribers will receive only the reference of the changing channel. A data loss may be perceived
@@ -434,10 +437,12 @@ The message delivery will follow the precedence:
 Usage
 *****
 
-ZBus operation depends on channels and observers. Therefore, it is necessary to determine its
-message and observers list during the channel definition. A message is a regular C struct; the
-observer can be a subscriber (asynchronous), a message subscriber (asynchronous), or a listener
-(synchronous).
+ZBus operation depends on channels and observers. Therefore, it is necessary to determine the
+channel's message during the channel definition and its list of observers, which can be either
+statically (in the channel definition), using the :c:macro:`ZBUS_CHAN_ADD_OBS` or at runtime (see
+`runtime observers`_). A message is a regular C struct; the observer can be a listener
+(synchronous), an async listener (asynchronous), a subscriber (asynchronous), or a message
+subscriber (asynchronous).
 
 The following code defines and initializes a regular channel and its dependencies. This channel
 exchanges accelerometer data, for example.
@@ -784,6 +789,39 @@ message.
             }
     }
 
+
+Async listeners message access
+------------------------------
+
+Async listeners are implemented by utilizing the established message subscriber infrastructure. They
+are executed in a work queue context rather than in the publisher's context. When using the system
+work queue, the user will experience similar behavior to the regular listeners. Since the system
+work queue is, by default, a cooperative thread with a priority of -1, async listeners would run
+before all other application threads (usually preemptive) after the VDED execution.
+
+Async listeners can access the receiving channel's message directly via the message copy reference
+passed to the callback. Be aware that the message copy is freed just after the async listener
+execution. To access the channel's message, the async listener should only cast to the proper
+constant message format. The following example demonstrates how to access the message from an async
+listener.
+
+
+.. code-block:: c
+
+   static void async_listener_callback(const struct zbus_channel *chan, const void *message)
+   {
+           if (chan != &chan_event) {
+                   LOG_ERR("Unexpected channel");
+                   return;
+           }
+
+           const struct msg_event *msg = message;
+
+           LOG_INF("From async listener -> Evt=%d | %s", msg->type,
+                   k_thread_name_get(k_current_get()));
+   }
+
+
 User Data
 ---------
 It is possible to pass custom data into the channel's ``user_data`` for various purposes, such as
@@ -844,6 +882,7 @@ The following code has the exact behavior of the code in :ref:`reading from a ch
             zbus_chan_finish(&acc_chan);
     }
 
+.. _runtime observers:
 
 Runtime observer registration
 -----------------------------
@@ -874,9 +913,113 @@ illustrates the runtime registration usage.
 
 .. warning::
 
-  The :c:struct:`zbus_observer_node` can only be re-used in :c:func:`zbus_chan_add_obs_with_node` after removing
+  The :c:struct:`zbus_observer_node` can only be reused in :c:func:`zbus_chan_add_obs_with_node` after removing
   the channel observer it was first associated with through :c:func:`zbus_chan_rm_obs`.
 
+.. _zbus_proxy_agent:
+
+Proxy Agent Communication (Experimental)
+****************************************
+
+.. warning::
+  Proxy agent communication is experimental and may change without deprecation.
+
+ZBus supports proxy agent forwarding, enabling message passing between different execution
+domains such as CPU cores or separate devices.
+
+.. figure:: images/zbus_proxy_agent.svg
+    :alt: ZBus proxy agent communication
+    :width: 75%
+
+..
+  Image illustrating zbus proxy agent communication between domains.
+
+Concepts
+========
+
+Proxy agent communication introduces several key concepts:
+
+* **Shadow channels**: Read-only channels that mirror channels from other domains
+* **Proxy agents**: Background services that synchronize channel data between domains
+* **Transport backends**: Communication mechanisms used by proxy agents
+
+Proxy agents are set up in code using :c:macro:`ZBUS_PROXY_AGENT_DEFINE`, specifying the transport
+backend and configuration parameters.
+Channels are defined using standard zbus macros (:c:macro:`ZBUS_CHAN_DEFINE` or
+:c:macro:`ZBUS_CHAN_DEFINE_WITH_ID`) and shadow channels use :c:macro:`ZBUS_SHADOW_CHAN_DEFINE`
+to create read-only mirrors linked to specific proxy agents.
+
+Transport Backends
+==================
+
+ZBus proxy agent communication relies on transport backends to forward messages between different
+execution domains.
+
+IPC Backend
+-----------
+
+The IPC backend forwards messages between CPU cores within the same system using
+Inter-Process Communication mechanisms.
+
+See the :zephyr:code-sample:`zbus-proxy-agent-ipc` sample for a complete implementation.
+
+Usage
+=====
+
+1. Enable :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT` and the desired backend option.
+2. Provide the backend device in devicetree.
+3. Instantiate the proxy agent:
+
+.. code-block:: c
+
+    #include <zephyr/zbus/proxy_agent/zbus_proxy_agent.h>
+    #include <zephyr/zbus/proxy_agent/zbus_proxy_agent_ipc.h>
+
+    #define IPC_DEV_NODE DT_NODELABEL(ipc0)
+
+    ZBUS_PROXY_AGENT_DEFINE(proxy_agent,                   /* Proxy agent name */
+                            ZBUS_PROXY_AGENT_BACKEND_IPC,  /* Proxy agent type */
+                            IPC_DEV_NODE                   /* Backend node */
+    );
+
+Where:
+
+- "proxy_agent": Name of the proxy agent instance
+- "ZBUS_PROXY_AGENT_BACKEND_IPC": Transport backend type (IPC in this case)
+- "IPC_DEV_NODE": Device tree node for the backend device
+
+4. Forward local channels through the agent:
+
+.. code-block:: c
+
+    ZBUS_CHAN_DEFINE(my_channel, struct my_msg, NULL, NULL,
+                     ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(0));
+    ZBUS_PROXY_ADD_CHAN(proxy_agent, my_channel);
+
+    zbus_chan_pub(&my_channel, &msg, K_MSEC(100));
+
+Any message published to "my_channel" will be forwarded by "proxy_agent" to remote domains.
+
+5. Mirror remote channels with shadows:
+
+.. code-block:: c
+
+    ZBUS_SHADOW_CHAN_DEFINE(my_channel_shadow, struct my_msg,
+                            proxy_agent, NULL, ZBUS_OBSERVERS_EMPTY,
+                            ZBUS_MSG_INIT(0));
+
+Where the shadow channel can be used like any regular channel, but is read-only. For example, adding a listener:
+
+.. code-block:: c
+
+    void my_listener_cb(const struct zbus_channel *chan)
+    {
+        const struct my_msg *data = zbus_chan_const_msg(chan);
+        printk("Received: %d\n", data->data);
+    }
+
+    ZBUS_LISTENER_DEFINE(my_listener, my_listener_cb);
+    ZBUS_CHAN_ADD_OBS(my_channel_shadow, my_listener, 0);
 
 Samples
 *******
@@ -889,6 +1032,7 @@ available:
   Note there is an example of using a work queue instead of executing the listener as an execution
   option;
 * :zephyr:code-sample:`zbus-msg-subscriber` illustrates how to use message subscribers;
+* :zephyr:code-sample:`zbus-async-listeners` illustrates how to use async listeners;
 * :zephyr:code-sample:`zbus-dyn-channel` demonstrates how to use dynamically allocated exchanging
   data in zbus;
 * :zephyr:code-sample:`zbus-uart-bridge` shows an example of sending the operation of the channel to
@@ -902,6 +1046,7 @@ available:
 * :zephyr:code-sample:`zbus-confirmed-channel` implements a way of implement confirmed channel only
   with subscribers;
 * :zephyr:code-sample:`zbus-benchmark` implements a benchmark with different combinations of inputs.
+* :zephyr:code-sample:`zbus-proxy-agent-ipc` demonstrates multi-core communication using IPC proxy agents;
 
 Suggested Uses
 **************
@@ -912,6 +1057,11 @@ scenarios that can tolerate message losses and duplications; when they cannot, u
 subscribers (if you need a thread) or listeners (if you need to be lean and fast). In addition to
 the listener, another asynchronous message processing mechanism (like :ref:`message queues
 <message_queues_v2>`) may be necessary to retain the pending message until it gets processed.
+
+For proxy agent scenarios, use zbus to enable communication across execution boundaries:
+
+* **Multi-core systems**: Use IPC backend proxy agents to coordinate between application and network processors,
+  or distribute workloads across multiple CPU cores.
 
 .. note::
    ZBus can be used to transfer streams from the producer to the consumer. However, this can
@@ -926,12 +1076,15 @@ For enabling zbus, it is necessary to enable the :kconfig:option:`CONFIG_ZBUS` o
 Related configuration options:
 
 * :kconfig:option:`CONFIG_ZBUS_PRIORITY_BOOST` zbus Highest Locker Protocol implementation;
+
 * :kconfig:option:`CONFIG_ZBUS_CHANNELS_SYS_INIT_PRIORITY` determine the :c:macro:`SYS_INIT`
   priority used by zbus to organize the channels observations by channel;
 * :kconfig:option:`CONFIG_ZBUS_CHANNEL_NAME` enables the name of channels to be available inside the
   channels metadata. The log uses this information to show the channels' names;
 * :kconfig:option:`CONFIG_ZBUS_OBSERVER_NAME` enables the name of observers to be available inside
   the channels metadata;
+* :kconfig:option:`CONFIG_ZBUS_PREFER_DYNAMIC_ALLOCATION` instructs zbus to
+  use dynamic allocation for its internals. That can be disabled by the user and tuned later;
 * :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER` enables the message subscriber observer type;
 * :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_DYNAMIC` uses the heap to allocate message
   buffers;
@@ -945,6 +1098,7 @@ Related configuration options:
   channels to be transported into a message buffer;
 * :kconfig:option:`CONFIG_HEAP_MEM_POOL_ADD_SIZE_ZBUS` the reserved heap size for ZBus in a whole
   including message buffer allocation;
+* :kconfig:option:`CONFIG_ZBUS_ASYNC_LISTENER` enables the async listener observer type;
 * :kconfig:option:`CONFIG_ZBUS_RUNTIME_OBSERVERS` enables the runtime observer registration;
 * :kconfig:option:`CONFIG_ZBUS_RUNTIME_OBSERVERS_NODE_ALLOC_DYNAMIC` allocate the runtime observers
   dynamically using the heap;
@@ -954,6 +1108,27 @@ Related configuration options:
   observers to statically allocate.
 * :kconfig:option:`CONFIG_ZBUS_RUNTIME_OBSERVERS_NODE_ALLOC_NONE` use user-provided runtime
   observers nodes;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT` enable proxy agent communication support.
+
+Proxy Agent Configuration Options
+=================================
+
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_LOG_LEVEL` log level for proxy agent communication;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_IPC` enable IPC backend for proxy agent communication;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_IPC_LOG_LEVEL` log level for IPC backend proxy agent
+  communication;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_MAX_MESSAGE_SIZE` maximum message size for proxy agent
+  channels;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_MAX_CHANNEL_NAME_SIZE` maximum size of channel names in
+  proxy agent communication;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_INIT_PRIORITY` initialization priority for proxy agent
+  setup.
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_WORK_QUEUE_STACK_SIZE` stack size for the proxy agent
+  receive work queue thread;
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_WORK_QUEUE_PRIORITY` priority for the proxy agent receive
+  work queue thread.
+* :kconfig:option:`CONFIG_ZBUS_PROXY_AGENT_RX_QUEUE_DEPTH` depth of the proxy agent receive queue
+  for incoming messages from remote domains.
 
 API Reference
 *************

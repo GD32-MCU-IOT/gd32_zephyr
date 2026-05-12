@@ -353,7 +353,7 @@ static void drv_rx_done(struct ieee802154_cc13xx_cc26xx_subg_data *drv_data)
 				len, rssi, status);
 
 			pkt = net_pkt_rx_alloc_with_buffer(
-				drv_data->iface, len, AF_UNSPEC, 0, K_NO_WAIT);
+				drv_data->iface, len, NET_AF_UNSPEC, 0, K_NO_WAIT);
 			if (!pkt) {
 				LOG_WRN("Cannot allocate packet");
 				continue;
@@ -682,7 +682,7 @@ static int ieee802154_cc13xx_cc26xx_subg_tx(const struct device *dev,
 
 	if (mode != IEEE802154_TX_MODE_DIRECT) {
 		/* For backwards compatibility we only log an error but do not bail. */
-		NET_ERR("TX mode %d not supported - sending directly instead.", mode);
+		LOG_ERR("TX mode %d not supported - sending directly instead.", mode);
 	}
 
 	if (k_sem_take(&drv_data->lock, K_FOREVER)) {

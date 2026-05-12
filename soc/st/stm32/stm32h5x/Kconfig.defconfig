@@ -5,13 +5,17 @@
 
 if SOC_SERIES_STM32H5X
 
-rsource "Kconfig.defconfig.stm32h5*"
-
 config ICACHE
 	default y
 
+config ICACHE_LINE_SIZE
+	default 16
+
 config DCACHE
 	default y if !SOC_STM32H503XX
+
+config DCACHE_LINE_SIZE
+	default 16
 
 config CACHE_MANAGEMENT
 	default y
@@ -22,5 +26,8 @@ endchoice
 
 config ROM_START_OFFSET
 	default 0x400 if BOOTLOADER_MCUBOOT
+
+config STM32_INT_FLASH_SECURE_BASE_ADDRESS
+	default 0x0c000000
 
 endif # SOC_SERIES_STM32H5X

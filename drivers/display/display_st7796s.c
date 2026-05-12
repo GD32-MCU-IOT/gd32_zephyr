@@ -48,6 +48,7 @@ struct st7796s_config {
 	uint8_t madctl; /* Memory data access control */
 	uint8_t te_mode; /* Tearing enable mode */
 	uint32_t te_delay; /* Tearing enable delay */
+	uint16_t te_scanline; /* Tear scanline */
 	bool rgb_is_inverted;
 };
 
@@ -105,19 +106,19 @@ static int st7796s_get_pixelfmt(const struct device *dev)
 	 * Zephyr uses little endian byte order when the pixel format has
 	 * multiple bytes.
 	 *
-	 * For BGR565, Red is placed in byte 1 and Blue in byte 0.
-	 * For RGB565, Red is placed in byte 0 and Blue in byte 1.
+	 * For RGB565, Red is placed in byte 1 and Blue in byte 0.
+	 * For RGB565X, Red is placed in byte 0 and Blue in byte 1.
 	 *
 	 * This is not an issue when using a 16-bit interface.
 	 * For RGB565, this would map to Red being in D[11:15] and
-	 * Blue in D[0:4] and vice versa for BGR565.
+	 * Blue in D[0:4] and vice versa for RGB565X.
 	 *
 	 * However this is an issue when using a 8-bit interface.
-	 * For BGR565, Blue is placed in byte 0 as mentioned earlier.
+	 * For RGB565, Blue is placed in byte 0 as mentioned earlier.
 	 * However the controller expects Red to be in D[3:7] of byte 0.
 	 *
-	 * Hence we report pixel format as RGB when MADCTL setting is BGR
-	 * and vice versa.
+	 * Hence we report pixel format as RGB565 when MADCTL setting is
+	 * RGB565X and vice versa.
 	 */
 	if (config->dbi_config.mode == MIPI_DBI_MODE_8080_BUS_8_BIT) {
 		/*
@@ -129,7 +130,7 @@ static int st7796s_get_pixelfmt(const struct device *dev)
 		    config->rgb_is_inverted) {
 			return PIXEL_FORMAT_RGB_565;
 		} else {
-			return PIXEL_FORMAT_BGR_565;
+			return PIXEL_FORMAT_RGB_565X;
 		}
 	}
 
@@ -145,7 +146,7 @@ static int st7796s_get_pixelfmt(const struct device *dev)
 	    config->rgb_is_inverted) {
 		return PIXEL_FORMAT_RGB_565;
 	} else {
-		return PIXEL_FORMAT_BGR_565;
+		return PIXEL_FORMAT_RGB_565X;
 	}
 }
 
@@ -167,6 +168,9 @@ static int st7796s_write(const struct device *dev,
 
 	mipi_desc.buf_size = desc->width * desc->height * ST7796S_PIXEL_SIZE;
 	mipi_desc.frame_incomplete = desc->frame_incomplete;
+	mipi_desc.pitch = desc->pitch;
+	mipi_desc.width = desc->width;
+	mipi_desc.height = desc->height;
 
 	ret =  mipi_dbi_command_write(config->mipi_dbi,
 				      &config->dbi_config, ST7796S_CMD_RAMWR,
@@ -190,7 +194,7 @@ static void st7796s_get_capabilities(const struct device *dev,
 	memset(capabilities, 0, sizeof(struct display_capabilities));
 
 	capabilities->current_pixel_format = st7796s_get_pixelfmt(dev);
-
+	capabilities->supported_pixel_formats = capabilities->current_pixel_format;
 	capabilities->x_resolution = config->width;
 	capabilities->y_resolution = config->height;
 	capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;
@@ -285,6 +289,21 @@ static int st7796s_lcd_config(const struct device *dev)
 		return ret;
 	}
 
+	/* Configure tear scanline if specified */
+	if (config->te_scanline > 0) {
+		uint8_t scanline_params[2];
+
+		/* STE command takes two parameters: N15-N8 and N7-N0 */
+		scanline_params[0] = (config->te_scanline >> 8) & 0xFF; /* N15-N8 */
+		scanline_params[1] = config->te_scanline & 0xFF;        /* N7-N0 */
+
+		ret = st7796s_send_cmd(dev, ST7796S_CMD_STE, scanline_params,
+				       sizeof(scanline_params));
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
 	/* Attempt to enable TE signal */
 	ret = mipi_dbi_configure_te(config->mipi_dbi, config->te_mode,
 				    config->te_delay);
@@ -306,6 +325,19 @@ static int st7796s_lcd_config(const struct device *dev)
 
 	param = ST7796S_LOCK_2;
 	return st7796s_send_cmd(dev, ST7796S_CMD_CSCON, &param, sizeof(param));
+}
+
+static int st7796s_set_pixel_format(const struct device *dev,
+				    const enum display_pixel_format pixel_format)
+{
+	/* Just check again the current pixel format as changing format at
+	 * runtime is not supported
+	 */
+	if (pixel_format == st7796s_get_pixelfmt(dev)) {
+		return 0;
+	}
+
+	return -ENOTSUP;
 }
 
 static int st7796s_init(const struct device *dev)
@@ -367,6 +399,7 @@ static DEVICE_API(display, st7796s_api) = {
 	.blanking_off = st7796s_blanking_off,
 	.write = st7796s_write,
 	.get_capabilities = st7796s_get_capabilities,
+	.set_pixel_format = st7796s_set_pixel_format,
 };
 
 
@@ -379,8 +412,11 @@ static DEVICE_API(display, st7796s_api) = {
 						SPI_OP_MODE_MASTER |		\
 						SPI_WORD_SET(8),		\
 						0),				\
-			.mode = DT_INST_STRING_UPPER_TOKEN_OR(n, mipi_mode,     \
+			.mode = DT_INST_STRING_UPPER_TOKEN_OR(n, mipi_mode,	\
 						MIPI_DBI_MODE_SPI_4WIRE),	\
+			.color_coding = DT_INST_STRING_UPPER_TOKEN_OR(n,	\
+						color_coding,			\
+						MIPI_DBI_MODE_RGB565),		\
 		},								\
 		.width = DT_INST_PROP(n, width),				\
 		.height = DT_INST_PROP(n, height),				\
@@ -402,6 +438,7 @@ static DEVICE_API(display, st7796s_api) = {
 		.rgb_is_inverted = DT_INST_PROP(n, rgb_is_inverted),		\
 		.te_mode = MIPI_DBI_TE_MODE_DT_INST(n, te_mode),                \
 		.te_delay = DT_INST_PROP(n, te_delay),                          \
+		.te_scanline = DT_INST_PROP(n, tear_scanline),                  \
 	};									\
 										\
 	DEVICE_DT_INST_DEFINE(n, st7796s_init,					\

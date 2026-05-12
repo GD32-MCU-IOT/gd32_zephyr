@@ -13,7 +13,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
-#include <cold_start.h>
+#include <bsp_reset.h>
 
 #include <r_rtc.h>
 #include <soc.h>
@@ -155,15 +155,19 @@ static int rtc_renesas_ra_init(const struct device *dev)
 		return -EIO;
 	}
 
-#if defined(CONFIG_RENESAS_RA_BATTERY_BACKUP_MANUAL_CONFIGURE)
-	if (is_backup_domain_reset_happen()) {
+#ifdef CONFIG_RTC_RENESAS_RA_ALWAYS_SET_CLOCK_SOURCE
+	R_RTC_ClockSourceSet(&data->fsp_ctrl);
+#elif defined(CONFIG_RENESAS_RA_BATTERY_BACKUP_MANUAL_CONFIGURE)
+	if (R_BSP_ResetStatusGet() & BSP_RESET_TYPE_VBATPOR) {
 		R_RTC_ClockSourceSet(&data->fsp_ctrl);
 	}
 #else
-	if (is_power_on_reset_happen()) {
+	if (!(R_BSP_ResetStatusGet() & BSP_RESET_TYPE_WARM)) {
 		R_RTC_ClockSourceSet(&data->fsp_ctrl);
+		R_RTC->RCR2_b.START = 1U;
+		FSP_HARDWARE_REGISTER_WAIT(R_RTC->RCR2_b.START, 1U);
 	}
-#endif /* CONFIG_RENESAS_RA_BATTERY_BACKUP_MANUAL_CONFIGURE */
+#endif
 
 #ifdef CONFIG_RTC_UPDATE
 	fsp_err = R_RTC_PeriodicIrqRateSet(&data->fsp_ctrl, RTC_PERIODIC_IRQ_SELECT_1_SECOND);

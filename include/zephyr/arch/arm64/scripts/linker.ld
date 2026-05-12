@@ -26,16 +26,20 @@
 #endif
 #define RAMABLE_REGION RAM
 
-#if !defined(CONFIG_XIP) && (CONFIG_FLASH_SIZE == 0)
-  #define ROM_ADDR RAM_ADDR
-#else
-  #define ROM_ADDR (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
-#endif
-
 #if defined(CONFIG_ROM_END_OFFSET)
 #define ROM_END_OFFSET CONFIG_ROM_END_OFFSET
 #else
 #define ROM_END_OFFSET 0
+#endif
+
+#if defined(CONFIG_FLASH_USES_MAPPED_PARTITION) && defined(CONFIG_XIP)
+#define ROM_ADDR (DT_REG_ADDR(DT_CHOSEN(zephyr_code_partition)))
+#define ROM_SIZE (DT_REG_SIZE(DT_CHOSEN(zephyr_code_partition)) - ROM_END_OFFSET)
+#else
+#if !defined(CONFIG_XIP) && (CONFIG_FLASH_SIZE == 0)
+#define ROM_ADDR RAM_ADDR
+#else
+#define ROM_ADDR (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
 #endif
 
 #if CONFIG_FLASH_LOAD_SIZE > 0
@@ -43,6 +47,7 @@
 #else
   #define ROM_SIZE (CONFIG_FLASH_SIZE * 1K - CONFIG_FLASH_LOAD_OFFSET - ROM_END_OFFSET)
 #endif
+#endif /* defined(CONFIG_FLASH_USES_MAPPED_PARTITION) */
 
 #define RAM_SIZE (CONFIG_SRAM_SIZE * 1K)
 #define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
@@ -81,10 +86,7 @@ SECTIONS
 {
 
 #include <zephyr/linker/rel-sections.ld>
-
-#ifdef CONFIG_LLEXT
 #include <zephyr/linker/llext-sections.ld>
-#endif
 
     /*
      * .plt and .iplt are here according to 'arm-zephyr-elf-ld --verbose',
@@ -141,6 +143,9 @@ SECTIONS
     __text_region_end = .;
     __text_region_size = __text_region_end - __text_region_start;
 
+    MMU_ALIGN;
+    __rodata_region_start = .;
+
 #if defined (CONFIG_CPP)
     SECTION_PROLOGUE(.ARM.extab,,)
     {
@@ -165,9 +170,6 @@ SECTIONS
 #endif
         __exidx_end = .;
     } GROUP_ROM_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-
-    MMU_ALIGN;
-    __rodata_region_start = .;
 
 #include <zephyr/linker/common-rom.ld>
 #include <snippets-rom-sections.ld>

@@ -6,8 +6,10 @@
 
 #include <hal/adc_hal.h>
 #include <hal/adc_oneshot_hal.h>
+#include <hal/adc_periph.h>
 #include <hal/adc_types.h>
 #include <esp_adc/adc_cali.h>
+#include <esp_adc/adc_cali_scheme.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/adc.h>

@@ -9,7 +9,7 @@
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
 #if defined(CONFIG_BOARD_QEMU_CORTEX_M0) || \
-	(defined(CONFIG_NRF_PLATFORM_HALTIUM) && \
+	((defined(CONFIG_SOC_SERIES_NRF54H) || defined(CONFIG_SOC_SERIES_NRF92)) && \
 	 defined(CONFIG_RISCV_CORE_NORDIC_VPR))
 #define RESET_CAUSE_AVAILABLE 0
 #else
@@ -52,6 +52,13 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 	 */
 	buf[1] |= (nrf_ficr_er_get(NRF_FICR, 0) & 0xFF) << 16;
 	buf[1] |= (nrf_ficr_ir_get(NRF_FICR, 0) & 0xFF) << 24;
+#elif NRF_FICR_HAS_NFC_TAGHEADER_ARRAY
+	/* DEVICEID is not accessible, use NFCID instead.
+	 * Assume that it is always accessible from the non-secure image.
+	 * Skip TAGHEADER[0] as it always contain Manufacturer ID.
+	 */
+	buf[0] = nrf_ficr_nfc_tagheader_get(NRF_FICR, 1);
+	buf[1] = nrf_ficr_nfc_tagheader_get(NRF_FICR, 2);
 #else
 #error "No suitable source for hwinfo device_id generation"
 #endif
@@ -87,7 +94,8 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 #if NRF_POWER_HAS_RESETREAS
 #define REASON_WATCHDOG NRFX_RESET_REASON_DOG_MASK
 #else
-#define REASON_WATCHDOG	(NRFX_RESET_REASON_DOG0_MASK | NRFX_RESET_REASON_DOG1_MASK)
+#define REASON_WATCHDOG	(NRFX_RESET_REASON_DOG0_MASK | \
+		COND_CODE_1(NRFX_RESET_REASON_HAS_DOG1, (NRFX_RESET_REASON_DOG1_MASK), (0)))
 #endif /* NRF_POWER_HAS_RESETREAS */
 
 #endif /* NRF_RESETINFO */
@@ -160,16 +168,22 @@ int z_impl_hwinfo_get_reset_cause(uint32_t *cause)
 		flags |= RESET_CLOCK;
 	}
 #endif
-#if NRFX_RESET_REASON_HAS_NETWORK
+#if NRFX_RESET_REASON_HAS_LSREQ
 	if (reason & NRFX_RESET_REASON_LSREQ_MASK) {
 		flags |= RESET_SOFTWARE;
 	}
+#endif
+#if NRFX_RESET_REASON_HAS_LLOCKUP
 	if (reason & NRFX_RESET_REASON_LLOCKUP_MASK) {
 		flags |= RESET_CPU_LOCKUP;
 	}
+#endif
+#if NRFX_RESET_REASON_HAS_LDOG
 	if (reason & NRFX_RESET_REASON_LDOG_MASK) {
 		flags |= RESET_WATCHDOG;
 	}
+#endif
+#if NRFX_RESET_REASON_HAS_LCTRLAP
 	if (reason & NRFX_RESET_REASON_LCTRLAP_MASK) {
 		flags |= RESET_DEBUG;
 	}

@@ -14,9 +14,11 @@ supported:
   - uart
   - nvs
   - pwm
-  - dac
   - spi
   - counter
   - entropy
   - input
+  - crypto
+  - retained_mem
+  - netif:wifi
 vendor: espressif

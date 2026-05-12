@@ -40,19 +40,19 @@ field to a single byte (note that there may be further restrictions depending up
 is used for, e.g. bootloaders might only support some of these fields or might place limits on the
 maximum values of fields):
 
-+---------------+-------------------------------------------------------+
-| Field         | Data type                                             |
-+---------------+-------------------------------------------------------+
-| VERSION_MAJOR | Numerical (0-255)                                     |
-+---------------+-------------------------------------------------------+
-| VERSION_MINOR | Numerical (0-255)                                     |
-+---------------+-------------------------------------------------------+
-| PATCHLEVEL    | Numerical (0-255)                                     |
-+---------------+-------------------------------------------------------+
-| VERSION_TWEAK | Numerical (0-255)                                     |
-+---------------+-------------------------------------------------------+
-| EXTRAVERSION  | Alphanumerical (Lowercase a-z and 0-9) and "." or "-" |
-+---------------+-------------------------------------------------------+
++---------------+-------------------------------------------------------+---------------+
+| Field         | Data type                                             |   Required    |
++---------------+-------------------------------------------------------+---------------+
+| VERSION_MAJOR | Numerical (0-255)                                     |       X       |
++---------------+-------------------------------------------------------+---------------+
+| VERSION_MINOR | Numerical (0-255)                                     |       X       |
++---------------+-------------------------------------------------------+---------------+
+| PATCHLEVEL    | Numerical (0-255)                                     |       X       |
++---------------+-------------------------------------------------------+---------------+
+| VERSION_TWEAK | Numerical (0-255)                                     |       X       |
++---------------+-------------------------------------------------------+---------------+
+| EXTRAVERSION  | Alphanumerical (Lowercase a-z and 0-9) and "." or "-" |               |
++---------------+-------------------------------------------------------+---------------+
 
 When an application is configured using CMake, the version file will be automatically processed,
 and will be checked automatically each time the version is changed, so CMake does not need to be
@@ -72,7 +72,7 @@ Use in code
 ===========
 
 To use the version information in application code, the version file must be included, then the
-fields can be freely used. The include file name is :file:`app_version.h` (no path is needed), the
+fields can be freely used. The include file name is :file:`app_version.h` (use ``#include <zephyr/app_version.h>``), the
 following defines are available:
 
 +-----------------------------+-------------------+------------------------------------------------------+---------------------------+
@@ -94,6 +94,8 @@ following defines are available:
 | APP_PATCHLEVEL              | Numerical         | ``PATCHLEVEL``                                       | 3                         |
 +-----------------------------+-------------------+------------------------------------------------------+---------------------------+
 | APP_TWEAK                   | Numerical         | ``VERSION_TWEAK``                                    | 4                         |
++-----------------------------+-------------------+------------------------------------------------------+---------------------------+
+| APP_EXTRAVERSION            | String (unquoted) | ``EXTRAVERSION``                                     | unstable.5                |
 +-----------------------------+-------------------+------------------------------------------------------+---------------------------+
 | APP_VERSION_STRING          | String (quoted)   | ``VERSION_MAJOR``, |br|                              | "1.2.3-unstable.5"        |
 |                             |                   | ``VERSION_MINOR``, |br|                              |                           |
@@ -130,6 +132,8 @@ The following variables are available for usage in Kconfig files:
 | $(PATCHLEVEL)                  | Numerical | ``PATCHLEVEL``           | 3                  |
 +--------------------------------+-----------+--------------------------+--------------------+
 | $(VERSION_TWEAK)               | Numerical | ``VERSION_TWEAK``        | 4                  |
++--------------------------------+-----------+--------------------------+--------------------+
+| $(EXTRAVERSION)                | String    | ``EXTRAVERSION``         | unstable.5         |
 +--------------------------------+-----------+--------------------------+--------------------+
 | $(APPVERSION)                  | String    | ``VERSION_MAJOR``, |br|  | 1.2.3-unstable.5   |
 |                                |           | ``VERSION_MINOR``, |br|  |                    |
@@ -172,6 +176,8 @@ The following variable are available for usage in CMake files:
 | APP_PATCHLEVEL              | Numerical       | ``PATCHLEVEL``                                    | 3                  |
 +-----------------------------+-----------------+---------------------------------------------------+--------------------+
 | APP_VERSION_TWEAK           | Numerical       | ``VERSION_TWEAK``                                 | 4                  |
++-----------------------------+-----------------+---------------------------------------------------+--------------------+
+| APP_VERSION_EXTRA           | String          | ``EXTRAVERSION``                                  | unstable.5         |
 +-----------------------------+-----------------+---------------------------------------------------+--------------------+
 | APP_VERSION_STRING          | String          | ``VERSION_MAJOR``, |br|                           | 1.2.3-unstable.5   |
 |                             |                 | ``VERSION_MINOR``, |br|                           |                    |

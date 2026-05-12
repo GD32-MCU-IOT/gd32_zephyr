@@ -6,6 +6,7 @@
 
 #include <zephyr/cache.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/storage/flash_map.h>
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -19,12 +20,13 @@
 #include <hal/nrf_spu.h>
 #include <hal/nrf_memconf.h>
 #include <hal/nrf_nfct.h>
-#include <soc/nrfx_coredep.h>
+#include <lib/nrfx_coredep.h>
 #include <soc_lrcconf.h>
+#include "soc_power.h"
 #include <dmm.h>
 
 #if defined(CONFIG_SOC_NRF54H20_CPURAD_ENABLE)
-#include <nrf_ironside/cpuconf.h>
+#include <ironside/se/api.h>
 #endif
 
 LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
@@ -35,23 +37,18 @@ LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
 #define HSFLL_NODE DT_NODELABEL(cpurad_hsfll)
 #endif
 
-#define FIXED_PARTITION_ADDRESS(label)                                                             \
-	(DT_REG_ADDR(DT_NODELABEL(label)) +                                                        \
-	 DT_REG_ADDR(COND_CODE_1(DT_FIXED_SUBPARTITION_EXISTS(DT_NODELABEL(label)),                \
-			(DT_GPARENT(DT_PARENT(DT_NODELABEL(label)))),                              \
-			(DT_GPARENT(DT_NODELABEL(label))))))
-
 #ifdef CONFIG_USE_DT_CODE_PARTITION
-#define FLASH_LOAD_OFFSET DT_REG_ADDR(DT_CHOSEN(zephyr_code_partition))
+#define FLASH_LOAD_ADDRESS DT_REG_ADDR(DT_CHOSEN(zephyr_code_partition))
 #elif defined(CONFIG_FLASH_LOAD_OFFSET)
-#define FLASH_LOAD_OFFSET CONFIG_FLASH_LOAD_OFFSET
+#define FLASH_LOAD_ADDRESS (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
 #endif
 
-#define PARTITION_IS_RUNNING_APP_PARTITION(label)                                                  \
-	(DT_REG_ADDR(DT_NODELABEL(label)) <= FLASH_LOAD_OFFSET &&                                  \
-	 DT_REG_ADDR(DT_NODELABEL(label)) + DT_REG_SIZE(DT_NODELABEL(label)) > FLASH_LOAD_OFFSET)
-
-sys_snode_t soc_node;
+#define PARTITION_IS_RUNNING_APP_PARTITION(label)                                            \
+	DT_SAME_NODE(PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)),                   \
+		     PARTITION_MTD(label)) &&                                                \
+		(PARTITION_ADDRESS(label) <= FLASH_LOAD_ADDRESS &&                           \
+		 PARTITION_ADDRESS(label) + PARTITION_SIZE(label) >                    \
+			 FLASH_LOAD_ADDRESS)
 
 #define FICR_ADDR_GET(node_id, name)                                           \
 	DT_REG_ADDR(DT_PHANDLE_BY_NAME(node_id, nordic_ficrs, name)) +         \
@@ -63,49 +60,6 @@ sys_snode_t soc_node;
 				      ADDRESS_DOMAIN_Msk |                     \
 				      ADDRESS_BUS_Msk)))
 
-void nrf_soc_memconf_retain_set(bool enable)
-{
-	uint32_t ret_mask = BIT(RAMBLOCK_RET_BIT_ICACHE) | BIT(RAMBLOCK_RET_BIT_DCACHE);
-
-	nrf_memconf_ramblock_ret_mask_enable_set(NRF_MEMCONF, 0, ret_mask, enable);
-	nrf_memconf_ramblock_ret_mask_enable_set(NRF_MEMCONF, 1, ret_mask, enable);
-
-#if defined(RAMBLOCK_RET2_MASK)
-	ret_mask = 0;
-#if defined(RAMBLOCK_RET2_BIT_ICACHE)
-	ret_mask |= BIT(RAMBLOCK_RET2_BIT_ICACHE);
-#endif
-#if defined(RAMBLOCK_RET2_BIT_DCACHE)
-	ret_mask |= BIT(RAMBLOCK_RET2_BIT_DCACHE);
-#endif
-	nrf_memconf_ramblock_ret2_mask_enable_set(NRF_MEMCONF, 0, ret_mask, enable);
-	nrf_memconf_ramblock_ret2_mask_enable_set(NRF_MEMCONF, 1, ret_mask, enable);
-#endif /* defined(RAMBLOCK_RET2_MASK) */
-}
-
-static void power_domain_init(void)
-{
-	/*
-	 * Set:
-	 *  - LRCCONF010.POWERON.MAIN: 1
-	 *  - LRCCONF010.POWERON.ACT: 1
-	 *  - LRCCONF010.RETAIN.MAIN: 1
-	 *  - LRCCONF010.RETAIN.ACT: 1
-	 *
-	 *  This is done here at boot so that when the idle routine will hit
-	 *  WFI the power domain will be correctly retained.
-	 */
-
-	soc_lrcconf_poweron_request(&soc_node, NRF_LRCCONF_POWER_DOMAIN_0);
-	nrf_lrcconf_poweron_force_set(NRF_LRCCONF010, NRF_LRCCONF_POWER_MAIN, false);
-	nrf_soc_memconf_retain_set(false);
-	nrf_memconf_ramblock_ret_mask_enable_set(NRF_MEMCONF, 0, RAMBLOCK_RET_MASK, true);
-	nrf_memconf_ramblock_ret_mask_enable_set(NRF_MEMCONF, 1, RAMBLOCK_RET_MASK, true);
-#if defined(RAMBLOCK_RET2_MASK)
-	nrf_memconf_ramblock_ret2_mask_enable_set(NRF_MEMCONF, 0, RAMBLOCK_RET2_MASK, true);
-	nrf_memconf_ramblock_ret2_mask_enable_set(NRF_MEMCONF, 1, RAMBLOCK_RET2_MASK, true);
-#endif
-}
 
 static int trim_hsfll(void)
 {
@@ -140,7 +94,7 @@ static int trim_hsfll(void)
 	return 0;
 }
 
-#if defined(CONFIG_ARM_ON_ENTER_CPU_IDLE_HOOK)
+#if defined(CONFIG_ARM_ON_ENTER_CPU_IDLE_HOOK) && !defined(CONFIG_NRF_CUSTOM_ON_ENTER_CPU_IDLE_HOOK)
 bool z_arm_on_enter_cpu_idle(void)
 {
 #ifdef CONFIG_LOG_FRONTEND_STMESP
@@ -157,7 +111,7 @@ void soc_early_init_hook(void)
 	sys_cache_instr_enable();
 	sys_cache_data_enable();
 
-	power_domain_init();
+	nrf_power_domain_init();
 
 	trim_hsfll();
 
@@ -199,15 +153,15 @@ void soc_late_init_hook(void)
 
 #if DT_NODE_EXISTS(DT_NODELABEL(cpurad_slot1_partition))
 	if (PARTITION_IS_RUNNING_APP_PARTITION(cpuapp_slot1_partition)) {
-		radiocore_address = (void *)(FIXED_PARTITION_ADDRESS(cpurad_slot1_partition) +
+		radiocore_address = (void *)(PARTITION_ADDRESS(cpurad_slot1_partition) +
 					     CONFIG_ROM_START_OFFSET);
 	} else {
-		radiocore_address = (void *)(FIXED_PARTITION_ADDRESS(cpurad_slot0_partition) +
+		radiocore_address = (void *)(PARTITION_ADDRESS(cpurad_slot0_partition) +
 					     CONFIG_ROM_START_OFFSET);
 	}
 #else
 	radiocore_address =
-		(void *)(FIXED_PARTITION_ADDRESS(cpurad_slot0_partition) + CONFIG_ROM_START_OFFSET);
+		(void *)(PARTITION_ADDRESS(cpurad_slot0_partition) + CONFIG_ROM_START_OFFSET);
 #endif
 
 	if (IS_ENABLED(CONFIG_SOC_NRF54H20_CPURAD_ENABLE_CHECK_VTOR) &&
@@ -219,8 +173,8 @@ void soc_late_init_hook(void)
 
 	bool cpu_wait = IS_ENABLED(CONFIG_SOC_NRF54H20_CPURAD_ENABLE_DEBUG_WAIT);
 
-	err_cpuconf = ironside_cpuconf(NRF_PROCESSOR_RADIOCORE, radiocore_address, cpu_wait, msg,
-				       msg_size);
+	err_cpuconf = ironside_se_cpuconf(NRF_PROCESSOR_RADIOCORE, radiocore_address, cpu_wait, msg,
+					  msg_size);
 	__ASSERT(err_cpuconf == 0, "err_cpuconf was %d", err_cpuconf);
 #endif /* CONFIG_SOC_NRF54H20_CPURAD_ENABLE */
 }
