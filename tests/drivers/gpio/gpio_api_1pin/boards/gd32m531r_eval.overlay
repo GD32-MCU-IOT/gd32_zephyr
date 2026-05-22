@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Use a free GPIO pin for 1-pin API tests instead of on-board LED0 (PA5),
+ * whose external LED circuit can affect readback semantics.
+ *
+ * GPIO_ACTIVE_LOW selects the pull-up bias in the single-ended sub-test, so
+ * the pin reads high as an input. This makes the test take the "pin high"
+ * branch where an unsupported Open Source flag simply returns instead of
+ * skipping the whole case (the GD32 driver supports Open Drain only).
+ */
+
+&led0 {
+	gpios = <&gpiod 13 GPIO_ACTIVE_LOW>;
+};
+
+&gpiod {
+	status = "okay";
+};

@@ -25,7 +25,7 @@ choice GD32_HXTAL_FREQUENCY
 	prompt "High speed external oscillator clock frequency"
 	default GD32_HXTAL_FIRMWARE_DEFINED if \
 		SOC_SERIES_GD32F403 || SOC_SERIES_GD32F4XX || SOC_SERIES_GD32F3X0 || SOC_SERIES_GD32F527 || SOC_SERIES_GD32C2X1 \
-		|| SOC_SERIES_GD32F50X || SOC_SERIES_GD32E51X || SOC_SERIES_GD32F30X || SOC_SERIES_GD32H75E || SOC_SERIES_GD32G5X3
+		|| SOC_SERIES_GD32F50X || SOC_SERIES_GD32E51X || SOC_SERIES_GD32F30X || SOC_SERIES_GD32H75E || SOC_SERIES_GD32G5X3 || SOC_SERIES_GD32M53X
 	default GD32_HXTAL_25MHZ if SOC_SERIES_GD32VF103 || SOC_SERIES_GD32E50X
 	default GD32_HXTAL_8MHZ if SOC_SERIES_GD32E10X || SOC_SERIES_GD32C11X
 	help
@@ -320,5 +320,50 @@ config USE_GD32_SAI
 	bool
 	help
 	  Enable GD32 Serial Audio Interface (SAI) HAL module driver
+
+config USE_GD32_UART
+	bool
+	help
+	  Enable GD32 UART HAL module driver (for M531 series)
+
+config USE_GD32_GPTIMER
+	bool
+	help
+	  Enable GD32 General Purpose Timer (GPTIMER) HAL module driver
+
+config USE_GD32_CPTIMER
+	bool
+	help
+	  Enable GD32 Compare Timer (CPTIMER) HAL module driver
+
+config USE_GD32_CPTIMERW
+	bool
+	help
+	  Enable GD32 Compare Timer W (CPTIMERW) HAL module driver
+
+config USE_GD32_SVPWM
+	bool
+	help
+	  Enable GD32 Space Vector PWM (SVPWM) HAL module driver
+
+config USE_GD32_POC
+	bool
+	help
+	  Enable GD32 Port Output Controller (POC) HAL module driver
+
+config USE_GD32_GTOC
+	bool
+	help
+	  Enable GD32 GPTIMER Output Controller (GTOC) HAL module driver
+
+config USE_GD32_EVIC
+	bool
+	help
+	  Enable GD32 Event Interconnection Controller (EVIC) HAL module driver
+
+config USE_GD32_CFMU
+	bool
+	help
+	  Enable GD32 Clock Frequency Measurement Unit (CFMU) HAL module driver
 
 endif # HAS_GD32_HAL

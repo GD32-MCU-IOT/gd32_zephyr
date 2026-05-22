@@ -58,20 +58,93 @@ struct gpio_gd32_data {
 	uint32_t input_pins;
 	uint32_t output_pins;
 #endif /* CONFIG_GPIO_GET_DIRECTION */
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+	/* Reverse map: EXTI line -> GPIO pin, populated on interrupt configure. */
+	uint8_t line_to_pin[16];
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
 };
+
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+/*
+ * GD32M53x pin->EXTI mapping is non-linear. Table [compact_port][pin] encodes
+ * ((exti_line << 4) | extiss_value); 0xFF = no mapping. compact_port: A..G->0..6, N->7.
+ * Source: gd32m53x_syscfg.h exti_gpio_enum.
+ */
+#define M53X_EXTI_INVALID 0xFFU
+#define M53X_EXTI_LINE(v) ((uint8_t)((v) >> 4))
+#define M53X_EXTI_VAL(v)  ((uint8_t)((v) & 0x0FU))
+#define M53X_EXTI_NUM_PORTS 8U
+
+static const uint8_t m53x_exti_map[M53X_EXTI_NUM_PORTS][16] = {
+	/* GPIOA: PA0->E2, PA1->E4, PA8->E0, PA9->E1 */
+	{0x20, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	 0x00, 0x10, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+	/* GPIOB: PB0->E7, PB1->E6, PB2->E10, PB14->E14, PB15->E15 */
+	{0x70, 0x60, 0xA0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xE0, 0xF0},
+	/* GPIOC: PC0->E10..PC5->E15, PC6->E6..PC12->E2 */
+	{0xA1, 0xB0, 0xC0, 0xD0, 0xE1, 0xF1, 0x61, 0x71,
+	 0x03, 0x13, 0x01, 0x11, 0x21, 0xFF, 0xFF, 0xFF},
+	/* GPIOD: PD2->E6, PD4->E8, PD5->E9, PD8->E5..PD14->E14 */
+	{0xFF, 0xFF, 0x62, 0xFF, 0x80, 0x90, 0xFF, 0xFF,
+	 0x50, 0x91, 0xA2, 0xB1, 0xC1, 0xD1, 0xE2, 0xFF},
+	/* GPIOE: PE8->E8 PE9->E9 PE10->E10 PE11->E14 PE12->E12 PE13->E1 PE14->E4 */
+	{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	 0x81, 0x92, 0xA3, 0xE3, 0xC2, 0x12, 0x41, 0xFF},
+	/* GPIOF: PF8->E8 PF9->E4 PF10->E10 PF11->E9 PF12->E3 PF13->E4 PF14->E2 */
+	{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	 0x82, 0x42, 0xA4, 0x93, 0x30, 0x43, 0x22, 0xFF},
+	/* GPIOG: PG11->E11 PG12->E2 PG13->E6 PG14->E5 PG15->E8 */
+	{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	 0xFF, 0xFF, 0xFF, 0xB2, 0x23, 0x63, 0x51, 0x83},
+	/* GPION: PN2->E0 PN5->E7 PN7->E5 */
+	{0xFF, 0xFF, 0x02, 0xFF, 0xFF, 0x72, 0xFF, 0x52,
+	 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+};
+
+static inline int m53x_port_compact(uint8_t port_index)
+{
+	if (port_index <= 6U) {
+		return (int)port_index;
+	}
+	if (port_index == 16U) {
+		return 7; /* GPION */
+	}
+	return -1;
+}
+
+static uint8_t m53x_exti_lookup(const struct device *port, gpio_pin_t pin)
+{
+	const struct gpio_gd32_config *config = port->config;
+	uint8_t port_index = (config->reg - GPIOA) / (GPIOB - GPIOA);
+	int cp = m53x_port_compact(port_index);
+
+	if (cp < 0 || pin >= 16U) {
+		return M53X_EXTI_INVALID;
+	}
+
+	return m53x_exti_map[cp][pin];
+}
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
 
 /**
  * @brief EXTI ISR callback.
  *
- * @param line EXTI line (equals to GPIO pin number).
+ * @param line EXTI line number.
  * @param arg GPIO port instance.
  */
 static void gpio_gd32_isr(uint8_t line, void *arg)
 {
 	const struct device *dev = arg;
 	struct gpio_gd32_data *data = dev->data;
+	uint8_t pin = line;
 
-	gpio_fire_callbacks(&data->callbacks, dev, BIT(line));
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+	/* On GD32M53x the EXTI line != pin; map it back to the configured pin. */
+	pin = data->line_to_pin[line];
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
+
+	gpio_fire_callbacks(&data->callbacks, dev, BIT(pin));
 }
 
 /**
@@ -88,9 +161,19 @@ static int gpio_gd32_configure_extiss(const struct device *port,
 {
 	const struct gpio_gd32_config *config = port->config;
 	uint8_t port_index, shift;
+	uint8_t line = pin;
 	volatile uint32_t *extiss;
 
-	switch (pin / EXTISS_STEP) {
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+	uint8_t enc = m53x_exti_lookup(port, pin);
+
+	if (enc == M53X_EXTI_INVALID) {
+		return -EINVAL;
+	}
+	line = M53X_EXTI_LINE(enc);
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
+
+	switch (line / EXTISS_STEP) {
 #if defined(CONFIG_GD32_HAS_AF_PINMUX) && !defined(CONFIG_SOC_SERIES_GD32F50X)
 	case 0U:
 		extiss = &SYSCFG_EXTISS0;
@@ -123,7 +206,11 @@ static int gpio_gd32_configure_extiss(const struct device *port,
 	}
 
 	port_index = (config->reg - GPIOA) / (GPIOB - GPIOA);
-	shift = EXTISS_LINE_SHIFT(pin);
+	shift = EXTISS_LINE_SHIFT(line);
+
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+	port_index = M53X_EXTI_VAL(enc);
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
 
 	*extiss &= ~(EXTISS_MSK << shift);
 	*extiss |= port_index << shift;
@@ -310,14 +397,25 @@ static int gpio_gd32_pin_interrupt_configure(const struct device *port,
 					     enum gpio_int_mode mode,
 					     enum gpio_int_trig trig)
 {
+	uint8_t line = pin;
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+	struct gpio_gd32_data *data = port->data;
+	uint8_t enc = m53x_exti_lookup(port, pin);
+
+	if (enc == M53X_EXTI_INVALID) {
+		return -EINVAL;
+	}
+	line = M53X_EXTI_LINE(enc);
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
+
 	if (mode == GPIO_INT_MODE_DISABLED) {
-		gd32_exti_disable(pin);
-		(void)gd32_exti_configure(pin, NULL, NULL);
-		gd32_exti_trigger(pin, GD32_EXTI_TRIG_NONE);
+		gd32_exti_disable(line);
+		(void)gd32_exti_configure(line, NULL, NULL);
+		gd32_exti_trigger(line, GD32_EXTI_TRIG_NONE);
 	} else if (mode == GPIO_INT_MODE_EDGE) {
 		int ret;
 
-		ret = gd32_exti_configure(pin, gpio_gd32_isr, (void *)port);
+		ret = gd32_exti_configure(line, gpio_gd32_isr, (void *)port);
 		if (ret < 0) {
 			return ret;
 		}
@@ -327,21 +425,25 @@ static int gpio_gd32_pin_interrupt_configure(const struct device *port,
 			return ret;
 		}
 
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+		data->line_to_pin[line] = pin;
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
+
 		switch (trig) {
 		case GPIO_INT_TRIG_LOW:
-			gd32_exti_trigger(pin, GD32_EXTI_TRIG_FALLING);
+			gd32_exti_trigger(line, GD32_EXTI_TRIG_FALLING);
 			break;
 		case GPIO_INT_TRIG_HIGH:
-			gd32_exti_trigger(pin, GD32_EXTI_TRIG_RISING);
+			gd32_exti_trigger(line, GD32_EXTI_TRIG_RISING);
 			break;
 		case GPIO_INT_TRIG_BOTH:
-			gd32_exti_trigger(pin, GD32_EXTI_TRIG_BOTH);
+			gd32_exti_trigger(line, GD32_EXTI_TRIG_BOTH);
 			break;
 		default:
 			return -ENOTSUP;
 		}
 
-		gd32_exti_enable(pin);
+		gd32_exti_enable(line);
 	} else {
 		return -ENOTSUP;
 	}

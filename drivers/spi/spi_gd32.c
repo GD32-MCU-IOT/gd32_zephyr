@@ -24,6 +24,27 @@
 
 #include <gd32_spi.h>
 
+/* M53x HAL defines SPI regs without a base-address arg; redefine as SPI_CTLx(spix). */
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+#undef SPI_CTL0
+#undef SPI_CTL1
+#undef SPI_STAT
+#undef SPI_DATA
+#undef SPI_CRCPOLY
+#undef SPI_RCRC
+#undef SPI_TCRC
+#undef SPI_QCTL
+
+#define SPI_CTL0(spix)    REG32((spix) + 0x00000000U)
+#define SPI_CTL1(spix)    REG32((spix) + 0x00000004U)
+#define SPI_STAT(spix)    REG32((spix) + 0x00000008U)
+#define SPI_DATA(spix)    REG32((spix) + 0x0000000CU)
+#define SPI_CRCPOLY(spix) REG32((spix) + 0x00000010U)
+#define SPI_RCRC(spix)    REG32((spix) + 0x00000014U)
+#define SPI_TCRC(spix)    REG32((spix) + 0x00000018U)
+#define SPI_QCTL(spix)    REG32((spix) + 0x00000080U)
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
+
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 LOG_MODULE_REGISTER(spi_gd32);
@@ -548,6 +569,14 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 	const size_t chunk_len = spi_context_max_continuous_chunk(&data->ctx);
 	struct dma_status stat;
 	int ret = 0;
+
+	/* Zero-length transfers (e.g. nop/empty buffers) must not wait for a
+	 * DMA completion that will never fire; complete immediately.
+	 */
+	if (chunk_len == 0U) {
+		spi_context_complete(&data->ctx, dev, 0);
+		return 0;
+	}
 
 #if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
 	/* Disable SPI before configuring transfer count */
