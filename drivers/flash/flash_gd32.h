@@ -16,13 +16,16 @@
 #define SOC_NV_FLASH_ADDR	DT_REG_ADDR(SOC_NV_FLASH_NODE)
 #define SOC_NV_FLASH_PRG_SIZE	DT_PROP(SOC_NV_FLASH_NODE, write_block_size)
 
+/* FMC variants that program a whole quad-word (16 bytes) have no scalar
+ * programming unit, so no flash_prg_t is defined for them.
+ */
 #if (4 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint32_t flash_prg_t;
 #elif (2 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint16_t flash_prg_t;
 #elif (1 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint8_t flash_prg_t;
-#else
+#elif (16 != SOC_NV_FLASH_PRG_SIZE)
 #error "Invalid write-block-size value in FMC DTS"
 #endif
 
