@@ -1,0 +1,16 @@
+identifier: gd32m531r_eval
+name: GD32M531R-EVAL
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+ram: 32
+flash: 256
+supported:
+  - gpio
+  - uart
+  - i2c
+  - spi
+vendor: gd

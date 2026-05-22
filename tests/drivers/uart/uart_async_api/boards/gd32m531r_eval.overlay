@@ -1,0 +1,31 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/*
+ * Test DMA UART on UART2 (PF8-TX / PF9-RX, AF6).
+ * Short PF8 and PF9 for loopback.
+ *
+ * Why not other UARTs:
+ *   UART0 - PG11(TX)/PG13(RX) conflict with JTAG (JTDO/JTDI),
+ *            debugger holds the pins via 0-ohm resistors on eval board.
+ *   UART1 - PB14/PB15 not routed to header on this eval board.
+ *   UART3 - Used as zephyr,console (PF13/PF14).
+ *
+ * PF8/PF9 are shared with SPI0_MOSI and I2C0_SCL respectively,
+ * so those peripherals must be disabled when testing UART2.
+ */
+
+dut: &uart2 {
+	status = "okay";
+	current-speed = <115200>;
+};
+
+&spi0 {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
