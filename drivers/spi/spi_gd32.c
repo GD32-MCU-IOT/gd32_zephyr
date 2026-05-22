@@ -549,6 +549,14 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 	struct dma_status stat;
 	int ret = 0;
 
+	/* Zero-length transfers (e.g. nop/empty buffers) must not wait for a
+	 * DMA completion that will never fire; complete immediately.
+	 */
+	if (chunk_len == 0U) {
+		spi_context_complete(&data->ctx, dev, 0);
+		return 0;
+	}
+
 #if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
 	/* Disable SPI before configuring transfer count */
 	spi_disable(cfg->reg);
@@ -925,7 +933,6 @@ int spi_gd32_init(const struct device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
 static int spi_gd32_deinit(const struct device *dev)
 {
 	struct spi_gd32_data *data = dev->data;
@@ -953,7 +960,6 @@ static int spi_gd32_deinit(const struct device *dev)
 
 	return 0;
 }
-#endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
 
 /*
  * DMA cell mapping based on binding type:

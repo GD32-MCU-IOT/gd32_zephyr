@@ -1,0 +1,19 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32m531r_eval
+name: GD32M531R-EVAL
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+ram: 32
+flash: 256
+supported:
+  - gpio
+  - uart
+  - i2c
+  - spi
+vendor: gd
