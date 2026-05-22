@@ -1,0 +1,7 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SERIES_GD32M53X
+
+rsource "Kconfig.defconfig.gd32m531"
+endif # SOC_SERIES_GD32M53X
