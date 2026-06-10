@@ -1,0 +1,15 @@
+sample:
+  name: GD32 PWM Sample
+common:
+  tags:
+    - pwm
+  filter: dt_alias_exists("pwm0")
+tests:
+  sample.drivers.pwm.gd32:
+    tags:
+      - pwm
+    depends_on: pwm
+    platform_allow:
+      - gd32f503v_eval
+    integration_platforms:
+      - gd32f503v_eval

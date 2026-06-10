@@ -1,0 +1,41 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Override board default pinctrl: use PA0 (ADC012_IN0) for ADC1 instead
+ * of the board-default PA1 (ADC012_IN1). This sample demonstrates
+ * dual-ADC sampling on PA0 + PC3; key_a uses PA0 on the board and is
+ * automatically disabled via the board DTS when ADC1 owns the pin.
+ */
+
+#include <dt-bindings/pinctrl/gd32f503v(g-e-c)xx-pinctrl.h>
+
+/* Override adc1 pinctrl: change from PA1 to PA0 */
+&pinctrl {
+	adc1_default: adc1_default {
+		group1 {
+			pinmux = <ADC012_IN0_PA0>;
+		};
+	};
+};
+
+/* Add channel 0 to adc1 (the board DTS only defines channel@1) */
+&adc1 {
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+/* Override zephyr,user: use ADC1 ch0 (PA0) */
+/ {
+	zephyr,user {
+		io-channels = <&adc1 0>, <&adc0 13>;
+	};
+};

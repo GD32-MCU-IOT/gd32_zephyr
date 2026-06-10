@@ -7,7 +7,6 @@
 #include <dt-bindings/pinctrl/gd32f503v(g-e-c)xx-pinctrl.h>
 
 &pinctrl {
-
 	usart0_default: usart0_default {
 		group1 {
 			pinmux = <USART0_TX_PA9>, <USART0_RX_PA10>;
@@ -35,6 +34,24 @@
 				 <SPI0_MISO_PA6>,
 				 /* Use pinmux to pullup pg10 and pg11. */
 				 <SPI0_IO2_PA2>, <SPI0_IO3_PA3>;
+		};
+	};
+
+	adc0_default: adc0_default {
+		group1 {
+			pinmux = <ADC012_IN13_PC3>;
+		};
+	};
+
+	adc1_default: adc1_default {
+		group1 {
+			pinmux = <ADC012_IN1_PA1>;
+		};
+	};
+
+	timer0_pwm_default: timer0_pwm_default {
+		group1 {
+			pinmux = <TIMER0_CH0_PA8>;
 		};
 	};
 };
