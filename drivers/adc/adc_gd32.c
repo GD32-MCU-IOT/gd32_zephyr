@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022 BrainCo Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -58,20 +59,29 @@ LOG_MODULE_REGISTER(adc_gd32, CONFIG_ADC_LOG_LEVEL);
 #undef ADC_RSQ2
 #undef ADC_RDATA
 
-#define ADC_STAT(adc0)		REG32((adc0) + 0x00000000U)
-#define ADC_CTL0(adc0)		REG32((adc0) + 0x00000004U)
-#define ADC_CTL1(adc0)		REG32((adc0) + 0x00000008U)
-#define ADC_SAMPT0(adc0)	REG32((adc0) + 0x0000000CU)
-#define ADC_SAMPT1(adc0)	REG32((adc0) + 0x00000010U)
-#define ADC_RSQ2(adc0)		REG32((adc0) + 0x00000034U)
-#define ADC_RDATA(adc0)		REG32((adc0) + 0x0000004CU)
+#define ADC_STAT(adc0)   REG32((adc0) + 0x00000000U)
+#define ADC_CTL0(adc0)   REG32((adc0) + 0x00000004U)
+#define ADC_CTL1(adc0)   REG32((adc0) + 0x00000008U)
+#define ADC_SAMPT0(adc0) REG32((adc0) + 0x0000000CU)
+#define ADC_SAMPT1(adc0) REG32((adc0) + 0x00000010U)
+#define ADC_RSQ2(adc0)   REG32((adc0) + 0x00000034U)
+#define ADC_RDATA(adc0)  REG32((adc0) + 0x0000004CU)
 #endif
 
-#define SPT_WIDTH	3U
-#define SAMPT1_SIZE	10U
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+/*
+ * GD32F50x multi-ADC HAL uses routine-sequence naming for the end-of-conversion
+ * flag and its interrupt enable. Map the names used by this driver to them.
+ */
+#define ADC_STAT_EOC   ADC_STAT_EORC
+#define ADC_CTL0_EOCIE ADC_CTL0_EORCIE
+#endif
+
+#define SPT_WIDTH   3U
+#define SAMPT1_SIZE 10U
 
 #if defined(CONFIG_SOC_SERIES_GD32F4XX)
-#define SMP_TIME(x)	ADC_SAMPLETIME_##x
+#define SMP_TIME(x) ADC_SAMPLETIME_##x
 
 static const uint16_t acq_time_tbl[8] = {3, 15, 28, 56, 84, 112, 144, 480};
 static const uint32_t table_samp_time[] = {
@@ -85,7 +95,7 @@ static const uint32_t table_samp_time[] = {
 	SMP_TIME(480)
 };
 #elif defined(CONFIG_SOC_SERIES_GD32L23X)
-#define SMP_TIME(x)	ADC_SAMPLETIME_##x##POINT5
+#define SMP_TIME(x) ADC_SAMPLETIME_##x##POINT5
 
 static const uint16_t acq_time_tbl[8] = {3, 8, 14, 29, 42, 56, 72, 240};
 static const uint32_t table_samp_time[] = {
@@ -99,7 +109,7 @@ static const uint32_t table_samp_time[] = {
 	SMP_TIME(239),
 };
 #elif defined(CONFIG_SOC_SERIES_GD32A50X)
-#define SMP_TIME(x)	ADC_SAMPLETIME_##x##POINT5
+#define SMP_TIME(x) ADC_SAMPLETIME_##x##POINT5
 
 static const uint16_t acq_time_tbl[8] = {3, 15, 28, 56, 84, 112, 144, 480};
 static const uint32_t table_samp_time[] = {
@@ -113,7 +123,7 @@ static const uint32_t table_samp_time[] = {
 	SMP_TIME(479)
 };
 #else
-#define SMP_TIME(x)	ADC_SAMPLETIME_##x##POINT5
+#define SMP_TIME(x) ADC_SAMPLETIME_##x##POINT5
 
 static const uint16_t acq_time_tbl[8] = {2, 8, 14, 29, 42, 56, 72, 240};
 static const uint32_t table_samp_time[] = {
@@ -130,7 +140,7 @@ static const uint32_t table_samp_time[] = {
 
 struct adc_gd32_config {
 	uint32_t reg;
-#ifdef CONFIG_SOC_SERIES_GD32F3X0
+#if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32F50X)
 	uint32_t rcu_clock_source;
 #endif
 	uint16_t clkid;
@@ -173,6 +183,15 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 
 	data->repeat_buffer = data->buffer;
 
+	/* Make sure no stale end-of-conversion flag is set. */
+	ADC_STAT(cfg->reg) &= ~ADC_STAT_EOC;
+
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+	/* Ensure ADC is powered and stabilized before triggering. */
+	ADC_CTL1(cfg->reg) |= ADC_CTL1_ADCON;
+	k_busy_wait(20);
+#endif
+
 	/* Enable EOC interrupt */
 	ADC_CTL0(cfg->reg) |= ADC_CTL0_EOCIE;
 
@@ -192,6 +211,10 @@ static void adc_context_update_buffer_pointer(struct adc_context *ctx,
 
 static inline void adc_gd32_calibration(const struct adc_gd32_config *cfg)
 {
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+	/* GD32F50x ADC has no calibration sequence. */
+	ARG_UNUSED(cfg);
+#else
 	ADC_CTL1(cfg->reg) |= ADC_CTL1_RSTCLB;
 	/* Wait for calibration registers initialized. */
 	while (ADC_CTL1(cfg->reg) & ADC_CTL1_RSTCLB) {
@@ -201,6 +224,7 @@ static inline void adc_gd32_calibration(const struct adc_gd32_config *cfg)
 	/* Wait for calibration complete. */
 	while (ADC_CTL1(cfg->reg) & ADC_CTL1_CLB) {
 	}
+#endif
 }
 
 static int adc_gd32_configure_sampt(const struct adc_gd32_config *cfg,
@@ -298,13 +322,12 @@ static int adc_gd32_start_read(const struct device *dev,
 		return -EINVAL;
 	}
 
-#if defined(CONFIG_SOC_SERIES_GD32F4XX) || \
-	defined(CONFIG_SOC_SERIES_GD32F3X0) || \
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F3X0) || \
 	defined(CONFIG_SOC_SERIES_GD32L23X)
 	ADC_CTL0(cfg->reg) &= ~ADC_CTL0_DRES;
 	ADC_CTL0(cfg->reg) |= CTL0_DRES(resolution_id);
-#elif defined(CONFIG_SOC_SERIES_GD32F403) || \
-	defined(CONFIG_SOC_SERIES_GD32A50X)
+#elif defined(CONFIG_SOC_SERIES_GD32F403) || defined(CONFIG_SOC_SERIES_GD32A50X) || \
+	defined(CONFIG_SOC_SERIES_GD32F50X)
 	ADC_OVSAMPCTL(cfg->reg) &= ~ADC_OVSAMPCTL_DRES;
 	ADC_OVSAMPCTL(cfg->reg) |= OVSAMPCTL_DRES(resolution_id);
 #elif defined(CONFIG_SOC_SERIES_GD32VF103)
@@ -377,7 +400,7 @@ static int adc_gd32_init(const struct device *dev)
 		return ret;
 	}
 
-#ifdef CONFIG_SOC_SERIES_GD32F3X0
+#if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32F50X)
 	/* Select adc clock source and its prescaler. */
 	rcu_adc_clock_config(cfg->rcu_clock_source);
 #endif
@@ -474,7 +497,7 @@ static void adc_gd32_global_irq_cfg(void)
 #endif
 }
 
-#ifdef CONFIG_SOC_SERIES_GD32F3X0
+#if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32F50X)
 #define ADC_CLOCK_SOURCE(n)									\
 	.rcu_clock_source = DT_INST_PROP(n, rcu_clock_source)
 #else

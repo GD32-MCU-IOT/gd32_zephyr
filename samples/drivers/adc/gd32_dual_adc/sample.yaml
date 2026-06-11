@@ -1,0 +1,15 @@
+sample:
+  name: GD32 Dual ADC Sample
+common:
+  tags:
+    - adc
+  filter: dt_node_has_prop("/zephyr,user","io-channels")
+tests:
+  sample.drivers.adc.gd32_dual:
+    tags:
+      - adc
+    depends_on: adc
+    platform_allow:
+      - gd32f503v_eval
+    integration_platforms:
+      - gd32f503v_eval
