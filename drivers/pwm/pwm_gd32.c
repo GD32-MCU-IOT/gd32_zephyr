@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021 Teslabs Engineering S.L.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,6 +21,12 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(pwm_gd32, CONFIG_PWM_LOG_LEVEL);
+
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+/* GD32F50x HAL renamed TIMER_CCHP to TIMER_CCHP0 */
+#define TIMER_CCHP      TIMER_CCHP0
+#define TIMER_CCHP_POEN TIMER_CCHP0_POEN
+#endif
 
 /** PWM data. */
 struct pwm_gd32_data {
@@ -177,6 +184,15 @@ static int pwm_gd32_init(const struct device *dev)
 
 	/* enable primary output for advanced timers */
 	if (config->is_advanced) {
+
+#if defined(TIMER_CTL2)
+		/*
+		 * Clear CTL2 to disable dead-time insertion/break for all channels.
+		 * Only advanced timers have this register; residual DTIEN/BRKEN bits
+		 * can suppress output even when POEN is enabled.
+		 */
+		TIMER_CTL2(config->reg) = 0x00000000U;
+#endif
 		TIMER_CCHP(config->reg) |= TIMER_CCHP_POEN;
 	}
 
