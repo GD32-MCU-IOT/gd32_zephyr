@@ -1,8 +1,6 @@
 # Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-CONFIG_BOARD_GD32H759I_EVAL=y
-
 CONFIG_ARM_MPU=y
 CONFIG_HW_STACK_PROTECTION=y
 
