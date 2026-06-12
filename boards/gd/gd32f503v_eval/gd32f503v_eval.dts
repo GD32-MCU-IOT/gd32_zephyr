@@ -18,6 +18,7 @@
 		zephyr,sram = &sram0;
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
+		zephyr,canbus = &can0;
 	};
 
 	leds {
@@ -194,4 +195,34 @@
 	pinctrl-names = "default";
 	dmas = <&dmamux 0 20 0x480>, <&dmamux 1 21 0x440>;
 	dma-names = "rx", "tx";
+};
+
+&can0 {
+	pinctrl-0 = <&can0_default>;
+	pinctrl-names = "default";
+	bus-speed = <500000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "okay";
+
+	can-transceiver {
+		min-bitrate = <1000>;
+		max-bitrate = <8000000>;
+	};
+};
+
+&can1 {
+	pinctrl-0 = <&can1_default>;
+	pinctrl-names = "default";
+	bus-speed = <500000>;
+	bus-speed-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+	status = "disabled";
+
+	can-transceiver {
+		min-bitrate = <1000>;
+		max-bitrate = <8000000>;
+	};
 };
