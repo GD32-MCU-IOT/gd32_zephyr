@@ -54,4 +54,16 @@
 			pinmux = <TIMER0_CH0_PA8>;
 		};
 	};
+
+	can0_default: can0_default {
+		group1 {
+			pinmux = <CAN0_RX_PB8>, <CAN0_TX_PB9>;
+		};
+	};
+
+	can1_default: can1_default {
+		group1 {
+			pinmux = <CAN1_RX_PB12>, <CAN1_TX_PB13>;
+		};
+	};
 };

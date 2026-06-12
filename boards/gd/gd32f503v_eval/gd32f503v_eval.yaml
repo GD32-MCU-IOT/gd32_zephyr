@@ -12,3 +12,5 @@ supported:
   - gpio
   - uart
   - pinctrl
+  - can
+vendor: gd
