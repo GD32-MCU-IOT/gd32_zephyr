@@ -1002,7 +1002,7 @@ static int can_gd32_send(const struct device *dev, const struct can_frame *frame
 	if ((frame->flags & CAN_FRAME_RTR) != 0) {
 		TxMail->CANX_TMI |= CAN_TMI_FT;
 	}
-	TxMail->CANX_TMP &= ~(CAN_TMP_DLENC | CAN_TMP_ESI | CAN_TMP_FDF);
+	TxMail->CANX_TMP &= ~(CAN_TMP_DLENC | CAN_TMP_ESI | CAN_TMP_FDF | CAN_TMP_TSEN);
 	TxMail->CANX_TMP |= (frame->dlc & 0xF);
 
 #ifdef CONFIG_CAN_FD_MODE
@@ -1259,7 +1259,7 @@ static void can_gd32_remove_rx_filter(const struct device *dev, int filter_id)
 	k_mutex_unlock(&filter_mutex);
 }
 
-static const struct can_driver_api can_api_funcs = {
+static DEVICE_API(can, can_api_funcs) = {
 	/* Get CAN work mode. */
 	.get_capabilities = can_gd32_get_capabilities,
 	/* Leave initialization mode. */
@@ -1363,9 +1363,10 @@ static const struct can_driver_api can_api_funcs = {
 #define CAN_GD32_DATA_INST(inst) static struct can_gd32_data can_gd32_dev_data_##inst;
 
 #define CAN_GD32_DEFINE_INST(inst)                                                                 \
-	DEVICE_DT_INST_DEFINE(inst, &can_gd32_init, NULL, &can_gd32_dev_data_##inst,               \
-			      &can_gd32_cfg_##inst, POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,         \
-			      &can_api_funcs);
+	CAN_DEVICE_DT_INST_DEFINE(inst, &can_gd32_init, NULL,                                      \
+				  &can_gd32_dev_data_##inst, &can_gd32_cfg_##inst,                 \
+				  POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,                           \
+				  &can_api_funcs);
 
 #define CAN_GD32_INST(inst)                                                                        \
 	CAN_GD32_IRQ_INST(inst)                                                                    \
