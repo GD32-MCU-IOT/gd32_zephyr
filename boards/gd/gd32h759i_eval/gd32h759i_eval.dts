@@ -26,9 +26,11 @@
 
 	leds {
 		compatible = "gpio-leds";
+
 		led0: led0 {
 			gpios = <&gpiof 10 GPIO_ACTIVE_HIGH>;
 		};
+
 		led1: led1 {
 			gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>;
 		};
@@ -41,17 +43,19 @@
 		pwm_led0: pwm_led0 {
 			pwms = <&pwm1 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
+
 		pwm_led1: pwm_led1 {
 			pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
+
 		pwm_led2: pwm_led2 {
 			pwms = <&pwm0 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
+
 		pwm_led3: pwm_led3 {
 			pwms = <&pwm0 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
 	};
-
 
 	aliases {
 		led0 = &led0;
@@ -72,6 +76,7 @@
 	counterdirection = <0x10>;
 	deadtime = <200>;                  /* 1.06us */
 	status = "okay";
+
 	pwm0: pwm {
 		status = "okay";
 		pinctrl-0 = <&pwm0_default>;
@@ -85,6 +90,7 @@
 	alignedmode = <0x00>;
 	counterdirection = <0x10>;
 	status = "okay";
+
 	pwm1: pwm {
 		status = "okay";
 		pinctrl-0 = <&pwm1_default>;
@@ -171,7 +177,7 @@
 	status = "okay";
 	pinctrl-0 = <&adc0_default>;
 	pinctrl-names = "default";
-	dmas = <&dma0 1 9 (3<<16) 0>;
+	dmas = <&dmamux 8 9 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
 	dma-names = "rx";
 };
 
@@ -195,6 +201,7 @@
 	       <&dmamux 3 44 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
 	dma-names = "rx", "tx";
 	clock-frequency = <100000>;
+
 	eeprom0: eeprom@50 {
 		compatible = "atmel,at24";
 		reg = <0x50>;
@@ -235,6 +242,7 @@
 	dmas = <&dmamux 4 99 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
 	       <&dmamux 5 100 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
 	dma-names = "rx", "tx";
+
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;

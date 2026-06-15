@@ -41,6 +41,14 @@ properties:
     description: Number of external channels
     required: true
 
+  vref-mv:
+    type: int
+    default: 3300
+    description: |
+      Internal reference voltage in millivolts (VDDA).
+      Used by adc_ref_internal() for raw-to-millivolts conversion.
+      Defaults to 3300 mV if not specified.
+
   interrupts:
     required: true
 

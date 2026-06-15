@@ -6,11 +6,13 @@
 
 #include <freq.h>
 #include <arm/armv7-m.dtsi>
+#include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
 #include <zephyr/dt-bindings/clock/gd32h7xx-clocks.h>
 #include <zephyr/dt-bindings/reset/gd32h7xx.h>
+
 / {
 	cpus {
 		#address-cells = <1>;
@@ -303,9 +305,9 @@
 			status = "disabled";
 		};
 
-	pinctrl: pin-controller@58020000 {
+		pinctrl: pin-controller@58020000 {
 			compatible = "gd,gd32-pinctrl-af";
-			reg = <0x58020000 0x2C00>;
+			reg = <0x58020000 0x2c00>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 			status = "okay";
@@ -555,16 +557,16 @@
 			clocks = <&cctl GD32_CLOCK_DMAMUX>;
 			dma-channels = <16>;
 			dma-generators = <8>;
-			dma-requests= <189>;
+			dma-requests = <189>;
 			status = "disabled";
 		};
 
 		can0: can@4001a000 {
 			compatible = "gd,gd32-can";
 			reg = <0x4001a000 0x1000>;
-			interrupts = <179 0>, <180 0>, <181 0>, <182 0>,<183 0>, <184 0>, <185 0>;
+			interrupts = <179 0>, <180 0>, <181 0>, <182 0>, <183 0>, <184 0>, <185 0>;
 			interrupt-names = "WAKE_UP", "MESSAGE_BUFFER", "BUS_OFF", "ERROR",
-							 "FAST_ERROR", "TX_WARNING", "RX_WARNING";
+					  "FAST_ERROR", "TX_WARNING", "RX_WARNING";
 			clocks = <&cctl GD32_CLOCK_CAN0>;
 			status = "disabled";
 			sjw = <1>;
@@ -576,9 +578,9 @@
 		can1: can@4001b000 {
 			compatible = "gd,gd32-can";
 			reg = <0x4001b000 0x1000>;
-			interrupts = <186 0>, <187 0>, <188 0>, <189 0>,<190 0>, <191 0>, <192 0>;
+			interrupts = <186 0>, <187 0>, <188 0>, <189 0>, <190 0>, <191 0>, <192 0>;
 			interrupt-names = "WAKE_UP", "MESSAGE_BUFFER", "BUS_OFF", "ERROR",
-							 "FAST_ERROR", "TX_WARNING", "RX_WARNING";
+					  "FAST_ERROR", "TX_WARNING", "RX_WARNING";
 			clocks = <&cctl GD32_CLOCK_CAN1>;
 			status = "disabled";
 			sjw = <1>;
@@ -590,9 +592,9 @@
 		can2: can@4001c000 {
 			compatible = "gd,gd32-can";
 			reg = <0x4001c000 0x1000>;
-			interrupts = <193 0>, <194 0>, <195 0>, <196 0>,<197 0>, <198 0>, <199 0>;
+			interrupts = <193 0>, <194 0>, <195 0>, <196 0>, <197 0>, <198 0>, <199 0>;
 			interrupt-names = "WAKE_UP", "MESSAGE_BUFFER", "BUS_OFF", "ERROR",
-							 "FAST_ERROR", "TX_WARNING", "RX_WARNING";
+					  "FAST_ERROR", "TX_WARNING", "RX_WARNING";
 			clocks = <&cctl GD32_CLOCK_CAN2>;
 			status = "disabled";
 			sjw = <1>;

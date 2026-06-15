@@ -19,6 +19,31 @@
 
 #include <gd32_adc.h>
 #include <gd32_rcu.h>
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#include <gd32_trigsel.h>
+#endif
+
+/*
+ * GD32H75E HAL uses "ROUTRG"/"ROUTINE" naming where GD32H7XX uses "REGTRG"/"REGULAR".
+ * Provide aliases so the shared init code below needs no per-SoC ifdefs.
+ */
+#if defined(CONFIG_SOC_SERIES_GD32H75E)
+#define TRIGSEL_OUTPUT_ADC0_REGTRG TRIGSEL_OUTPUT_ADC0_ROUTRG
+#define TRIGSEL_OUTPUT_ADC1_REGTRG TRIGSEL_OUTPUT_ADC1_ROUTRG
+#define TRIGSEL_OUTPUT_ADC2_REGTRG TRIGSEL_OUTPUT_ADC2_ROUTRG
+#define ADC_REGULAR_CHANNEL        ADC_ROUTINE_CHANNEL
+#endif
+
+#ifdef CONFIG_ADC_GD32_DMA
+#include <zephyr/drivers/dma.h>
+#include <zephyr/drivers/dma/dma_gd32.h>
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#define ADC_GD32_DMA_CACHE_REQUIRED 1
+#include <gd32_cache.h>
+#else
+#define ADC_GD32_DMA_CACHE_REQUIRED 0
+#endif
+#endif
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
@@ -80,7 +105,13 @@ LOG_MODULE_REGISTER(adc_gd32, CONFIG_ADC_LOG_LEVEL);
 #define SPT_WIDTH   3U
 #define SAMPT1_SIZE 10U
 
-#if defined(CONFIG_SOC_SERIES_GD32F4XX)
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+/*
+ * GD32H7XX does not use the SAMPT0/SAMPT1 sample-time lookup tables. The
+ * sample time is encoded per sequence entry in the regular sequence
+ * register (RSQx) RSMPn field, so no acq_time table is required here.
+ */
+#elif defined(CONFIG_SOC_SERIES_GD32F4XX)
 #define SMP_TIME(x) ADC_SAMPLETIME_##x
 
 static const uint16_t acq_time_tbl[8] = {3, 15, 28, 56, 84, 112, 144, 480};
@@ -138,6 +169,28 @@ static const uint32_t table_samp_time[] = {
 };
 #endif
 
+#ifdef CONFIG_ADC_GD32_DMA
+enum adc_gd32_dma_direction {
+	RX = 0,
+	TX,
+	NUM_OF_DIRECTION
+};
+
+struct adc_gd32_dma_config {
+	const struct device *dev;
+	uint32_t channel;
+	uint32_t config;
+	uint32_t slot;
+	uint32_t fifo_threshold;
+};
+
+struct adc_gd32_dma_data {
+	struct dma_config config;
+	struct dma_block_config block;
+	uint32_t count;
+};
+#endif /* CONFIG_ADC_GD32_DMA */
+
 struct adc_gd32_config {
 	uint32_t reg;
 #if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32F50X)
@@ -149,6 +202,12 @@ struct adc_gd32_config {
 	const struct pinctrl_dev_config *pcfg;
 	uint8_t irq_num;
 	void (*irq_config_func)(void);
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	uint32_t trigger_select;
+#endif
+#ifdef CONFIG_ADC_GD32_DMA
+	const struct adc_gd32_dma_config dma[NUM_OF_DIRECTION];
+#endif
 };
 
 struct adc_gd32_data {
@@ -156,7 +215,68 @@ struct adc_gd32_data {
 	const struct device *dev;
 	uint16_t *buffer;
 	uint16_t *repeat_buffer;
+#ifdef CONFIG_ADC_GD32_DMA
+	struct adc_gd32_dma_data dma[NUM_OF_DIRECTION];
+#endif
 };
+
+#ifdef CONFIG_ADC_GD32_DMA
+static void adc_gd32_dma_callback(const struct device *dma_dev, void *arg,
+				  uint32_t channel, int status);
+
+/**
+ * @brief Configure and start the regular-group RX DMA channel.
+ *
+ * The ADC end-of-conversion (EOC) flag is cleared by the DMA read of the
+ * ADC_RDATA register, so the result is moved to the user buffer without
+ * CPU intervention and the DMA completion callback finalizes the sampling.
+ */
+static int adc_gd32_dma_setup(const struct device *dev, uint32_t dir)
+{
+	const struct adc_gd32_config *cfg = dev->config;
+	struct adc_gd32_data *data = dev->data;
+	struct dma_config *dma_cfg = &data->dma[dir].config;
+	struct dma_block_config *block_cfg = &data->dma[dir].block;
+	const struct adc_gd32_dma_config *dma = &cfg->dma[dir];
+	int ret;
+
+	memset(dma_cfg, 0, sizeof(struct dma_config));
+	memset(block_cfg, 0, sizeof(struct dma_block_config));
+
+	dma_cfg->source_burst_length = 1;
+	dma_cfg->dest_burst_length = 1;
+	dma_cfg->user_data = (void *)dev;
+	dma_cfg->dma_callback = adc_gd32_dma_callback;
+	dma_cfg->block_count = 1U;
+	dma_cfg->head_block = block_cfg;
+	dma_cfg->dma_slot = dma->slot;
+	dma_cfg->channel_priority = GD32_DMA_CONFIG_PRIORITY(dma->config);
+	dma_cfg->channel_direction = PERIPHERAL_TO_MEMORY;
+	dma_cfg->source_data_size = 2;
+	dma_cfg->dest_data_size = 2;
+	dma_cfg->cyclic = 1;
+
+	block_cfg->block_size = 1;
+	block_cfg->source_address = (uint32_t)&ADC_RDATA(cfg->reg);
+	block_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+	block_cfg->dest_address = (uint32_t)data->buffer;
+	block_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+
+	ret = dma_config(dma->dev, dma->channel, dma_cfg);
+	if (ret < 0) {
+		LOG_ERR("dma_config %p failed %d", dma->dev, ret);
+		return ret;
+	}
+
+	ret = dma_start(dma->dev, dma->channel);
+	if (ret < 0) {
+		LOG_ERR("dma_start %p failed %d", dma->dev, ret);
+		return ret;
+	}
+
+	return 0;
+}
+#endif /* CONFIG_ADC_GD32_DMA */
 
 static void adc_gd32_isr(const struct device *dev)
 {
@@ -190,6 +310,18 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 	/* Ensure ADC is powered and stabilized before triggering. */
 	ADC_CTL1(cfg->reg) |= ADC_CTL1_ADCON;
 	k_busy_wait(20);
+#endif
+
+#ifdef CONFIG_ADC_GD32_DMA
+	{
+		int ret = adc_gd32_dma_setup(dev, RX);
+
+		if (ret < 0) {
+			LOG_ERR("DMA setup failed: %d", ret);
+			adc_context_complete(&data->ctx, ret);
+			return;
+		}
+	}
 #endif
 
 	/* Enable EOC interrupt */
@@ -230,6 +362,22 @@ static inline void adc_gd32_calibration(const struct adc_gd32_config *cfg)
 static int adc_gd32_configure_sampt(const struct adc_gd32_config *cfg,
 				    uint8_t channel, uint16_t acq_time)
 {
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	ARG_UNUSED(cfg);
+	ARG_UNUSED(channel);
+
+	/*
+	 * On GD32H7XX the sample time is part of the regular sequence
+	 * register and is programmed together with the channel number in
+	 * adc_gd32_start_read(). Only the default acquisition time is
+	 * supported here.
+	 */
+	if (acq_time != ADC_ACQ_TIME_DEFAULT) {
+		return -ENOTSUP;
+	}
+
+	return 0;
+#else
 	uint8_t index = 0, offset;
 
 	if (acq_time != ADC_ACQ_TIME_DEFAULT) {
@@ -260,6 +408,7 @@ static int adc_gd32_configure_sampt(const struct adc_gd32_config *cfg,
 	}
 
 	return 0;
+#endif
 }
 
 static int adc_gd32_channel_setup(const struct device *dev,
@@ -305,6 +454,24 @@ static int adc_gd32_start_read(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	switch (sequence->resolution) {
+	case 14U:
+		resolution_id = 0U;
+		break;
+	case 12U:
+		resolution_id = 1U;
+		break;
+	case 10U:
+		resolution_id = 2U;
+		break;
+	case 8U:
+		resolution_id = 3U;
+		break;
+	default:
+		return -EINVAL;
+	}
+#else
 	switch (sequence->resolution) {
 	case 12U:
 		resolution_id = 0U;
@@ -321,8 +488,12 @@ static int adc_gd32_start_read(const struct device *dev,
 	default:
 		return -EINVAL;
 	}
+#endif
 
-#if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F3X0) || \
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || \
+	defined(CONFIG_SOC_SERIES_GD32H7XX) || \
+	defined(CONFIG_SOC_SERIES_GD32H75E) || \
+	defined(CONFIG_SOC_SERIES_GD32F3X0) || \
 	defined(CONFIG_SOC_SERIES_GD32L23X)
 	ADC_CTL0(cfg->reg) &= ~ADC_CTL0_DRES;
 	ADC_CTL0(cfg->reg) |= CTL0_DRES(resolution_id);
@@ -340,8 +511,13 @@ static int adc_gd32_start_read(const struct device *dev,
 	}
 
 	/* Single conversion mode with regular group. */
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	ADC_RSQ8(cfg->reg) &= ~(ADC_RSQX_RSQN | ADC_RSQX_RSMPN);
+	ADC_RSQ8(cfg->reg) = index;
+#else
 	ADC_RSQ2(cfg->reg) &= ~ADC_RSQX_RSQN;
 	ADC_RSQ2(cfg->reg) = index;
+#endif
 
 	data->buffer = sequence->buffer;
 
@@ -355,6 +531,16 @@ static int adc_gd32_read(const struct device *dev,
 {
 	struct adc_gd32_data *data = dev->data;
 	int error;
+
+#ifdef CONFIG_ADC_GD32_DMA
+#if ADC_GD32_DMA_CACHE_REQUIRED
+	/*
+	 * Clean and invalidate the destination buffer so no dirty cache line
+	 * is written back over the data the DMA will deposit there.
+	 */
+	gd32_cache_flush_and_invd_buf(sequence->buffer, sequence->buffer_size);
+#endif
+#endif
 
 	adc_context_lock(&data->ctx, false, NULL);
 	error = adc_gd32_start_read(dev, sequence);
@@ -379,13 +565,35 @@ static int adc_gd32_read_async(const struct device *dev,
 }
 #endif /* CONFIG_ADC_ASYNC */
 
-static DEVICE_API(adc, adc_gd32_driver_api) = {
-	.channel_setup = adc_gd32_channel_setup,
-	.read = adc_gd32_read,
-#ifdef CONFIG_ADC_ASYNC
-	.read_async = adc_gd32_read_async,
-#endif /* CONFIG_ADC_ASYNC */
-};
+/* adc_gd32_driver_api is defined per-instance in ADC_GD32_INIT to allow
+ * ref_internal to be read from the devicetree vref-mv property.
+ */
+
+#ifdef CONFIG_ADC_GD32_DMA
+static void adc_gd32_dma_callback(const struct device *dma_dev, void *arg,
+				  uint32_t channel, int status)
+{
+	const struct device *dev = (const struct device *)arg;
+	struct adc_gd32_data *data = dev->data;
+
+	ARG_UNUSED(dma_dev);
+	ARG_UNUSED(channel);
+
+	if (status < 0) {
+		LOG_ERR("DMA transfer error: %d", status);
+		adc_context_complete(&data->ctx, status);
+		return;
+	}
+
+#if ADC_GD32_DMA_CACHE_REQUIRED
+	/* Make the DMA-written conversion result visible to the CPU. */
+	gd32_cache_invalidate_buf(data->buffer, sizeof(*data->buffer));
+#endif
+
+	LOG_DBG("DMA done");
+	adc_context_on_sampling_done(&data->ctx, dev);
+}
+#endif /* CONFIG_ADC_GD32_DMA */
 
 static int adc_gd32_init(const struct device *dev)
 {
@@ -410,8 +618,35 @@ static int adc_gd32_init(const struct device *dev)
 
 	(void)reset_line_toggle_dt(&cfg->reset);
 
-#if defined(CONFIG_SOC_SERIES_GD32F403) || \
-	defined(CONFIG_SOC_SERIES_GD32VF103) || \
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	/* Select ADC clock: synchronous from AHB clock (HCLK) divided by 8. */
+	adc_clock_config(cfg->reg, ADC_CLK_SYNC_HCLK_DIV8);
+
+	if (cfg->trigger_select == 0U) {
+		/* Software trigger: disable hardware external trigger. */
+		ADC_CTL1(cfg->reg) &= ~ADC_CTL1_ETMRC;
+		ADC_CTL1(cfg->reg) |= EXTERNAL_TRIGGER_DISABLE << 28U;
+	} else {
+		/* Route a TRIGSEL input source to the ADC regular trigger. */
+		rcu_periph_clock_enable(RCU_TRIGSEL);
+
+		if (cfg->reg == ADC0) {
+			trigsel_init(TRIGSEL_OUTPUT_ADC0_REGTRG,
+				     (trigsel_source_enum)cfg->trigger_select);
+		} else if (cfg->reg == ADC1) {
+			trigsel_init(TRIGSEL_OUTPUT_ADC1_REGTRG,
+				     (trigsel_source_enum)cfg->trigger_select);
+		} else if (cfg->reg == ADC2) {
+			trigsel_init(TRIGSEL_OUTPUT_ADC2_REGTRG,
+				     (trigsel_source_enum)cfg->trigger_select);
+		}
+
+		adc_external_trigger_config(cfg->reg, ADC_REGULAR_CHANNEL,
+					    EXTERNAL_TRIGGER_RISING);
+	}
+#endif
+
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || \
 	defined(CONFIG_SOC_SERIES_GD32F3X0) || \
 	defined(CONFIG_SOC_SERIES_GD32L23X)
 	/* Set SWRCST as the regular channel external trigger. */
@@ -426,6 +661,28 @@ static int adc_gd32_init(const struct device *dev)
 	ADC_CTL1(cfg->reg) |= ADC_CTL1_ETSRC;
 	ADC_CTL1(cfg->reg) |= ADC_CTL1_ETERC;
 #endif
+
+#ifdef CONFIG_ADC_GD32_DMA
+	/* Enable ADC DMA mode and keep issuing DMA requests after the last
+	 * conversion of the regular sequence.
+	 */
+	if (cfg->reg == ADC0) {
+		adc_dma_request_after_last_enable(ADC0);
+		adc_dma_mode_enable(ADC0);
+	}
+#if defined(ADC1)
+	else if (cfg->reg == ADC1) {
+		adc_dma_request_after_last_enable(ADC1);
+		adc_dma_mode_enable(ADC1);
+	}
+#endif
+#if defined(ADC2)
+	else if (cfg->reg == ADC2) {
+		adc_dma_request_after_last_enable(ADC2);
+		adc_dma_mode_enable(ADC2);
+	}
+#endif
+#endif /* CONFIG_ADC_GD32_DMA */
 
 	/* Enable ADC */
 	ADC_CTL1(cfg->reg) |= ADC_CTL1_ADCON;
@@ -485,8 +742,10 @@ static void adc_gd32_global_irq_cfg(void)
 #endif
 
 #if (ADC0_ENABLE || ADC1_ENABLE) && \
-	defined(CONFIG_SOC_SERIES_GD32F4XX)
-	/* gd32f4xx adc2 share the same irq number with adc0 and adc1. */
+	(defined(CONFIG_SOC_SERIES_GD32F4XX) || \
+	 defined(CONFIG_SOC_SERIES_GD32H7XX) || \
+	 defined(CONFIG_SOC_SERIES_GD32H75E))
+	/* gd32f4xx/gd32h7xx adc2 share the same irq number with adc0 and adc1. */
 #elif ADC2_ENABLE
 	IRQ_CONNECT(DT_IRQN(ADC2_NODE),
 		DT_IRQ(ADC2_NODE, priority),
@@ -504,6 +763,57 @@ static void adc_gd32_global_irq_cfg(void)
 #define ADC_CLOCK_SOURCE(n)
 #endif
 
+#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#define ADC_TRIGGER_SELECT(n)									\
+	.trigger_select = DT_INST_PROP(n, trigger_select),
+#else
+#define ADC_TRIGGER_SELECT(n)
+#endif
+
+#ifdef CONFIG_ADC_GD32_DMA
+/*
+ * DMA cell mapping based on binding type:
+ * - gd,gd32-dma (2 cells): channel, config
+ * - gd,gd32-dma-v1 (4 cells): channel, slot, config, fifo_threshold
+ * - gd,gd32-dmamux (3 cells): channel, slot, config
+ *
+ * Both gd,gd32-dma-v1 and gd,gd32-dmamux have 'slot' cell.
+ * Only gd,gd32-dma-v1 has 'fifo_threshold' cell.
+ * Standard gd,gd32-dma does NOT have 'slot' cell.
+ */
+#define DMA_IS_V1(idx, dir) \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dma_v1)
+
+#define DMA_IS_DMAMUX(idx, dir) \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dmamux)
+
+#define DMA_GET_SLOT(idx, dir) \
+	COND_CODE_1(DMA_IS_V1(idx, dir), \
+		(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), \
+		(COND_CODE_1(DMA_IS_DMAMUX(idx, dir), \
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))
+
+#define DMA_INITIALIZER(idx, dir)							\
+	{										\
+		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),		\
+		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),		\
+		.slot = DMA_GET_SLOT(idx, dir),						\
+		.config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),			\
+		.fifo_threshold = COND_CODE_1(DMA_IS_V1(idx, dir),			\
+			(DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)), (0)),	\
+	}
+
+#define DMAS_DECL(idx)									\
+	{										\
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, rx),				\
+			    (DMA_INITIALIZER(idx, rx)), ({0})),				\
+	}
+
+#define ADC_DMA_DECL(n)	.dma = DMAS_DECL(n),
+#else
+#define ADC_DMA_DECL(n)
+#endif /* CONFIG_ADC_GD32_DMA */
+
 #define ADC_GD32_INIT(n)									\
 	PINCTRL_DT_INST_DEFINE(n);								\
 	static struct adc_gd32_data adc_gd32_data_##n = {					\
@@ -519,12 +829,20 @@ static void adc_gd32_global_irq_cfg(void)
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),					\
 		.irq_num = DT_INST_IRQN(n),							\
 		.irq_config_func = adc_gd32_global_irq_cfg,					\
+		ADC_TRIGGER_SELECT(n)								\
+		ADC_DMA_DECL(n)									\
 		ADC_CLOCK_SOURCE(n)								\
+	};											\
+	static DEVICE_API(adc, adc_gd32_driver_api_##n) = {			\
+		.channel_setup = adc_gd32_channel_setup,					\
+		.read = adc_gd32_read,							\
+	IF_ENABLED(CONFIG_ADC_ASYNC, (.read_async = adc_gd32_read_async,))\
+		.ref_internal = DT_INST_PROP(n, vref_mv),					\
 	};											\
 	DEVICE_DT_INST_DEFINE(n,								\
 			      adc_gd32_init, NULL,						\
 			      &adc_gd32_data_##n, &adc_gd32_config_##n,				\
 			      POST_KERNEL, CONFIG_ADC_INIT_PRIORITY,				\
-			      &adc_gd32_driver_api);						\
+			      &adc_gd32_driver_api_##n);				\
 
 DT_INST_FOREACH_STATUS_OKAY(ADC_GD32_INIT)
