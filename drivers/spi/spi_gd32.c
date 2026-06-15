@@ -24,6 +24,33 @@
 
 #include <gd32_spi.h>
 
+/*
+ * GD32M53x SPI compatibility layer.
+ * M53x has only one SPI peripheral, so its HAL defines register access
+ * macros without a base-address parameter (e.g. #define SPI_CTL0 REG32(...)).
+ * The driver expects function-like macros: SPI_CTL0(spix).
+ * Redefine them here for compatibility.
+ */
+#if defined(CONFIG_SOC_SERIES_GD32M53X)
+#undef SPI_CTL0
+#undef SPI_CTL1
+#undef SPI_STAT
+#undef SPI_DATA
+#undef SPI_CRCPOLY
+#undef SPI_RCRC
+#undef SPI_TCRC
+#undef SPI_QCTL
+
+#define SPI_CTL0(spix)    REG32((spix) + 0x00000000U)
+#define SPI_CTL1(spix)    REG32((spix) + 0x00000004U)
+#define SPI_STAT(spix)    REG32((spix) + 0x00000008U)
+#define SPI_DATA(spix)    REG32((spix) + 0x0000000CU)
+#define SPI_CRCPOLY(spix) REG32((spix) + 0x00000010U)
+#define SPI_RCRC(spix)    REG32((spix) + 0x00000014U)
+#define SPI_TCRC(spix)    REG32((spix) + 0x00000018U)
+#define SPI_QCTL(spix)    REG32((spix) + 0x00000080U)
+#endif /* CONFIG_SOC_SERIES_GD32M53X */
+
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 LOG_MODULE_REGISTER(spi_gd32);
