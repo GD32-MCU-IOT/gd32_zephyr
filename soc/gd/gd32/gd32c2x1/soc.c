@@ -10,12 +10,18 @@
 /* initial ecc memory */
 void soc_reset_hook(void)
 {
-	register unsigned r0 __asm("r0") = DT_REG_ADDR(DT_CHOSEN(zephyr_sram));
-	register unsigned r1 __asm("r1") =
+#if defined(__ICCARM__)
+	register uint32_t r0 = DT_REG_ADDR(DT_CHOSEN(zephyr_sram));
+	register uint32_t r1 =
 		DT_REG_ADDR(DT_CHOSEN(zephyr_sram)) + DT_REG_SIZE(DT_CHOSEN(zephyr_sram));
+#else
+	register uint32_t r0 __asm__("r0") = DT_REG_ADDR(DT_CHOSEN(zephyr_sram));
+	register uint32_t r1 __asm__("r1") =
+		DT_REG_ADDR(DT_CHOSEN(zephyr_sram)) + DT_REG_SIZE(DT_CHOSEN(zephyr_sram));
+#endif
 
 	for (; r0 < r1; r0 += 4) {
-		*(unsigned int *)r0 = 0;
+		*(volatile uint32_t *)r0 = 0;
 	}
 }
 
