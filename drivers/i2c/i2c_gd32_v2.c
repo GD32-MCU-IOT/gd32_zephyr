@@ -341,7 +341,7 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg, uint32_t 
 }
 #endif /* CONFIG_I2C_GD32_DMA */
 
-static int i2c_gd32_bus_recovery(const struct device *dev)
+int i2c_gd32_bus_recovery_gd(const struct device *dev)
 {
 	const struct i2c_gd32_config *cfg = dev->config;
 	struct i2c_gd32_data *data = dev->data;
@@ -653,7 +653,7 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 	if (I2C_STAT(cfg->reg) & I2C_STAT_I2CBSY) {
 		LOG_WRN("I2C bus stuck, attempting recovery");
 		/* Try bus recovery */
-		if (i2c_gd32_bus_recovery(dev) < 0) {
+		if (i2c_gd32_bus_recovery_gd(dev) < 0) {
 			data->errs |= I2C_GD32_ERR_BUSY;
 			k_sem_give(&data->sync_sem);
 			return;
