@@ -380,53 +380,8 @@ void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg, uint32_t 
 	}
 }
 #endif /* CONFIG_I2C_GD32_DMA */
-static int i2c_gd32_bus_recovery_gd(const struct device *dev)
-{
-	const struct i2c_gd32_config *cfg = dev->config;
-	struct i2c_gd32_data *data = dev->data;
 
-	/* Disable I2C peripheral */
-	i2c_disable(cfg->reg);
-
-	/* Software reset - set then clear SRESET bit */
-	i2c_software_reset_config(cfg->reg, I2C_SRESET_SET);
-	i2c_software_reset_config(cfg->reg, I2C_SRESET_RESET);
-
-	/* Reconfigure I2C clock parameters after reset */
-	switch (I2C_SPEED_GET(data->dev_config)) {
-	case I2C_SPEED_STANDARD:
-		i2c_clock_config(cfg->reg, I2C_BITRATE_STANDARD, I2C_DTCY_2);
-		break;
-	case I2C_SPEED_FAST:
-		i2c_clock_config(cfg->reg, I2C_BITRATE_FAST, I2C_DTCY_16_9);
-#ifdef I2C_FMPCFG
-		I2C_FMPCFG(cfg->reg) &= ~I2C_FMPCFG_FMPEN;
-#endif
-		break;
-#ifdef I2C_FMPCFG
-	case I2C_SPEED_FAST_PLUS:
-		i2c_clock_config(cfg->reg, I2C_BITRATE_FAST_PLUS, I2C_DTCY_16_9);
-		I2C_FMPCFG(cfg->reg) |= I2C_FMPCFG_FMPEN;
-		break;
-#endif
-	default:
-		break;
-	}
-
-	/* Re-enable I2C peripheral */
-	i2c_enable(cfg->reg);
-
-	/* Check if bus is now free */
-
-	if (!i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
-		return 0;
-	}
-
-	LOG_ERR("I2C bus recovery failed");
-	data->errs |= I2C_GD32_ERR_BUSY;
-	return -EBUSY;
-}
-static int i2c_gd32_bus_recovery(const struct device *dev)
+int i2c_gd32_bus_recovery_gd(const struct device *dev)
 {
 	const struct i2c_gd32_config *cfg = dev->config;
 	struct i2c_gd32_data *data = dev->data;
@@ -453,10 +408,31 @@ static int i2c_gd32_bus_recovery(const struct device *dev)
 	} else {
 		/* Disable I2C peripheral */
 		i2c_disable(cfg->reg);
-		/* Clear all error flags */
-		i2c_flag_clear(cfg->reg, I2C_FLAG_AERR);
-		i2c_flag_clear(cfg->reg, I2C_FLAG_BERR);
-		i2c_flag_clear(cfg->reg, I2C_FLAG_LOSTARB);
+
+		/* Software reset - set then clear SRESET bit */
+		i2c_software_reset_config(cfg->reg, I2C_SRESET_SET);
+		i2c_software_reset_config(cfg->reg, I2C_SRESET_RESET);
+
+		/* Reconfigure I2C clock parameters after reset */
+		switch (I2C_SPEED_GET(data->dev_config)) {
+		case I2C_SPEED_STANDARD:
+			i2c_clock_config(cfg->reg, I2C_BITRATE_STANDARD, I2C_DTCY_2);
+			break;
+		case I2C_SPEED_FAST:
+			i2c_clock_config(cfg->reg, I2C_BITRATE_FAST, I2C_DTCY_16_9);
+#ifdef I2C_FMPCFG
+			I2C_FMPCFG(cfg->reg) &= ~I2C_FMPCFG_FMPEN;
+#endif
+			break;
+#ifdef I2C_FMPCFG
+		case I2C_SPEED_FAST_PLUS:
+			i2c_clock_config(cfg->reg, I2C_BITRATE_FAST_PLUS, I2C_DTCY_16_9);
+			I2C_FMPCFG(cfg->reg) |= I2C_FMPCFG_FMPEN;
+			break;
+#endif
+		default:
+			break;
+		}
 
 		/* Re-enable I2C peripheral */
 		i2c_enable(cfg->reg);
@@ -464,7 +440,6 @@ static int i2c_gd32_bus_recovery(const struct device *dev)
 		/* Check if bus is now free */
 		for (retry_count = 0; retry_count < 100; retry_count++) {
 			if (!i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
-				LOG_INF("I2C bus recovery successful");
 				return 0;
 			}
 		}
@@ -1118,7 +1093,7 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 		if (i2c_add_flag_get(cfg->reg, I2C_ADD_FLAG_I2CBSY)) {
 			LOG_WRN("I2C bus stuck, attempting recovery");
 			/* Try bus recovery */
-			if (i2c_gd32_bus_recovery(dev) < 0) {
+			if (i2c_gd32_bus_recovery_gd(dev) < 0) {
 				data->errs |= I2C_GD32_ERR_BUSY;
 				k_sem_give(&data->sync_sem);
 				return;

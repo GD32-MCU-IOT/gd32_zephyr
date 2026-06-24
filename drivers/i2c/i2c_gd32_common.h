@@ -220,5 +220,6 @@ void i2c_gd32_error_isr_gd(const struct device *dev);
 int i2c_gd32_transfer_gd(const struct device *dev, struct i2c_msg *msgs, uint8_t num_msgs,
 			 uint16_t addr);
 int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config);
+int i2c_gd32_bus_recovery_gd(const struct device *dev);
 
 #endif /* ZEPHYR_DRIVERS_I2C_I2C_GD32_H_ */

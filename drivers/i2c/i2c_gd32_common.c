@@ -54,9 +54,22 @@ static int i2c_gd32_configure(const struct device *dev, uint32_t dev_config)
 	return i2c_gd32_configure_gd(dev, dev_config);
 }
 
+static int i2c_gd32_bus_recover(const struct device *dev)
+{
+	struct i2c_gd32_data *data = dev->data;
+	int ret;
+
+	k_sem_take(&data->bus_mutex, K_FOREVER);
+	ret = i2c_gd32_bus_recovery_gd(dev);
+	k_sem_give(&data->bus_mutex);
+
+	return ret;
+}
+
 static DEVICE_API(i2c, i2c_gd32_driver_api) = {
 	.configure = i2c_gd32_configure,
 	.transfer = i2c_gd32_transfer,
+	.recover_bus = i2c_gd32_bus_recover,
 #ifdef CONFIG_I2C_RTIO
 	.iodev_submit = i2c_iodev_submit_fallback,
 #endif
