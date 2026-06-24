@@ -925,6 +925,34 @@ int spi_gd32_init(const struct device *dev)
 	return 0;
 }
 
+static int spi_gd32_deinit(const struct device *dev)
+{
+	struct spi_gd32_data *data = dev->data;
+	const struct spi_gd32_config *cfg = dev->config;
+
+	/* Disable the SPI peripheral, its DMA requests and all interrupts. */
+	SPI_INT_DISABLE_ALL(cfg->reg);
+	SPI_DMA_DISABLE(cfg->reg);
+	SPI_CTL0(cfg->reg) &= ~SPI_CTL0_SPIEN;
+
+#ifdef CONFIG_SPI_GD32_DMA
+	/* Stop and release the DMA channels requested during init. */
+	for (size_t i = 0; i < spi_gd32_dma_enabled_num(dev); i++) {
+		(void)dma_stop(cfg->dma[i].dev, cfg->dma[i].channel);
+		dma_release_channel(cfg->dma[i].dev, cfg->dma[i].channel);
+	}
+#endif
+
+	data->ctx.config = NULL;
+
+	/* Hold the peripheral in reset and gate its clock. */
+	(void)reset_line_toggle_dt(&cfg->reset);
+	(void)clock_control_off(GD32_CLOCK_CONTROLLER,
+				(clock_control_subsys_t)&cfg->clkid);
+
+	return 0;
+}
+
 /*
  * DMA cell mapping based on binding type:
  * - gd,gd32-dma (3 cells): channel, slot, config
@@ -990,7 +1018,7 @@ int spi_gd32_init(const struct device *dev)
 		IF_ENABLED(CONFIG_SPI_GD32_DMA, (.dma = DMAS_DECL(idx),))      \
 		IF_ENABLED(CONFIG_SPI_GD32_INTERRUPT,			       \
 			   (.irq_configure = spi_gd32_irq_configure_##idx)) }; \
-	SPI_DEVICE_DT_INST_DEFINE(idx, spi_gd32_init, NULL,			       \
+	SPI_DEVICE_DT_INST_DEINIT_DEFINE(idx, spi_gd32_init, spi_gd32_deinit, NULL, \
 			      &spi_gd32_data_##idx, &spi_gd32_config_##idx,    \
 			      POST_KERNEL, CONFIG_SPI_INIT_PRIORITY,	       \
 			      &spi_gd32_driver_api);
