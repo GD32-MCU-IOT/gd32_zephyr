@@ -54,6 +54,10 @@ struct gpio_gd32_config {
 struct gpio_gd32_data {
 	struct gpio_driver_data common;
 	sys_slist_t callbacks;
+#ifdef CONFIG_GPIO_GET_DIRECTION
+	uint32_t input_pins;
+	uint32_t output_pins;
+#endif /* CONFIG_GPIO_GET_DIRECTION */
 };
 
 /**
@@ -131,6 +135,11 @@ static inline int gpio_gd32_configure(const struct device *port, gpio_pin_t pin,
 				      gpio_flags_t flags)
 {
 	const struct gpio_gd32_config *config = port->config;
+
+#ifdef CONFIG_GPIO_GET_DIRECTION
+	struct gpio_gd32_data *data = port->data;
+	gpio_pin_t orig_pin = pin;
+#endif /* CONFIG_GPIO_GET_DIRECTION */
 
 #ifdef CONFIG_GD32_HAS_AF_PINMUX
 	uint32_t ctl, pupd;
@@ -223,6 +232,20 @@ static inline int gpio_gd32_configure(const struct device *port, gpio_pin_t pin,
 
 	*ctl_reg = ctl;
 #endif /* CONFIG_GD32_HAS_AF_PINMUX */
+
+#ifdef CONFIG_GPIO_GET_DIRECTION
+	if ((flags & GPIO_INPUT) != 0U) {
+		data->input_pins |= BIT(orig_pin);
+	} else {
+		data->input_pins &= ~BIT(orig_pin);
+	}
+
+	if ((flags & GPIO_OUTPUT) != 0U) {
+		data->output_pins |= BIT(orig_pin);
+	} else {
+		data->output_pins &= ~BIT(orig_pin);
+	}
+#endif /* CONFIG_GPIO_GET_DIRECTION */
 
 	return 0;
 }
@@ -326,6 +349,29 @@ static int gpio_gd32_pin_interrupt_configure(const struct device *port,
 	return 0;
 }
 
+#ifdef CONFIG_GPIO_GET_DIRECTION
+static int gpio_gd32_port_get_direction(const struct device *port,
+					gpio_port_pins_t map,
+					gpio_port_pins_t *inputs,
+					gpio_port_pins_t *outputs)
+{
+	const struct gpio_gd32_config *config = port->config;
+	struct gpio_gd32_data *data = port->data;
+
+	map &= config->common.port_pin_mask;
+
+	if (inputs != NULL) {
+		*inputs = map & data->input_pins;
+	}
+
+	if (outputs != NULL) {
+		*outputs = map & data->output_pins;
+	}
+
+	return 0;
+}
+#endif /* CONFIG_GPIO_GET_DIRECTION */
+
 static int gpio_gd32_manage_callback(const struct device *dev,
 				     struct gpio_callback *callback, bool set)
 {
@@ -343,6 +389,9 @@ static DEVICE_API(gpio, gpio_gd32_api) = {
 	.port_toggle_bits = gpio_gd32_port_toggle_bits,
 	.pin_interrupt_configure = gpio_gd32_pin_interrupt_configure,
 	.manage_callback = gpio_gd32_manage_callback,
+#ifdef CONFIG_GPIO_GET_DIRECTION
+	.port_get_direction = gpio_gd32_port_get_direction,
+#endif
 };
 
 static int gpio_gd32_init(const struct device *port)
