@@ -25,6 +25,21 @@ LOG_MODULE_REGISTER(can_gd32, CONFIG_CAN_LOG_LEVEL);
 
 #define DT_DRV_COMPAT gd_gd32_can
 
+#ifdef CAN_BT_BS1_6_4
+#define CAN_GD32_BT_TIMING_MASK \
+	(CAN_BT_BS1_3_0 | CAN_BT_BS1_6_4 | CAN_BT_BS2_2_0 | CAN_BT_BS2_4_3 | \
+	 CAN_BT_BAUDPSC)
+#elif defined(CAN_BT_BS1_3_0)
+#define CAN_GD32_BT_TIMING_MASK \
+	(CAN_BT_BS1_3_0 | CAN_BT_BS2_2_0 | CAN_BT_BAUDPSC)
+#endif
+
+#ifdef CAN_TMP_FDF
+#define CAN_GD32_TMP_FRAME_MASK (CAN_TMP_DLENC | CAN_TMP_ESI | CAN_TMP_FDF)
+#elif defined(CAN_TMP_DLENC)
+#define CAN_GD32_TMP_FRAME_MASK CAN_TMP_DLENC
+#endif
+
 #define SP_IS_SET(inst) DT_INST_NODE_HAS_PROP(inst, sample_point) ||
 
 /* Macro to exclude the sample point algorithm from compilation if not used
@@ -572,8 +587,7 @@ static int can_gd32_timing_configure(const struct device *dev, const struct can_
 		return -EBUSY;
 	}
 	if (timing) {
-		can->CANX_BT = (can->CANX_BT & ~(CAN_BT_BS1_3_0 | CAN_BT_BS1_6_4 | CAN_BT_BS2_2_0 |
-						 CAN_BT_BS2_4_3 | CAN_BT_BAUDPSC));
+		can->CANX_BT = (can->CANX_BT & ~(CAN_GD32_BT_TIMING_MASK));
 		can->CANX_BT |= BT_BS1((uint32_t)timing->phase_seg1 - 1) |
 				BT_BS2((uint32_t)timing->phase_seg2 - 1) |
 				BT_BAUDPSC((uint32_t)timing->prescaler - 1);
@@ -590,8 +604,7 @@ static int can_gd32_timing_configure(const struct device *dev, const struct can_
 				fdctl_status = fdctl_status | CAN_FDCTL_FDEN;
 				can->CANX_FDCTL = fdctl_status;
 				can->CANX_BT = (can->CANX_BT &
-						~(CAN_BT_BS1_3_0 | CAN_BT_BS1_6_4 | CAN_BT_BS2_2_0 |
-						  CAN_BT_BS2_4_3 | CAN_BT_BAUDPSC));
+						~(CAN_GD32_BT_TIMING_MASK));
 				can->CANX_BT |= BT_BS1((uint32_t)timing->phase_seg1 - 1) |
 						BT_BS2((uint32_t)timing->phase_seg2 - 1) |
 						BT_BAUDPSC((uint32_t)timing->prescaler - 1);
@@ -600,8 +613,7 @@ static int can_gd32_timing_configure(const struct device *dev, const struct can_
 				can->CANX_BT |= BT_SJW((uint32_t)timing->sjw - 1);
 			} else {
 				can->CANX_BT = (can->CANX_BT &
-						~(CAN_BT_BS1_3_0 | CAN_BT_BS1_6_4 | CAN_BT_BS2_2_0 |
-						  CAN_BT_BS2_4_3 | CAN_BT_BAUDPSC));
+						~(CAN_GD32_BT_TIMING_MASK));
 				can->CANX_BT |= BT_BS1((uint32_t)timing->phase_seg1 - 1) |
 						BT_BS2((uint32_t)timing->phase_seg2 - 1) |
 						BT_BAUDPSC((uint32_t)timing->prescaler - 1);
@@ -1331,6 +1343,12 @@ static DEVICE_API(can, can_api_funcs) = {
 		}                                                                                  \
 	}
 
+#define CAN_GD32_DT_INST_BITRATE(inst) \
+	DT_INST_PROP_OR(inst, bitrate, DT_INST_PROP_OR(inst, bus_speed, CONFIG_CAN_DEFAULT_BITRATE))
+
+#define CAN_GD32_DT_INST_BITRATE_DATA(inst) \
+	DT_INST_PROP_OR(inst, bitrate_data, DT_INST_PROP_OR(inst, bus_speed_data, 0))
+
 #define CAN_GD32_CONFIG_INST(inst)                                                                 \
 	PINCTRL_DT_INST_DEFINE(inst);                                                              \
 	static const struct can_gd32_config can_gd32_cfg_##inst = {                                \
@@ -1338,13 +1356,13 @@ static DEVICE_API(can, can_api_funcs) = {
 		.can = (GD_CAN_TypeDef *)DT_INST_REG_ADDR(inst),                                   \
 		.master_can = (GD_CAN_TypeDef *)DT_INST_PROP_OR(inst, master_can_reg,              \
 								DT_INST_REG_ADDR(inst)),           \
-		.bus_speed = DT_INST_PROP(inst, bus_speed),                                        \
+		.bus_speed = CAN_GD32_DT_INST_BITRATE(inst),                             \
 		.sample_point = DT_INST_PROP_OR(inst, sample_point, 0),                            \
 		.sjw = DT_INST_PROP_OR(inst, sjw, 1),                                              \
 		.prop_ts1 =                                                                        \
 			DT_INST_PROP_OR(inst, prop_seg, 0) + DT_INST_PROP_OR(inst, phase_seg1, 0), \
 		.ts2 = DT_INST_PROP_OR(inst, phase_seg2, 0),                                       \
-		.bus_speed_data = DT_INST_PROP(inst, bus_speed_data),                              \
+		.bus_speed_data = CAN_GD32_DT_INST_BITRATE_DATA(inst),                   \
 		.sample_point_data = DT_INST_PROP_OR(inst, sample_point_data, 0),                  \
 		.sjw_data = DT_INST_PROP_OR(inst, sjw_data, 1),                                    \
 		.prop_ts1_data = DT_INST_PROP_OR(inst, prop_seg_data, 0) +                         \
@@ -1363,7 +1381,7 @@ static DEVICE_API(can, can_api_funcs) = {
 #define CAN_GD32_DATA_INST(inst) static struct can_gd32_data can_gd32_dev_data_##inst;
 
 #define CAN_GD32_DEFINE_INST(inst)                                                                 \
-	CAN_DEVICE_DT_INST_DEFINE(inst, &can_gd32_init, NULL,                                      \
+	CAN_DEVICE_DT_INST_DEFINE(inst, can_gd32_init, NULL,                                      \
 				  &can_gd32_dev_data_##inst, &can_gd32_cfg_##inst,                 \
 				  POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,                           \
 				  &can_api_funcs);
