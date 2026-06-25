@@ -202,6 +202,10 @@ int gd32_exti_configure(uint8_t line, gd32_exti_cb_t cb, void *user)
 	__ASSERT_NO_MSG(line < NUM_EXTI_LINES);
 	__ASSERT_NO_MSG(line2irq[line] != EXTI_NOTSUP);
 
+	if ((data->cbs[line].cb == cb) && (data->cbs[line].user == user)) {
+		return 0;
+	}
+
 	if ((data->cbs[line].cb != NULL) && (cb != NULL)) {
 		return -EALREADY;
 	}

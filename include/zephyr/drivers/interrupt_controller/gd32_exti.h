@@ -61,7 +61,7 @@ void gd32_exti_trigger(uint8_t line, uint8_t trigger);
  * @param user User data (optional).
  *
  * @retval 0 On success.
- * @retval -EALREADY If callback is already set and @p cb is not NULL.
+ * @retval -EALREADY If a different callback is already set and @p cb is not NULL.
  */
 int gd32_exti_configure(uint8_t line, gd32_exti_cb_t cb, void *user);
 
