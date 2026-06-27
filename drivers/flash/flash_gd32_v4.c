@@ -6,8 +6,12 @@
 
 #include "flash_gd32.h"
 
+#include <string.h>
+
+#include <zephyr/cache.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/util.h>
 #include <gd32_fmc.h>
 
 LOG_MODULE_DECLARE(flash_gd32);
@@ -64,13 +68,16 @@ static int gd32_fmc_v4_wait_idle(void)
 
 bool flash_gd32_valid_range(off_t offset, uint32_t len, bool write)
 {
-	if ((offset > SOC_NV_FLASH_SIZE) || ((offset + len) > SOC_NV_FLASH_SIZE)) {
+	uint32_t write_len = ROUND_UP(len, sizeof(flash_prg_t));
+
+	if ((offset < 0) || ((uint32_t)offset > SOC_NV_FLASH_SIZE) ||
+	    (len > (SOC_NV_FLASH_SIZE - (uint32_t)offset))) {
 		return false;
 	}
 
 	if (write) {
-		/* Check offset and len aligned to write-block-size. */
-		if ((offset % sizeof(flash_prg_t)) || (len % sizeof(flash_prg_t))) {
+		if ((offset % sizeof(flash_prg_t)) ||
+		    (write_len > (SOC_NV_FLASH_SIZE - (uint32_t)offset))) {
 			return false;
 		}
 	} else {
@@ -86,7 +93,7 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 {
 	int ret = 0;
 	flash_prg_t *prg_flash = (flash_prg_t *)((uint8_t *)SOC_NV_FLASH_ADDR + offset);
-	uint32_t *prg_data = (uint32_t *)data;
+	size_t i;
 
 	gd32_fmc_v4_unlock();
 
@@ -99,8 +106,20 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 	__ISB();
 	__DSB();
 
-	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
-		*prg_flash++ = *prg_data++;
+	for (i = 0U; (i + sizeof(flash_prg_t)) <= len; i += sizeof(flash_prg_t)) {
+		flash_prg_t word;
+
+		memcpy(&word, (const uint8_t *)data + i, sizeof(word));
+		*prg_flash++ = word;
+		__ISB();
+		__DSB();
+	}
+
+	if (i < len) {
+		flash_prg_t word = (flash_prg_t)~0U;
+
+		memcpy(&word, (const uint8_t *)data + i, len - i);
+		*prg_flash++ = word;
 		__ISB();
 		__DSB();
 	}
@@ -120,6 +139,13 @@ expired_out:
 	FMC_CTL &= ~FMC_CTL_PG;
 
 	gd32_fmc_v4_lock();
+
+#if defined(CONFIG_DCACHE) && defined(CONFIG_CACHE_MANAGEMENT)
+	if (ret == 0) {
+		ret = arch_dcache_flush_and_invd_range(
+			(void *)((uint8_t *)SOC_NV_FLASH_ADDR + offset), len);
+	}
+#endif
 
 	return ret;
 }
@@ -163,19 +189,32 @@ expired_out:
 int flash_gd32_erase_block(off_t offset, size_t size)
 {
 	uint32_t page_addr = SOC_NV_FLASH_ADDR + offset;
+
+#if defined(CONFIG_DCACHE) && defined(CONFIG_CACHE_MANAGEMENT)
+	uint32_t erase_size = size;
+#endif
 	int ret = 0;
 
 	while (size > 0U) {
 		ret = gd32_fmc_v4_sector_erase(page_addr);
 		if (ret < 0) {
-			gd32_fmc_v4_lock();
-			return ret;
+			break;
 		}
 		page_addr += GD32_NV_FLASH_V4_PAGE_SIZE;
 		size -= GD32_NV_FLASH_V4_PAGE_SIZE;
 	}
 
-	return 0;
+#if defined(CONFIG_DCACHE) && defined(CONFIG_CACHE_MANAGEMENT)
+	/* Invalidate cache for the erased range, even on partial failure. */
+	int cache_ret = arch_dcache_flush_and_invd_range(
+		(void *)((uint8_t *)SOC_NV_FLASH_ADDR + offset), erase_size);
+
+	if (ret == 0) {
+		ret = cache_ret;
+	}
+#endif
+
+	return ret;
 }
 
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
