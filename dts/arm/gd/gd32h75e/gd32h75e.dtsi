@@ -57,10 +57,11 @@
 
 			#address-cells = <1>;
 			#size-cells = <1>;
+			ranges;
 
 			flash0: flash@8000000 {
 				compatible = "gd,gd32-nv-flash-v4", "soc-nv-flash";
-				write-block-size = <2>;
+				write-block-size = <4>;
 				max-erase-time-ms = <8000>;
 				page-size = <DT_SIZE_K(4)>;
 			};
