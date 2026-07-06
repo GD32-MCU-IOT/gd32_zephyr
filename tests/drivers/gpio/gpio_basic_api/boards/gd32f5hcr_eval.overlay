@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	resources {
+		compatible = "test-gpio-basic-api";
+		/* Bridge PC0 (out) to PC2 (in) for 2-pin GPIO loopback test. */
+		out-gpios = <&gpioc 0 0>;
+		in-gpios = <&gpioc 2 0>;
+	};
+};
+
+&gpioc {
+	status = "okay";
+};

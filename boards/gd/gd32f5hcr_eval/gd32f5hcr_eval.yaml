@@ -1,0 +1,18 @@
+identifier: gd32f5hcr_eval
+name: GD32F5HCR-EVAL
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+ram: 192
+flash: 2048
+supported:
+  - gpio
+  - uart
+  - pinctrl
+  - spi
+  - i2c
+  - dma
+vendor: gd
