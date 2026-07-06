@@ -46,7 +46,8 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * Define compatibility macros to minimize code changes.
  */
 #if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX) || \
-	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3)
+	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3) || \
+	defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
 #else

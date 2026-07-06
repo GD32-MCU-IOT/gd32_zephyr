@@ -56,3 +56,6 @@ family:
   - name: gd32vf103
     socs:
     - name: gd32vf103
+  - name: gd32w51x_f5hc
+    socs:
+    - name: gd32w51x_f5hc

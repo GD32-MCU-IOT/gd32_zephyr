@@ -65,7 +65,7 @@ endif()
 # GD32E51X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32E51X})
   zephyr_compile_definitions(GD32E51X)
-  if (${CONFIG_SOC_GD32E517})
+  if(${CONFIG_SOC_GD32E517})
     zephyr_compile_definitions(GD32E51X_CL)
   endif()
 endif()
@@ -77,7 +77,7 @@ endif()
 
 # GD32F30X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32F30X})
-  if (${CONFIG_SOC_GD32F307})
+  if(${CONFIG_SOC_GD32F307})
     zephyr_compile_definitions(GD32F30X_CL)
   elseif(${CONFIG_SOC_GD32F303})
     zephyr_compile_definitions(GD32F30X_HD)
@@ -92,6 +92,12 @@ endif()
 # GD32C11X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32C11X})
   zephyr_compile_definitions(GD32C11X)
+endif()
+
+# GD32W51X_F5HC series HAL public headers require GD32F5HC definition
+if(${CONFIG_SOC_SERIES_GD32W51X_F5HC})
+  zephyr_compile_definitions(GD32F5HC)
+  zephyr_compile_definitions(SYS_NS)
 endif()
 
 # Global includes to be used outside hal_gigadevice
