@@ -8,6 +8,7 @@
 
 #include <gd/gd32h75e/gd32h75eym.dtsi>
 #include "gd32h75ey_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/dma/gd32_dma.h>
 
 / {
@@ -26,14 +27,17 @@
 
 	leds {
 		compatible = "gpio-leds";
+
 		led0: led0 {
 			gpios = <&gpioc 3 GPIO_ACTIVE_HIGH>;
 			label = "LED3";
 		};
+
 		led1: led1 {
 			gpios = <&gpioc 4 GPIO_ACTIVE_HIGH>;
 			label = "LED4";
 		};
+
 		led2: led2 {
 			gpios = <&gpioc 5 GPIO_ACTIVE_HIGH>;
 			label = "LED5";
@@ -47,9 +51,11 @@
 		pwm_led1: pwm_led1 {
 			pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
+
 		pwm_led2: pwm_led2 {
 			pwms = <&pwm0 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
+
 		pwm_led3: pwm_led3 {
 			pwms = <&pwm0 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 		};
@@ -65,6 +71,11 @@
 		pwm-led3 = &pwm_led3;
 		eeprom-0 = &eeprom0;
 	};
+
+	zephyr,user {
+		/* idx 0: ADC0 ch12 (PC2), idx 1: ADC1 ch2 (PF13), idx 2: ADC2 ch4 (PF5) */
+		io-channels = <&adc0 12>, <&adc1 2>, <&adc2 4>;
+	};
 };
 
 &timer0 {
@@ -74,6 +85,7 @@
 	counterdirection = <0x10>;
 	deadtime = <200>;                  /* 1.06us */
 	status = "okay";
+
 	pwm0: pwm {
 		status = "okay";
 		pinctrl-0 = <&pwm0_default>;
@@ -170,6 +182,55 @@
 	pinctrl-names = "default";
 	dmas = <&dmamux 1 9 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
 	dma-names = "rx";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@c {
+		reg = <12>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 5)>;
+		zephyr,resolution = <12>;
+		zephyr,vref-mv = <3300>;
+	};
+};
+
+&adc1 {
+	status = "okay";
+	pinctrl-0 = <&adc1_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 15 10 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
+	dma-names = "rx";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 5)>;
+		zephyr,resolution = <12>;
+		zephyr,vref-mv = <3300>;
+	};
+};
+
+&adc2 {
+	status = "okay";
+	pinctrl-0 = <&adc2_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 14 123 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
+	dma-names = "rx";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 5)>;
+		zephyr,resolution = <12>;
+		zephyr,vref-mv = <3300>;
+	};
 };
 
 &dma0 {
@@ -203,6 +264,7 @@
 	dmas = <&dmamux 0 184 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
 	       <&dmamux 1 185 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
 	dma-names = "rx", "tx";
+
 	eeprom0: eeprom@50 {
 		compatible = "atmel,at24";
 		reg = <0x50>;
@@ -259,6 +321,7 @@
 	dmas = <&dmamux 12 99 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
 	       <&dmamux 13 100 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
 	dma-names = "rx", "tx";
+
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;

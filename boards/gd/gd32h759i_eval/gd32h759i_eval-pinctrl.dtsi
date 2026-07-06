@@ -25,9 +25,21 @@
 		};
 	};
 
-    adc0_default: adc0_default {
+	adc0_default: adc0_default {
 		group1 {
 			pinmux = <ADC012_IN12_PC2>;
+		};
+	};
+
+	adc1_default: adc1_default {
+		group1 {
+			pinmux = <ADC1_IN2_PF13>;
+		};
+	};
+
+	adc2_default: adc2_default {
+		group1 {
+			pinmux = <ADC2_IN5_PF3>;
 		};
 	};
 
@@ -40,7 +52,7 @@
 	pwm0_default: pwm0_default {
 		group1 {
 			pinmux = <TIMER0_CH0_PA8>, <TIMER0_MCH0_PA7>, <TIMER0_CH1_PE11>,
-					<TIMER0_MCH1_PB0>, <TIMER0_CH2_PA10>, <TIMER0_MCH2_PE12>;
+				 <TIMER0_MCH1_PB0>, <TIMER0_CH2_PA10>, <TIMER0_MCH2_PE12>;
 		};
 	};
 

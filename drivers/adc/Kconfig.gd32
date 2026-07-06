@@ -9,6 +9,14 @@ config ADC_GD32
 	default y
 	depends on DT_HAS_GD_GD32_ADC_ENABLED
 	select PINCTRL
+	select USE_GD32_TRIGSEL if SOC_SERIES_GD32H7XX || SOC_SERIES_GD32H75E
 	select USE_GD32_ADC
 	help
 	  Enable GigaDevice GD32 ADC driver
+
+config ADC_GD32_DMA
+	bool "GD32 ADC DMA support"
+	select DMA
+	help
+	  Use DMA to transfer ADC regular conversion results for ADC nodes
+	  that define a "rx" dma channel in their device tree node.
