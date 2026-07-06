@@ -8,6 +8,7 @@
 
 #include <gd/gd32f50x/gd32f503vg.dtsi>
 #include "gd32f503v_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
 
 / {
 	model = "GigaDevice GD32F503V-EVAL";
@@ -71,6 +72,8 @@
 	status = "okay";
 	pinctrl-0 = <&adc0_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 8 5 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
+	dma-names = "rx";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
@@ -87,6 +90,8 @@
 	status = "okay";
 	pinctrl-0 = <&adc1_default>;
 	pinctrl-names = "default";
+	dmas = <&dmamux 9 66 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_VERY_HIGH)>;
+	dma-names = "rx";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
