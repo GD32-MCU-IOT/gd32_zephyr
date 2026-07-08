@@ -195,6 +195,7 @@ tests:
       - gd32f450v_start
       - gd32f450z_eval
       - gd32f470i_eval
+      - gd32f527i_eval
       - gd32vf103c_starter
       - gd32vf103v_eval
       - longan_nano
