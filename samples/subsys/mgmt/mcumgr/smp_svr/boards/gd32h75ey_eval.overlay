@@ -1,0 +1,45 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x00020000>;
+		};
+
+		slot0_partition: partition@20000 {
+			label = "image-0";
+			reg = <0x00020000 0x001c0000>;
+		};
+
+		slot1_partition: partition@1e0000 {
+			label = "image-1";
+			reg = <0x001e0000 0x001c0000>;
+		};
+
+		scratch_partition: partition@3a0000 {
+			label = "image-scratch";
+			reg = <0x003a0000 0x00020000>;
+		};
+	};
+};
+
+/ {
+	chosen {
+		zephyr,code-partition = &slot0_partition;
+		/*
+		 * CONFIG_UART_MCUMGR requires DT_CHOSEN(zephyr_uart_mcumgr) to
+		 * resolve to a UART device. Reuse the same USART already used
+		 * for console/shell.
+		 */
+		zephyr,uart-mcumgr = &usart2;
+	};
+};
