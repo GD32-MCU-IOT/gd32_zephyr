@@ -31,8 +31,8 @@ static const struct flash_parameters flash_gd32_parameters = {
 static int flash_gd32_read(const struct device *dev, off_t offset,
 			   void *data, size_t len)
 {
-	if ((offset > SOC_NV_FLASH_SIZE) ||
-	    ((offset + len) > SOC_NV_FLASH_SIZE)) {
+	if ((offset < 0) || ((uint32_t)offset > SOC_NV_FLASH_SIZE) ||
+	    (len > (SOC_NV_FLASH_SIZE - (uint32_t)offset))) {
 		return -EINVAL;
 	}
 
