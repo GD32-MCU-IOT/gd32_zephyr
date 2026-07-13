@@ -45,6 +45,9 @@ if(${CONFIG_SOC_SERIES_GD32E50X})
   if(${CONFIG_SOC_GD32E507})
     zephyr_compile_definitions(GD32E50X_CL)
   endif()
+  if(${CONFIG_SOC_GD32E508})
+    zephyr_compile_definitions(GD32E508)
+  endif()
 endif()
 
 # GD32A50X series HAL public headers require extra definitions
@@ -65,7 +68,7 @@ endif()
 # GD32E51X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32E51X})
   zephyr_compile_definitions(GD32E51X)
-  if (${CONFIG_SOC_GD32E517})
+  if(${CONFIG_SOC_GD32E517})
     zephyr_compile_definitions(GD32E51X_CL)
   endif()
 endif()
@@ -77,7 +80,7 @@ endif()
 
 # GD32F30X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32F30X})
-  if (${CONFIG_SOC_GD32F307})
+  if(${CONFIG_SOC_GD32F307})
     zephyr_compile_definitions(GD32F30X_CL)
   elseif(${CONFIG_SOC_GD32F303})
     zephyr_compile_definitions(GD32F30X_HD)
