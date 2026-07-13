@@ -925,6 +925,7 @@ int spi_gd32_init(const struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
 static int spi_gd32_deinit(const struct device *dev)
 {
 	struct spi_gd32_data *data = dev->data;
@@ -952,6 +953,7 @@ static int spi_gd32_deinit(const struct device *dev)
 
 	return 0;
 }
+#endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
 
 /*
  * DMA cell mapping based on binding type:
