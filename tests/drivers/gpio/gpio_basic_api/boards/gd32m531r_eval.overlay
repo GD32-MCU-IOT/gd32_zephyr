@@ -1,0 +1,24 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * GD32M531R-EVAL GPIO 2-pin loopback resource description.
+ *
+ * Hardware requirement:
+ *   Short PD13 (out) to PD14 (in) for drivers.gpio.2pin.
+ */
+
+/ {
+	resources {
+		compatible = "test-gpio-basic-api";
+		out-gpios = <&gpiod 13 0>;
+		in-gpios = <&gpiod 14 0>;
+	};
+};
+
+&gpiod {
+	status = "okay";
+};

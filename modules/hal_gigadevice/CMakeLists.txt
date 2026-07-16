@@ -7,6 +7,7 @@ if(CONFIG_HAS_GD32_HAL)
 string(TOUPPER ${CONFIG_SOC} gd32_soc_uc)
 
 set(gd32_soc_dir     ${ZEPHYR_HAL_GIGADEVICE_MODULE_DIR}/${CONFIG_SOC_SERIES})
+
 if(CONFIG_ARM)
   set(gd32_soc_sys_dir   ${gd32_soc_dir}/cmsis/gd/${CONFIG_SOC_SERIES})
 elseif(CONFIG_RISCV)
@@ -65,7 +66,7 @@ endif()
 # GD32E51X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32E51X})
   zephyr_compile_definitions(GD32E51X)
-  if (${CONFIG_SOC_GD32E517})
+  if(${CONFIG_SOC_GD32E517})
     zephyr_compile_definitions(GD32E51X_CL)
   endif()
 endif()
@@ -77,7 +78,7 @@ endif()
 
 # GD32F30X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32F30X})
-  if (${CONFIG_SOC_GD32F307})
+  if(${CONFIG_SOC_GD32F307})
     zephyr_compile_definitions(GD32F30X_CL)
   elseif(${CONFIG_SOC_GD32F303})
     zephyr_compile_definitions(GD32F30X_HD)
@@ -92,6 +93,11 @@ endif()
 # GD32C11X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32C11X})
   zephyr_compile_definitions(GD32C11X)
+endif()
+
+# GD32M531 series HAL public headers require extra definitions
+if(${CONFIG_SOC_SERIES_GD32M53X})
+  zephyr_compile_definitions(GD32M53X)
 endif()
 
 # Global includes to be used outside hal_gigadevice
@@ -144,7 +150,10 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_TMU      ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TRIGSEL  ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_trigsel.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TRNG     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_trng.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TSI      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_tsi.c)
+# GD32M531 uses UART instead of USART
+if(NOT CONFIG_SOC_SERIES_GD32M53X)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USART    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_usart.c)
+endif()
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_WWDGT    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_wwdgt.c)
 
 # For GD32F527
@@ -154,5 +163,18 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CON
 
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
+
+# For GD32M531 - UART (not USART) and motor control peripherals
+if(CONFIG_SOC_SERIES_GD32M53X)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_USART    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_uart.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_GPTIMER  ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_gptimer.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_CPTIMER  ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cptimer.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_CPTIMERW ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cptimerw.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_SVPWM    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_svpwm.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_POC      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_poc.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_GTOC     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_gtoc.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_EVIC     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_evic.c)
+  zephyr_library_sources_ifdef(CONFIG_USE_GD32_CFMU     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cfmu.c)
+endif()
 
 endif()

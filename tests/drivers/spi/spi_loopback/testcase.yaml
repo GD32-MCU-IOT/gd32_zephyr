@@ -184,6 +184,7 @@ tests:
       - gd32vf103v_eval
       - longan_nano
       - longan_nano/gd32vf103/lite
+      - gd32m531r_eval
     integration_platforms:
       - gd32f403z_eval
   drivers.spi.gd32_spi_dma.loopback:
@@ -199,6 +200,7 @@ tests:
       - gd32vf103v_eval
       - longan_nano
       - longan_nano/gd32vf103/lite
+      - gd32m531r_eval
     integration_platforms:
       - gd32f403z_eval
   drivers.spi.pl022_spi_interrupt.loopback:
