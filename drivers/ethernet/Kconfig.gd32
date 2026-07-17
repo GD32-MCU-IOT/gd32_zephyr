@@ -1,0 +1,41 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig ETH_GD32
+	bool "GD32 Ethernet driver"
+	default y
+	depends on DT_HAS_GD_GD32_ETHERNET_ENABLED
+	select USE_GD32_ENET
+	select USE_GD32_SYSCFG
+	select USE_GD32_RCU
+	select PINCTRL
+	select MDIO
+	select HWINFO
+	select CRC
+	select NET_CHECKSUM_OFFLOAD_SUPPORTED if NET_L2_ETHERNET
+	help
+	  Enable GigaDevice GD32 Ethernet MAC driver.
+
+if ETH_GD32
+
+config ETH_GD32_RX_THREAD_STACK_SIZE
+	int "RX thread stack size"
+	default 1500
+	help
+	  Stack size of the thread that processes received Ethernet frames.
+
+config ETH_GD32_RX_THREAD_PRIO
+	int "RX thread priority"
+	default 2
+	help
+	  Priority of the RX thread that processes received Ethernet frames.
+
+config ETH_GD32_HW_CHECKSUM
+	bool "Use TX and RX hardware checksum"
+	depends on NET_CHECKSUM_OFFLOAD
+	help
+	  Enable hardware checksum offload in the GD32 ENET MAC/DMA to
+	  reduce CPU load. When disabled (default), the network stack
+	  computes checksums in software.
+
+endif # ETH_GD32

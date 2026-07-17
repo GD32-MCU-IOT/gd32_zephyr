@@ -1,0 +1,67 @@
+#
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+description: |
+  GigaDevice GD32 Ethernet MAC. MDIO is a labeled child node in the SoC
+  dtsi ("enet_mdio: mdio { compatible = \"gd,gd32-enet-mdio\"; ... };"),
+  and board dts references both labels as flat, independent blocks, e.g.:
+
+    &enet {
+        pinctrl-0 = <&enet_rmii_default>;
+        pinctrl-names = "default";
+        phy-handle = <&phy0>;
+        phy-connection-type = "rmii";
+        local-mac-address = [00 80 E1 00 00 00];
+        ...
+    };
+
+    &enet_mdio {
+        pinctrl-0 = <&enet_mdio_default>;
+        pinctrl-names = "default";
+        status = "okay";
+
+        phy0: ethernet-phy@1 {
+            compatible = "ethernet-phy";
+            reg = <1>;
+        };
+    };
+
+  This matches the convention used by every other Zephyr peripheral.
+  Series with multiple MAC instances (e.g. GD32H7xx ENET0/ENET1) repeat
+  this pair of labels per instance, unmodified.
+
+compatible: "gd,gd32-ethernet"
+
+include: [ethernet-controller.yaml, reset-device.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+    description: |
+      MAC, MAC-TX and MAC-RX clock gates, in that order, e.g.
+      clocks = <&cctl GD32_CLOCK_ENET>, <&cctl GD32_CLOCK_ENETTX>,
+               <&cctl GD32_CLOCK_ENETRX>;
+
+  resets:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  phy-handle:
+    required: true
+
+  phy-connection-type:
+    required: true

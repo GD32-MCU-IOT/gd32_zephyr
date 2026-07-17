@@ -1,0 +1,27 @@
+#
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+description: |
+  GigaDevice GD32 Ethernet MDIO controller.
+
+  Embedded in the Ethernet MAC registers (ENET_MAC_PHY_CTL/ENET_MAC_PHY_DATA)
+  of each MAC instance, so this node is always a child of a
+  "gd,gd32-ethernet" node and has no "reg" of its own.
+
+  Note: GD32H7xx also has an unrelated standalone "MDIO" peripheral
+  (gd32h7xx_mdio.h) that is not used by, and has no relation to, the
+  Ethernet MDIO described here.
+
+compatible: "gd,gd32-enet-mdio"
+
+include: [mdio-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
