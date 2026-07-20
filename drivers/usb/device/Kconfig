@@ -229,6 +229,18 @@ config USB_DC_NUMAKER_MSG_HANDLER_THREAD_STACK_SIZE
 
 endif # USB_DC_NUMAKER
 
+config USB_DC_GD32
+	bool "USB device controller driver for GD32 USBHS devices"
+	default y
+	depends on DT_HAS_GD_GD32_USBHS_ENABLED
+	select USE_GD32_USBHS
+	help
+	  Enable GigaDevice GD32 USBHS device controller shim driver (legacy USB
+	  device stack). This wraps the vendored GD32H7 USBHS firmware
+	  library and targets USBHS0 with the on-chip full-speed PHY. It needs
+	  the GD32 PMU and RCU standard peripheral HAL sources for the USB VBUS
+	  regulator and clock configuration.
+
 config USB_NATIVE_POSIX
 	bool "Native Posix USB Device Controller Driver"
 	depends on ARCH_POSIX && EXTERNAL_LIBC
