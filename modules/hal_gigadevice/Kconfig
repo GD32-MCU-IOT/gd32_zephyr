@@ -321,4 +321,11 @@ config USE_GD32_SAI
 	help
 	  Enable GD32 Serial Audio Interface (SAI) HAL module driver
 
+config USE_GD32_USBHS
+	bool
+	select USE_GD32_PMU
+	select USE_GD32_RCU
+	help
+	  Enable GD32 Universal Serial Bus High-Speed interface (USBHS) HAL module driver
+
 endif # HAS_GD32_HAL

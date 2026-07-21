@@ -1,0 +1,9 @@
+sample:
+  name: GD32H759I-EVAL USB CDC ACM
+tests:
+  sample.usb.cdc-acm.gd32h759i_eval:
+    platform_allow:
+      - gd32h759i_eval
+    depends_on: usb_device
+    tags: usb
+    build_only: true
