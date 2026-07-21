@@ -42,3 +42,28 @@ config CAN_MAX_EXT_ID_FILTER
 	  filters:
 
 	    CAN_MAX_STD_ID_FILTER + CAN_MAX_EXT_ID_FILTER * 2 <= 28
+
+config CAN_GD32_CAN_V2
+	bool "GD32 CAN-V2 Driver (GD32H7xx / GD32A50x / GD32G5)"
+	default y
+	depends on DT_HAS_GD_GD32_CAN_V2_ENABLED
+	select PINCTRL
+	select USE_GD32_CAN
+	help
+	  Enable the GD32 CAN-V2 controller driver found on the GD32H7xx,
+	  GD32A50x and GD32G5 SoCs. Only classic CAN 2.0B operation is
+	  supported.
+
+if CAN_GD32_CAN_V2
+
+config CAN_GD32_CAN_V2_MAX_ID_FILTER
+	int "Maximum number of RX ID filters"
+	default 16
+	range 0 32
+	help
+	  Defines the maximum number of acceptance filters (standard or
+	  extended ID) that can be added by the application on the GD32H7xx,
+	  GD32A50x and GD32G5 CAN-V2 controller. Each filter occupies one of
+	  the 32 available per-FIFO private ID filters.
+
+endif # CAN_GD32_CAN_V2

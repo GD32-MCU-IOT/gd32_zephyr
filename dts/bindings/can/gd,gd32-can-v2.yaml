@@ -1,0 +1,37 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32 CAN-V2 controller (GD32H7xx / GD32A50x / GD32G5).
+
+  This FlexCAN-style CAN-V2 IP is register-incompatible with the classic bxCAN
+  block described by the "gd,gd32-can" binding. It is handled by a dedicated
+  driver (can_gd32_v2.c). Only classic CAN 2.0B operation is supported.
+
+compatible: "gd,gd32-can-v2"
+
+include: [can-fd-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  sjw:
+    type: int
+    description: Synchronization jump width in time quanta (1-4)
+
+  sjw-data:
+    type: int
+    description: Synchronization jump width for data phase in time quanta (CAN-V2)
