@@ -1,0 +1,41 @@
+description: |
+  GigaDevice GD32 USBHS controller, driven by the legacy Zephyr USB device
+  stack through the GD32 USBHS firmware library shim (usb_dc_gd32.c).
+
+compatible: "gd,gd32-usbhs"
+
+include: [usb-ep.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  interrupt-names:
+    required: true
+
+  clocks:
+    required: true
+
+  resets:
+    required: true
+
+  ram-size:
+    type: int
+    required: true
+    description: |
+      Size of the USB dedicated RAM (shared FIFO) in bytes.
+
+  phys:
+    type: phandle
+    description: USB PHY provider specifier.
+
+  gd,usbhs-index:
+    type: int
+    enum:
+      - 0
+      - 1
+    description: |
+      USBHS controller index in the GD32 RCU USB clock control register.

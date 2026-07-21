@@ -15,6 +15,7 @@ elseif(CONFIG_RISCV)
 endif()
 
 set(gd32_std_dir     ${gd32_soc_dir}/standard_peripheral)
+set(gd32_usbhs_dir   ${gd32_soc_dir}/usbhs_library)
 set(gd32_std_src_dir ${gd32_std_dir}/source)
 
 zephyr_library_named(hal_gigadevice)
@@ -65,7 +66,7 @@ endif()
 # GD32E51X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32E51X})
   zephyr_compile_definitions(GD32E51X)
-  if (${CONFIG_SOC_GD32E517})
+  if(${CONFIG_SOC_GD32E517})
     zephyr_compile_definitions(GD32E51X_CL)
   endif()
 endif()
@@ -77,7 +78,7 @@ endif()
 
 # GD32F30X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32F30X})
-  if (${CONFIG_SOC_GD32F307})
+  if(${CONFIG_SOC_GD32F307})
     zephyr_compile_definitions(GD32F30X_CL)
   elseif(${CONFIG_SOC_GD32F303})
     zephyr_compile_definitions(GD32F30X_HD)
@@ -99,6 +100,13 @@ zephyr_include_directories(${gd32_soc_sys_dir}/include)
 zephyr_include_directories(${gd32_std_dir}/include)
 zephyr_include_directories(${ZEPHYR_HAL_GIGADEVICE_MODULE_DIR}/include)
 zephyr_include_directories(${ZEPHYR_HAL_GIGADEVICE_MODULE_DIR}/common_include)
+
+# GD32 USBHS device library
+zephyr_include_directories_ifdef(CONFIG_USE_GD32_USBHS  ${gd32_usbhs_dir}/driver/Include)
+zephyr_include_directories_ifdef(CONFIG_USE_GD32_USBHS  ${gd32_usbhs_dir}/device/core/Include)
+zephyr_include_directories_ifdef(CONFIG_USE_GD32_USBHS  ${gd32_usbhs_dir}/ustd/common)
+zephyr_include_directories_ifdef(CONFIG_USE_GD32_USBHS  ${gd32_usbhs_dir}/config)
+
 
 zephyr_library_sources(${gd32_soc_sys_dir}/source/system_${CONFIG_SOC_SERIES}.c)
 
@@ -154,5 +162,10 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CON
 
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
+
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usb_core.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usb_dev.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usbd_int.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/device/core/Source/usbd_core.c)
 
 endif()

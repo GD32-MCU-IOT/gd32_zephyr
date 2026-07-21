@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&usbhs0 {
+	status = "okay";
+	maximum-speed = "full-speed";
+
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "GD32 CDC ACM";
+	};
+};
