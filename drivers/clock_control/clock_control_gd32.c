@@ -147,12 +147,14 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 	switch (GD32_CLOCK_ID_OFFSET(id)) {
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
 	defined(CONFIG_SOC_SERIES_GD32C2X1) || defined(CONFIG_SOC_SERIES_GD32H7XX) || \
-	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3)
+	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3) || \
+	defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
 	case RCU_AHB1EN_OFFSET:
 	case RCU_AHB2EN_OFFSET:
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
 	defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E) || \
-	defined(CONFIG_SOC_SERIES_GD32G5X3)
+	defined(CONFIG_SOC_SERIES_GD32G5X3) || \
+	defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
 	case RCU_AHB3EN_OFFSET:
 #endif
 #if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
@@ -166,7 +168,8 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 	case RCU_APB1EN_OFFSET:
 #if !defined(CONFIG_SOC_SERIES_GD32VF103) && !defined(CONFIG_SOC_SERIES_GD32A50X) && \
 	!defined(CONFIG_SOC_SERIES_GD32L23X) && !defined(CONFIG_SOC_SERIES_GD32C2X1) && \
-	!defined(CONFIG_SOC_SERIES_GD32H7XX) && !defined(CONFIG_SOC_SERIES_GD32H75E)
+	!defined(CONFIG_SOC_SERIES_GD32H7XX) && !defined(CONFIG_SOC_SERIES_GD32H75E) && \
+	!defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
 	case RCU_ADDAPB1EN_OFFSET:
 #endif
 		psc = (cfg & RCU_CFG0_APB1PSC_MSK) >> RCU_CFG0_APB1PSC_POS;
@@ -199,7 +202,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 			continue;
 		}
 
-#if defined(CONFIG_SOC_SERIES_GD32F4XX)
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
 		uint32_t cfg1 = sys_read32(config->base + RCU_CFG1_OFFSET);
 
 		/*
@@ -238,7 +241,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 		if (psc != 1U) {
 			*rate *= 2U;
 		}
-#endif /* CONFIG_SOC_SERIES_GD32F4XX */
+#endif /* CONFIG_SOC_SERIES_GD32F4XX || CONFIG_SOC_SERIES_GD32W51X_F5HC */
 	}
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_timer) */
 
