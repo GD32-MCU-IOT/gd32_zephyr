@@ -57,6 +57,11 @@
 				#reset-cells = <1>;
 				status = "okay";
 			};
+
+			ckout0: clock-output-0 {
+				compatible = "gd,gd32-clock-ckout";
+				status = "disabled";
+			};
 		};
 
 		fmc: flash-controller@40023c00 {
