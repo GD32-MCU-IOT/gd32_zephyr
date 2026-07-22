@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2022 Teslabs Engineering S.L.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <arm/gd/gd32e50x/gd32e50x.dtsi>
+
+/ {
+	soc {
+		can0: can@40006400 {
+			compatible = "gd,gd32-can";
+			reg = <0x40006400 0x400>;
+			interrupts = <19 0>, <20 0>, <21 0>, <22 0>;
+			interrupt-names = "TX", "RX0", "RX1", "SCE";
+			clocks = <&cctl GD32_CLOCK_CAN0>;
+			status = "disabled";
+			sjw = <1>;
+			sample-point = <875>;
+			sjw-data = <1>;
+			sample-point-data = <875>;
+		};
+
+		can1: can@40006800 {
+			compatible = "gd,gd32-can";
+			reg = <0x40006800 0x400>;
+			interrupts = <63 0>, <64 0>, <65 0>, <66 0>;
+			interrupt-names = "TX", "RX0", "RX1", "SCE";
+			clocks = <&cctl GD32_CLOCK_CAN1>;
+			master-can-reg = <0x40006400>;
+			status = "disabled";
+			sjw = <1>;
+			sample-point = <875>;
+			sjw-data = <1>;
+			sample-point-data = <875>;
+		};
+
+		can2: can@4000cc00 {
+			compatible = "gd,gd32-can";
+			reg = <0x4000cc00 0x400>;
+			interrupts = <78 0>, <79 0>, <80 0>, <81 0>;
+			interrupt-names = "TX", "RX0", "RX1", "SCE";
+			clocks = <&cctl GD32_CLOCK_CAN2>;
+			master-can-reg = <0x4000cc00>;
+			status = "disabled";
+			sjw = <1>;
+			sample-point = <875>;
+			sjw-data = <1>;
+			sample-point-data = <875>;
+		};
+	};
+};
+
+&flash0 {
+	reg = <0x08000000 DT_SIZE_K(512)>;
+};
+
+&sram0 {
+	reg = <0x20000000 DT_SIZE_K(128)>;
+};

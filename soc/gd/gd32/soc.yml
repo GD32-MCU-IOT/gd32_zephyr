@@ -16,6 +16,7 @@ family:
   - name: gd32e50x
     socs:
     - name: gd32e507
+    - name: gd32e508
   - name: gd32e51x
     socs:
     - name: gd32e517
