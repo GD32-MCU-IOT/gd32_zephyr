@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+
+/ {
+	zephyr,user {
+		/* PI3 (MOSI) is shorted to PI2 (MISO) for the deinit test. */
+		mosi-gpios = <&gpioi 3 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioi 2 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&pinctrl {
+	spi1_default: spi1_default {
+		group1 {
+			pinmux = <SPI1_SCK_PI1>, <SPI1_MOSI_PI3>,
+				 <SPI1_MISO_PI2>;
+			slew-rate = "max-speed-50mhz";
+		};
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioi 0 GPIO_ACTIVE_LOW>;
+
+	dmas = <&dma0 0 0 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH) 0>,
+	       <&dma0 3 0 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH) 0>;
+	dma-names = "rx", "tx";
+
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
+
+&gpioi {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
