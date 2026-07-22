@@ -17,3 +17,6 @@ supported:
   - usart
   - pinctrl
   - clock_control
+  - spi
+  - dma
+  - i2c
