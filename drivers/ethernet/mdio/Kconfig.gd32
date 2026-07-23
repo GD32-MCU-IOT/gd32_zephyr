@@ -1,0 +1,14 @@
+# GD32 Ethernet MDIO controller configuration options
+
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config MDIO_GD32_ENET
+	bool "GD32 Ethernet MDIO controller driver"
+	default y
+	depends on DT_HAS_GD_GD32_ENET_MDIO_ENABLED
+	depends on ETH_GD32
+	select PINCTRL
+	help
+	  Enable MDIO support embedded in the GD32 Ethernet MAC registers
+	  (ENET_MAC_PHY_CTL/ENET_MAC_PHY_DATA).
