@@ -1,48 +1,61 @@
 /*
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Board-specific overlay for the LVGL sample on GD32F527I-EVAL.
+ *
+ * The on-board resistive touch panel uses an XPT2046 controller wired to a
+ * bit-banged (GPIO) SPI bus. Pin assignment matches the GD32F527I-EVAL board
+ * schematic:
+ *
+ *   SCK  -> PH6
+ *   MOSI -> PF9
+ *   MISO -> PH7
+ *   CS   -> PF6
+ *   IRQ  -> PI3
  */
-#include <zephyr/dt-bindings/clock/gd32f527-clocks.h>
-#include "gd32f527i_eval_tli.dtsi"
-/ {
-	chosen {
-		zephyr,display = &tli;
-	};
 
-	soc {
-		tli: tli@40016800 {
-			compatible = "gd,gd32-tli";
-			reg = <0x40016800 0x400>;
-			clocks = <&cctl GD32_CLOCK_TLI>;
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	spi_bitbang: spi-bitbang {
+		compatible = "zephyr,spi-bitbang";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		/* Bit-banged SPI pins for the XPT2046 touch controller */
+		clk-gpios = <&gpioh 6 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&gpiof 9 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioh 7 GPIO_ACTIVE_HIGH>;
+
+		cs-gpios = <&gpiof 6 GPIO_ACTIVE_LOW>;
+
+		xpt2046: xpt2046@0 {
+			compatible = "xptek,xpt2046";
+			reg = <0>;
+			spi-max-frequency = <2500000>;
+			int-gpios = <&gpioi 3 GPIO_ACTIVE_LOW>;
 			status = "okay";
 
-			pinctrl-0 = <&tli_default>;
-			pinctrl-names = "default";
+			/* LCD resolution: 480x272 (TLI) */
+			touchscreen-size-x = <480>;
+			touchscreen-size-y = <272>;
 
-			disp-en-gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
-			bl-ctrl-gpios = <&gpioh 6 GPIO_ACTIVE_HIGH>;
-
-			hsync = <41>;    /* Horizontal Sync */
-			vsync = <10>;    /* Vertical Sync */
-			hbp = <43>;      /* Horizontal Back Porch */
-			vbp = <12>;      /* Vertical Back Porch */
-			hfp = <8>;       /* Horizontal Front Porch */
-			vfp = <8>;       /* Vertical Front Porch */
-			width = <480>;
-			height = <272>;
-
-			/* 25MHz * 216 / 3 / 180 = 10 MHz */
-			pllsai-n = <216>;
-			pllsai-r = <3>;
-			pllsair-div = <180>;
+			/* Calibration values from the vendor BSP */
+			min-x = <300>;
+			max-x = <3850>;
+			min-y = <220>;
+			max-y = <3850>;
 		};
 	};
-};
 
-&gpioa { status = "okay"; };
-&gpiob { status = "okay"; };
-&gpioe { status = "okay"; };
-&gpiof { status = "okay"; };
-&gpiog { status = "okay"; };
-&gpioh { status = "okay"; };
-&gpioi { status = "okay"; };
+	lvgl_pointer_input: lvgl-pointer-input {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&xpt2046>;
+		/* Panel is mounted with both axes reversed relative to LCD scan */
+		invert-x;
+		invert-y;
+	};
+};
