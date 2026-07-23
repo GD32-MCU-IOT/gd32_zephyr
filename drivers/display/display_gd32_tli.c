@@ -34,17 +34,17 @@ LOG_MODULE_REGISTER(display_gd32_tli, CONFIG_DISPLAY_LOG_LEVEL);
 
 /* Pixel format configuration based on Kconfig (like STM32 LTDC) */
 #if defined(CONFIG_GD32_TLI_ARGB8888)
-#define GD32_TLI_INIT_PIXEL_SIZE    4u
-#define GD32_TLI_INIT_PIXEL_FORMAT  LAYER_PPF_ARGB8888
-#define DISPLAY_INIT_PIXEL_FORMAT   PIXEL_FORMAT_ARGB_8888
+#define GD32_TLI_INIT_PIXEL_SIZE   4u
+#define GD32_TLI_INIT_PIXEL_FORMAT LAYER_PPF_ARGB8888
+#define DISPLAY_INIT_PIXEL_FORMAT  PIXEL_FORMAT_ARGB_8888
 #elif defined(CONFIG_GD32_TLI_RGB888)
-#define GD32_TLI_INIT_PIXEL_SIZE    3u
-#define GD32_TLI_INIT_PIXEL_FORMAT  LAYER_PPF_RGB888
-#define DISPLAY_INIT_PIXEL_FORMAT   PIXEL_FORMAT_RGB_888
+#define GD32_TLI_INIT_PIXEL_SIZE   3u
+#define GD32_TLI_INIT_PIXEL_FORMAT LAYER_PPF_RGB888
+#define DISPLAY_INIT_PIXEL_FORMAT  PIXEL_FORMAT_RGB_888
 #elif defined(CONFIG_GD32_TLI_RGB565)
-#define GD32_TLI_INIT_PIXEL_SIZE    2u
-#define GD32_TLI_INIT_PIXEL_FORMAT  LAYER_PPF_RGB565
-#define DISPLAY_INIT_PIXEL_FORMAT   PIXEL_FORMAT_RGB_565
+#define GD32_TLI_INIT_PIXEL_SIZE   2u
+#define GD32_TLI_INIT_PIXEL_FORMAT LAYER_PPF_RGB565
+#define DISPLAY_INIT_PIXEL_FORMAT  PIXEL_FORMAT_RGB_565
 #else
 #error "Invalid GD32 TLI pixel format chosen"
 #endif
@@ -65,7 +65,7 @@ struct display_gd32_tli_config {
 	uint16_t height;
 	uint16_t pllsai_n;
 	uint16_t pllsai_r;
-	uint8_t pllsair_div;
+	uint32_t pllsair_div;
 };
 
 struct display_gd32_tli_data {
@@ -76,10 +76,8 @@ struct display_gd32_tli_data {
 	enum display_orientation orientation;
 };
 
-static int display_gd32_tli_write(const struct device *dev, const uint16_t x,
-				  const uint16_t y,
-				  const struct display_buffer_descriptor *desc,
-				  const void *buf)
+static int display_gd32_tli_write(const struct device *dev, const uint16_t x, const uint16_t y,
+				  const struct display_buffer_descriptor *desc, const void *buf)
 {
 	const struct display_gd32_tli_config *config = dev->config;
 	struct display_gd32_tli_data *data = dev->data;
@@ -109,10 +107,8 @@ static int display_gd32_tli_write(const struct device *dev, const uint16_t x,
 	return 0;
 }
 
-static int display_gd32_tli_read(const struct device *dev, const uint16_t x,
-				 const uint16_t y,
-				 const struct display_buffer_descriptor *desc,
-				 void *buf)
+static int display_gd32_tli_read(const struct device *dev, const uint16_t x, const uint16_t y,
+				 const struct display_buffer_descriptor *desc, void *buf)
 {
 	LOG_ERR("Read not supported");
 	return -ENOTSUP;
@@ -162,22 +158,20 @@ static int display_gd32_tli_blanking_on(const struct device *dev)
 	return 0;
 }
 
-static int display_gd32_tli_set_brightness(const struct device *dev,
-					   const uint8_t brightness)
+static int display_gd32_tli_set_brightness(const struct device *dev, const uint8_t brightness)
 {
 	LOG_WRN("Set brightness not supported");
 	return -ENOTSUP;
 }
 
-static int display_gd32_tli_set_contrast(const struct device *dev,
-					 const uint8_t contrast)
+static int display_gd32_tli_set_contrast(const struct device *dev, const uint8_t contrast)
 {
 	LOG_WRN("Set contrast not supported");
 	return -ENOTSUP;
 }
 
-static void display_gd32_tli_get_capabilities(
-	const struct device *dev, struct display_capabilities *capabilities)
+static void display_gd32_tli_get_capabilities(const struct device *dev,
+					      struct display_capabilities *capabilities)
 {
 	const struct display_gd32_tli_config *config = dev->config;
 	struct display_gd32_tli_data *data = dev->data;
@@ -186,9 +180,8 @@ static void display_gd32_tli_get_capabilities(
 	capabilities->x_resolution = config->width;
 	capabilities->y_resolution = config->height;
 	/* TLI supports multiple pixel formats */
-	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
-						PIXEL_FORMAT_RGB_888 |
-						PIXEL_FORMAT_RGB_565;
+	capabilities->supported_pixel_formats =
+		PIXEL_FORMAT_ARGB_8888 | PIXEL_FORMAT_RGB_888 | PIXEL_FORMAT_RGB_565;
 	capabilities->current_pixel_format = data->current_pixel_format;
 	capabilities->current_orientation = data->orientation;
 }
@@ -251,10 +244,8 @@ static int display_gd32_tli_set_pixel_format(const struct device *dev,
 	tli_layer_init_struct.layer_acf1 = LAYER_ACF1_PASA;
 	tli_layer_init_struct.layer_acf2 = LAYER_ACF2_PASA;
 	tli_layer_init_struct.layer_frame_bufaddr = (uint32_t)data->frame_buffer;
-	tli_layer_init_struct.layer_frame_line_length =
-		(config->width * pixel_size) + 3;
-	tli_layer_init_struct.layer_frame_buf_stride_offset =
-		config->width * pixel_size;
+	tli_layer_init_struct.layer_frame_line_length = (config->width * pixel_size) + 3;
+	tli_layer_init_struct.layer_frame_buf_stride_offset = config->width * pixel_size;
 	tli_layer_init_struct.layer_frame_total_line_number = config->height;
 
 	tli_layer_init(LAYER0, &tli_layer_init_struct);
@@ -273,8 +264,7 @@ static int display_gd32_tli_set_pixel_format(const struct device *dev,
 }
 
 static int display_gd32_tli_set_orientation(const struct device *dev,
-					    const enum display_orientation
-						    orientation)
+					    const enum display_orientation orientation)
 {
 	if (orientation != DISPLAY_ORIENTATION_NORMAL) {
 		LOG_ERR("Only normal orientation supported");
@@ -283,7 +273,7 @@ static int display_gd32_tli_set_orientation(const struct device *dev,
 	return 0;
 }
 
-static const struct display_driver_api display_gd32_tli_api = {
+static DEVICE_API(display, display_gd32_tli_api) = {
 	.blanking_on = display_gd32_tli_blanking_on,
 	.blanking_off = display_gd32_tli_blanking_off,
 	.write = display_gd32_tli_write,
@@ -330,8 +320,7 @@ static int display_gd32_tli_init(const struct device *dev)
 	}
 
 	/* Enable TLI peripheral clock */
-	ret = clock_control_on(GD32_CLOCK_CONTROLLER,
-			       (clock_control_subsys_t)&config->clkid);
+	ret = clock_control_on(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&config->clkid);
 	if (ret < 0) {
 		LOG_ERR("Failed to enable TLI clock");
 		return ret;
@@ -361,10 +350,10 @@ static int display_gd32_tli_init(const struct device *dev)
 	tli_init_struct.backpsz_vbpsz = config->vsync + config->vbp - 1;
 	tli_init_struct.activesz_hasz = config->hsync + config->hbp + config->width - 1;
 	tli_init_struct.activesz_vasz = config->vsync + config->vbp + config->height - 1;
-	tli_init_struct.totalsz_htsz = config->hsync + config->hbp + config->width +
-					config->hfp - 1;
-	tli_init_struct.totalsz_vtsz = config->vsync + config->vbp + config->height +
-					config->vfp - 1;
+	tli_init_struct.totalsz_htsz =
+		config->hsync + config->hbp + config->width + config->hfp - 1;
+	tli_init_struct.totalsz_vtsz =
+		config->vsync + config->vbp + config->height + config->vfp - 1;
 
 	tli_init_struct.backcolor_red = 0xFF;
 	tli_init_struct.backcolor_green = 0xFF;
@@ -401,65 +390,61 @@ static int display_gd32_tli_init(const struct device *dev)
 	tli_reload_config(TLI_FRAME_BLANK_RELOAD_EN);
 	tli_enable();
 
-	LOG_INF("TLI initialized: %dx%d, pixel_format=%d (bpp=%d)",
-		config->width, config->height,
+	LOG_INF("TLI initialized: %dx%d, pixel_format=%d (bpp=%d)", config->width, config->height,
 		data->current_pixel_format, data->current_pixel_size);
 
 	return 0;
 }
 
 /* Framebuffer size based on Kconfig pixel format (like STM32 LTDC) */
-#define GD32_TLI_FB_SIZE(inst) \
+#define GD32_TLI_FB_SIZE(inst)                                                                     \
 	(GD32_TLI_INIT_PIXEL_SIZE * DT_INST_PROP(inst, height) * DT_INST_PROP(inst, width))
 
 #ifdef CONFIG_PINCTRL
 #define GD32_TLI_PINCTRL_DEFINE(inst) PINCTRL_DT_INST_DEFINE(inst)
-#define GD32_TLI_PINCTRL_INIT(inst) PINCTRL_DT_INST_DEV_CONFIG_GET(inst)
+#define GD32_TLI_PINCTRL_INIT(inst)   PINCTRL_DT_INST_DEV_CONFIG_GET(inst)
 #else
 #define GD32_TLI_PINCTRL_DEFINE(inst)
 #define GD32_TLI_PINCTRL_INIT(inst) NULL
 #endif
 
-#define DISPLAY_GD32_TLI_DEVICE(inst)						\
-										\
-	GD32_TLI_PINCTRL_DEFINE(inst);						\
-										\
-	/* Frame buffer aligned for optimal performance */			\
-	static uint8_t __aligned(4) __attribute__((section(".noinit")))		\
-		frame_buffer_##inst[CONFIG_GD32_TLI_FB_NUM * GD32_TLI_FB_SIZE(inst)]; \
-										\
-	static const struct display_gd32_tli_config				\
-		display_gd32_tli_config_##inst = {				\
-		.reg = DT_INST_REG_ADDR(inst),					\
-		.clkid = DT_INST_CLOCKS_CELL(inst, id),				\
-		.disp_en_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, disp_en_gpios, {0}),	\
-		.bl_ctrl_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, bl_ctrl_gpios, {0}),	\
-		.pctrl = GD32_TLI_PINCTRL_INIT(inst),				\
-		.hsync = DT_INST_PROP(inst, hsync),				\
-		.vsync = DT_INST_PROP(inst, vsync),				\
-		.hbp = DT_INST_PROP(inst, hbp),					\
-		.vbp = DT_INST_PROP(inst, vbp),					\
-		.hfp = DT_INST_PROP(inst, hfp),					\
-		.vfp = DT_INST_PROP(inst, vfp),					\
-		.width = DT_INST_PROP(inst, width),				\
-		.height = DT_INST_PROP(inst, height),				\
-		.pllsai_n = DT_INST_PROP(inst, pllsai_n),			\
-		.pllsai_r = DT_INST_PROP(inst, pllsai_r),			\
-		.pllsair_div = DT_INST_PROP(inst, pllsair_div),			\
-	};									\
-										\
-	static struct display_gd32_tli_data display_gd32_tli_data_##inst = {	\
-		.frame_buffer = frame_buffer_##inst,				\
-		.frame_buffer_len = GD32_TLI_FB_SIZE(inst),			\
-		.current_pixel_format = DISPLAY_INIT_PIXEL_FORMAT,		\
-		.current_pixel_size = GD32_TLI_INIT_PIXEL_SIZE,			\
-		.orientation = DISPLAY_ORIENTATION_NORMAL,			\
-	};									\
-										\
-	DEVICE_DT_INST_DEFINE(inst, display_gd32_tli_init, NULL,		\
-			      &display_gd32_tli_data_##inst,			\
-			      &display_gd32_tli_config_##inst,			\
-			      POST_KERNEL, CONFIG_DISPLAY_INIT_PRIORITY,	\
-			      &display_gd32_tli_api);
+#define DISPLAY_GD32_TLI_DEVICE(inst)                                                              \
+                                                                                                   \
+	GD32_TLI_PINCTRL_DEFINE(inst);                                                             \
+                                                                                                   \
+	/* Frame buffer aligned for optimal performance */                                         \
+	static uint8_t __aligned(4) __attribute__((section(".noinit")))                            \
+	frame_buffer_##inst[CONFIG_GD32_TLI_FB_NUM * GD32_TLI_FB_SIZE(inst)];                      \
+                                                                                                   \
+	static const struct display_gd32_tli_config display_gd32_tli_config_##inst = {             \
+		.reg = DT_INST_REG_ADDR(inst),                                                     \
+		.clkid = DT_INST_CLOCKS_CELL(inst, id),                                            \
+		.disp_en_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, disp_en_gpios, {0}),                \
+		.bl_ctrl_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, bl_ctrl_gpios, {0}),                \
+		.pctrl = GD32_TLI_PINCTRL_INIT(inst),                                              \
+		.hsync = DT_INST_PROP(inst, hsync),                                                \
+		.vsync = DT_INST_PROP(inst, vsync),                                                \
+		.hbp = DT_INST_PROP(inst, hbp),                                                    \
+		.vbp = DT_INST_PROP(inst, vbp),                                                    \
+		.hfp = DT_INST_PROP(inst, hfp),                                                    \
+		.vfp = DT_INST_PROP(inst, vfp),                                                    \
+		.width = DT_INST_PROP(inst, width),                                                \
+		.height = DT_INST_PROP(inst, height),                                              \
+		.pllsai_n = DT_INST_PROP(inst, pllsai_n),                                          \
+		.pllsai_r = DT_INST_PROP(inst, pllsai_r),                                          \
+		.pllsair_div = DT_INST_PROP(inst, pllsair_div),                                    \
+	};                                                                                         \
+                                                                                                   \
+	static struct display_gd32_tli_data display_gd32_tli_data_##inst = {                       \
+		.frame_buffer = frame_buffer_##inst,                                               \
+		.frame_buffer_len = GD32_TLI_FB_SIZE(inst),                                        \
+		.current_pixel_format = DISPLAY_INIT_PIXEL_FORMAT,                                 \
+		.current_pixel_size = GD32_TLI_INIT_PIXEL_SIZE,                                    \
+		.orientation = DISPLAY_ORIENTATION_NORMAL,                                         \
+	};                                                                                         \
+                                                                                                   \
+	DEVICE_DT_INST_DEFINE(inst, display_gd32_tli_init, NULL, &display_gd32_tli_data_##inst,    \
+			      &display_gd32_tli_config_##inst, POST_KERNEL,                        \
+			      CONFIG_DISPLAY_INIT_PRIORITY, &display_gd32_tli_api);
 
 DT_INST_FOREACH_STATUS_OKAY(DISPLAY_GD32_TLI_DEVICE)
