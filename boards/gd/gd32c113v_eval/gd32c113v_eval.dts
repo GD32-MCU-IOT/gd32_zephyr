@@ -20,7 +20,7 @@
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
 		zephyr,flash-controller = &fmc;
-			zephyr,canbus = &can0;
+		zephyr,canbus = &can0;
 	};
 
 	leds {
@@ -141,6 +141,7 @@
 	dmas = <&dma0 5 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>,
 	       <&dma0 6 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>;
 	dma-names = "tx", "rx";
+
 	eeprom0: eeprom@50 {
 		compatible = "atmel,at24";
 		reg = <0x50>;
@@ -149,8 +150,6 @@
 		address-width = <8>;
 		timeout = <5>;
 	};
-
-
 };
 
 &spi0 {
@@ -232,12 +231,13 @@
 &can0 {
 	pinctrl-0 = <&can0_default>;
 	pinctrl-names = "default";
-	bus-speed = <500000>;
-	bus-speed-data = <1000000>;
+	bitrate = <500000>;
+	bitrate-data = <1000000>;
 	sample-point = <800>;
 	sample-point-data = <800>;
 	status = "okay";
-		can-transceiver {
+
+	can-transceiver {
 		min-bitrate = <1000>;
 		max-bitrate = <5000000>;
 	};
@@ -246,11 +246,12 @@
 &can1 {
 	pinctrl-0 = <&can1_default>;
 	pinctrl-names = "default";
-	bus-speed = <500000>;
-	bus-speed-data = <1000000>;
+	bitrate = <500000>;
+	bitrate-data = <1000000>;
 	sample-point = <800>;
 	sample-point-data = <800>;
 	status = "disabled";
+
 	can-transceiver {
 		min-bitrate = <1000>;
 		max-bitrate = <5000000>;
