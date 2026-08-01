@@ -1,0 +1,15 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+source "Kconfig.zephyr"
+
+menu "GD32 OSPI flash sample options"
+
+config SPI_FLASH_TEST_DATA_LEN
+	int "Number of bytes used for the flash write/read test"
+	default 128
+	help
+	  Size, in bytes, of the test pattern written to and read back from
+	  the flash device under test.
+
+endmenu

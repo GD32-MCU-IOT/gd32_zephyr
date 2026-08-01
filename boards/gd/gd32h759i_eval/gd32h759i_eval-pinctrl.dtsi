@@ -122,6 +122,16 @@
 		};
 	};
 
+	ospi0_default: ospi0_default {
+		group1 {
+			pinmux = <OSPIM_P0_SCK_PB2>, <OSPIM_P0_CSN_PB6>,
+				 <OSPIM_P0_IO0_PD11>, <OSPIM_P0_IO1_PD12>,
+				 <OSPIM_P0_IO2_PA3>, <OSPIM_P0_IO3_PD13>,
+				 <OSPIM_P0_IO4_PD4>, <OSPIM_P0_IO5_PD5>,
+				 <OSPIM_P0_IO6_PD6>, <OSPIM_P0_IO7_PD7>;
+		};
+	};
+
 	can0_default: can0_default {
 		group1 {
 			pinmux = <CAN0_RX_PD0>, <CAN0_TX_PD1>;

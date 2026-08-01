@@ -1,0 +1,17 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&nor_flash {
+	status = "disabled";
+};
+
+&gd25x512me {
+	status = "okay";
+};
+
+&spi4 {
+	status = "disabled";
+};
