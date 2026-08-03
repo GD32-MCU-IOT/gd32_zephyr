@@ -1,0 +1,31 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config FLASH_GD32_OSPI
+	bool "GD32 OSPI NOR flash driver"
+	default y
+	depends on DT_HAS_GD_GD32_OSPI_NOR_ENABLED
+	depends on SOC_SERIES_GD32H7XX || SOC_SERIES_GD32H75E
+	select FLASH_HAS_DRIVER_ENABLED
+	select FLASH_HAS_PAGE_LAYOUT
+	select FLASH_HAS_EXPLICIT_ERASE
+	select FLASH_JESD216
+	select PINCTRL
+	select CLOCK_CONTROL
+	select RESET
+	select USE_GD32_OSPI
+	select USE_GD32_RCU
+	help
+	  Enable GD32 OSPI NOR support on GD32H7 class processors.
+
+config FLASH_GD32_OSPI_MEMORY_MAPPED
+	bool "GD32 OSPI memory-mapped (XIP-style) read support"
+	default n
+	depends on FLASH_GD32_OSPI
+	help
+	  When enabled, flash_read() on the GD32 OSPI NOR driver switches the
+	  OSPI controller into memory-mapped mode and reads the data directly
+	  via CPU load instructions from the controller's memory window,
+	  instead of issuing an indirect-mode read command. flash_write() and
+	  flash_erase() always take the controller back to indirect mode
+	  first, so memory-mapped mode is only ever active across read calls.

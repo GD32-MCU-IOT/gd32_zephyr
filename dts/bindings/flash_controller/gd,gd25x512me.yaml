@@ -1,0 +1,8 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: GigaDevice GD25X512ME OSPI NOR flash
+
+compatible: "gd,gd25x512me"
+
+include: gd,gd32-ospi-nor.yaml
