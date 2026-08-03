@@ -154,6 +154,30 @@
 			};
 		};
 
+		ospi0: spi@52005000 {
+			compatible = "gd,gd32-ospi";
+			reg = <0x52005000 0x1000>, <0x90000000 DT_SIZE_M(256)>;
+			interrupts = <92 0>;
+			clock-names = "ospix", "ospi-ker";
+			clocks = <&cctl GD32_CLOCK_OSPI0>, <&cctl GD32_CLOCK_OSPI0>;
+			resets = <&rctl GD32_RESET_OSPI0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		ospi1: spi@5200a000 {
+			compatible = "gd,gd32-ospi";
+			reg = <0x5200a000 0x1000>, <0x70000000 DT_SIZE_M(256)>;
+			interrupts = <150 0>;
+			clock-names = "ospix", "ospi-ker";
+			clocks = <&cctl GD32_CLOCK_OSPI1>, <&cctl GD32_CLOCK_OSPI1>;
+			resets = <&rctl GD32_RESET_OSPI1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		enet0: ethernet@40028000 {
 			compatible = "gd,gd32-ethernet";
 			reg = <0x40028000 0x2000>;

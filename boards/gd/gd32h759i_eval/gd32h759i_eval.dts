@@ -10,6 +10,7 @@
 #include "gd32h759i_eval-pinctrl.dtsi"
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/dma/gd32_dma.h>
+#include <zephyr/dt-bindings/flash_controller/ospi.h>
 
 / {
 	model = "GigaDevice GD32H759I-EVAL";
@@ -343,4 +344,20 @@
 	sample-point = <800>;
 	sample-point-data = <800>;
 	status = "okay";
+};
+
+&ospi0 {
+	status = "okay";
+	pinctrl-0 = <&ospi0_default>;
+	pinctrl-names = "default";
+
+	gd25x512me: ospi-nor-flash@0 {
+		compatible = "gd,gd32-ospi-nor";
+		reg = <0>;
+		size = <0x20000000>;
+		spi-bus-width = <OSPI_OPI_MODE>;
+		data-rate = <OSPI_STR_TRANSFER>;
+		ospi-max-frequency = <DT_FREQ_M(20)>;
+		status = "okay";
+	};
 };

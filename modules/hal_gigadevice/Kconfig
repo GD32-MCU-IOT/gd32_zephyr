@@ -189,6 +189,11 @@ config USE_GD32_MISC
 	help
 	  Enable GD32 System Utilities (MISC) HAL module driver
 
+config USE_GD32_OSPI
+	bool
+	help
+	  Enable GD32 Octal-SPI (OSPI) HAL module driver
+
 config USE_GD32_PMU
 	bool
 	help
