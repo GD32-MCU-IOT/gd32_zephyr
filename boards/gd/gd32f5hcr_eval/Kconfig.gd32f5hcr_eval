@@ -1,0 +1,5 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_GD32F5HCR_EVAL
+	select SOC_GD32W51X_F5HC

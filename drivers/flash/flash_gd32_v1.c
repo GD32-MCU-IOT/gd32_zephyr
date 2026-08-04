@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 BrainCo Inc.
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -37,6 +37,9 @@ LOG_MODULE_DECLARE(flash_gd32);
 #define GD32_FMC_V1_WRITE_ERR	(FMC_STAT_OPERR | FMC_STAT_PGSERR | \
 				 FMC_STAT_PGMERR | FMC_STAT_WPERR)
 #define GD32_FMC_V1_ERASE_ERR	(FMC_STAT_OPERR | FMC_STAT_WPERR)
+#elif defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+#define GD32_FMC_V1_WRITE_ERR	FMC_STAT_WPERR
+#define GD32_FMC_V1_ERASE_ERR	FMC_STAT_WPERR
 #else
 #define GD32_FMC_V1_WRITE_ERR	(FMC_STAT_PGERR | FMC_STAT_WPERR)
 #define GD32_FMC_V1_ERASE_ERR	FMC_STAT_WPERR

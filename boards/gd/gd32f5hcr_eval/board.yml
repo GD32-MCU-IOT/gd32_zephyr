@@ -1,0 +1,6 @@
+board:
+  name: gd32f5hcr_eval
+  full_name: GD32F5HCR-EVAL
+  vendor: gd
+  socs:
+    - name: gd32w51x_f5hc
