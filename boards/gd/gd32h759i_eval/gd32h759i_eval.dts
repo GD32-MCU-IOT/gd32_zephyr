@@ -318,8 +318,8 @@
 &can0 {
 	pinctrl-0 = <&can0_default>;
 	pinctrl-names = "default";
-	bus-speed = <1000000>;
-	bus-speed-data = <1000000>;
+	bitrate = <1000000>;
+	bitrate-data = <1000000>;
 	sample-point = <800>;
 	sample-point-data = <800>;
 	status = "okay";
@@ -328,8 +328,8 @@
 &can1 {
 	pinctrl-0 = <&can1_default>;
 	pinctrl-names = "default";
-	bus-speed = <1000000>;
-	bus-speed-data = <1000000>;
+	bitrate = <1000000>;
+	bitrate-data = <1000000>;
 	sample-point = <800>;
 	sample-point-data = <800>;
 	status = "okay";
@@ -338,8 +338,8 @@
 &can2 {
 	pinctrl-0 = <&can2_default>;
 	pinctrl-names = "default";
-	bus-speed = <1000000>;
-	bus-speed-data = <1000000>;
+	bitrate = <1000000>;
+	bitrate-data = <1000000>;
 	sample-point = <800>;
 	sample-point-data = <800>;
 	status = "okay";
