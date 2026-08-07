@@ -106,7 +106,7 @@ typedef uint32_t pinctrl_soc_pin_t;
 
 #ifdef CONFIG_PINCTRL_GD32_AF
 #if !defined(CONFIG_SOC_SERIES_GD32C2X1) && !defined(CONFIG_SOC_SERIES_GD32H7XX) && \
-	!defined(CONFIG_SOC_SERIES_GD32H75E)
+	!defined(CONFIG_SOC_SERIES_GD32H75E) && !defined(CONFIG_SOC_SERIES_GD32M53X)
 /** Maximum 2MHz */
 #define GD32_OSPEED_2MHZ 0U
 #endif
@@ -127,6 +127,13 @@ typedef uint32_t pinctrl_soc_pin_t;
 #define GD32_OSPEED_50MHZ 2U
 /** Maximum speed */
 #define GD32_OSPEED_MAX   3U
+#elif defined(CONFIG_SOC_SERIES_GD32M53X)
+/** Maximum 25MHz, low drive */
+#define GD32_OSPEED_25MHZ 0U
+/** Maximum 50MHz */
+#define GD32_OSPEED_50MHZ 1U
+/** Maximum speed */
+#define GD32_OSPEED_MAX   2U
 #elif defined(CONFIG_SOC_SERIES_GD32C2X1)
 /** Maximum 10MHz */
 #define GD32_OSPEED_10MHZ 0U

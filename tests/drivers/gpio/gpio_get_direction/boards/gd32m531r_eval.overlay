@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Keep gpio_get_direction aligned with gpio_api_1pin test pin selection. */
+
+&led0 {
+	gpios = <&gpiod 13 GPIO_ACTIVE_HIGH>;
+};
+
+&gpiod {
+	status = "okay";
+};
