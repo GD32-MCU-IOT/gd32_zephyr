@@ -590,7 +590,7 @@
 		};
 
 		can0: can@4001a000 {
-			compatible = "gd,gd32-can";
+			compatible = "gd,gd32-can-v2";
 			reg = <0x4001a000 0x1000>;
 			interrupts = <179 0>, <180 0>, <181 0>, <182 0>, <183 0>, <184 0>, <185 0>;
 			interrupt-names = "WAKE_UP", "MESSAGE_BUFFER", "BUS_OFF", "ERROR",
@@ -604,7 +604,7 @@
 		};
 
 		can1: can@4001b000 {
-			compatible = "gd,gd32-can";
+			compatible = "gd,gd32-can-v2";
 			reg = <0x4001b000 0x1000>;
 			interrupts = <186 0>, <187 0>, <188 0>, <189 0>, <190 0>, <191 0>, <192 0>;
 			interrupt-names = "WAKE_UP", "MESSAGE_BUFFER", "BUS_OFF", "ERROR",
@@ -618,7 +618,7 @@
 		};
 
 		can2: can@4001c000 {
-			compatible = "gd,gd32-can";
+			compatible = "gd,gd32-can-v2";
 			reg = <0x4001c000 0x1000>;
 			interrupts = <193 0>, <194 0>, <195 0>, <196 0>, <197 0>, <198 0>, <199 0>;
 			interrupt-names = "WAKE_UP", "MESSAGE_BUFFER", "BUS_OFF", "ERROR",

@@ -12,4 +12,7 @@ config ROM_START_OFFSET
 config CACHE_MANAGEMENT
 	default y if CPU_CORTEX_M7
 
+config CAN_GD32_CAN_V2_FD
+	default y
+
 endif # SOC_SERIES_GD32H7XX
