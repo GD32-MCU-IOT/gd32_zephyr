@@ -1,0 +1,16 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Test overlay for gd32h75ey_eval: declare the on-board CAN transceiver
+ * bitrate range so that test_set_bitrate_too_low and test_bitrate_limits
+ * have meaningful lower/upper bounds to check against.
+ */
+
+&can0 {
+	can-transceiver {
+		min-bitrate = <125000>;
+		max-bitrate = <5000000>;
+	};
+};
