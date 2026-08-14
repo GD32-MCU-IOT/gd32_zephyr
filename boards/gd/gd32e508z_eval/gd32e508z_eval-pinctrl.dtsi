@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32e508z(e)xx-pinctrl.h>
+
+&pinctrl {
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PA9_NORMP>, <USART0_RX_PA10_NORMP>;
+		};
+	};
+
+	pwm0_default: pwm0_default {
+		group1 {
+			pinmux = <TIMER0_CH0_PA8_OUT_NORMP>;
+		};
+	};
+
+	can0_default: can0_default {
+		group1 {
+			pinmux = <CAN0_RX_PD0_FRMP>, <CAN0_TX_PD1_FRMP>;
+		};
+	};
+
+	can1_default: can1_default {
+		group1 {
+			pinmux = <CAN1_RX_PB12_NORMP>, <CAN1_TX_PB13_NORMP>;
+		};
+	};
+
+	can2_default: can2_default {
+		group1 {
+			pinmux = <CAN2_RX_PE0>, <CAN2_TX_PE1>;
+		};
+	};
+};
