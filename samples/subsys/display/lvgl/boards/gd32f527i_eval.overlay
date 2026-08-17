@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Board-specific overlay for the LVGL sample on GD32F527I-EVAL.
+ *
+ * The on-board resistive touch panel uses an XPT2046 controller wired to a
+ * bit-banged (GPIO) SPI bus. Pin assignment matches the GD32F527I-EVAL board
+ * schematic:
+ *
+ *   SCK  -> PH6
+ *   MOSI -> PF9
+ *   MISO -> PH7
+ *   CS   -> PF6
+ *   IRQ  -> PI3
+ */
+
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	spi_bitbang: spi-bitbang {
+		compatible = "zephyr,spi-bitbang";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		/* Bit-banged SPI pins for the XPT2046 touch controller */
+		clk-gpios = <&gpioh 6 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&gpiof 9 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioh 7 GPIO_ACTIVE_HIGH>;
+
+		cs-gpios = <&gpiof 6 GPIO_ACTIVE_LOW>;
+
+		xpt2046: xpt2046@0 {
+			compatible = "xptek,xpt2046";
+			reg = <0>;
+			spi-max-frequency = <2500000>;
+			int-gpios = <&gpioi 3 GPIO_ACTIVE_LOW>;
+			status = "okay";
+
+			/* LCD resolution: 480x272 (TLI) */
+			touchscreen-size-x = <480>;
+			touchscreen-size-y = <272>;
+
+			/* Calibration values from the vendor BSP */
+			min-x = <300>;
+			max-x = <3850>;
+			min-y = <220>;
+			max-y = <3850>;
+		};
+	};
+
+	lvgl_pointer_input: lvgl-pointer-input {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&xpt2046>;
+		/* Panel is mounted with both axes reversed relative to LCD scan */
+		invert-x;
+		invert-y;
+	};
+};
