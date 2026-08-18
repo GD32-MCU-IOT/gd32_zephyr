@@ -216,17 +216,42 @@ static void configure_remap(uint16_t remap)
 	*reg = reg_val;
 }
 
+static int configure_group_remap(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt)
+{
+	uint16_t remap = GD32_NORMP;
+
+	for (uint8_t i = 0U; i < pin_cnt; i++) {
+		uint16_t pin_remap = GD32_REMAP_GET(pins[i]);
+
+		if (pin_remap == GD32_NORMP) {
+			continue;
+		} else if (remap == GD32_NORMP) {
+			remap = pin_remap;
+		} else if (pin_remap != remap) {
+			return -EINVAL;
+		}
+	}
+
+	configure_remap(remap);
+
+	return 0;
+}
+
 int pinctrl_configure_pins(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt,
 			   uintptr_t reg)
 {
+	int ret;
+
 	ARG_UNUSED(reg);
 
 	if (pin_cnt == 0U) {
 		return -EINVAL;
 	}
 
-	/* same remap is encoded in all pins, so just pick the first */
-	configure_remap(GD32_REMAP_GET(pins[0]));
+	ret = configure_group_remap(pins, pin_cnt);
+	if (ret < 0) {
+		return ret;
+	}
 
 	/* configure all pins */
 	for (uint8_t i = 0U; i < pin_cnt; i++) {
