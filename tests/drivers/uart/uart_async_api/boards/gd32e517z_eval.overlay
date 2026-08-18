@@ -1,0 +1,35 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+#include <dt-bindings/pinctrl/gd32e517z(c-e)xx-pinctrl.h>
+
+/*
+ * USART5 is a different-generation IP from the other USART/UART instances
+ * on GD32E51x (see usart_gd32.c GD32E51X-specific handling) and uses DMA1
+ * (not DMA0): channel 2 for RX, channel 4 for TX.
+ */
+&pinctrl {
+	usart5_default: usart5_default {
+		group1 {
+			pinmux = <USART5_TX_PC6>, <USART5_RX_PC7>;
+		};
+	};
+};
+
+dut: &usart5 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart5_default>;
+	pinctrl-names = "default";
+	dmas = <&dma1 2 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma1 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+	dma-names = "rx", "tx";
+};
+
+&dma1 {
+	status = "okay";
+};

@@ -11,7 +11,12 @@ toolchain:
   - zephyr
   - gnuarmemb
 supported:
+  - uart
   - pwm
   - gpio
   - counter
+  - dma
+  - spi
+  - i2c
+  - eeprom
 vendor: gd

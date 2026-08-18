@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	resources {
+		compatible = "test-gpio-basic-api";
+		/* Bridge PF11 (out) to PF12 (in) for 2-pin GPIO loopback test.
+		 * Moved off PC2/PC3 (ADC012_IN12/IN13-capable) to rule out
+		 * interference from any analog-related population on those
+		 * ADC pins: PF11/PF12 have no ADC function on this SoC.
+		 */
+		out-gpios = <&gpiof 11 GPIO_PULL_UP>;
+		in-gpios = <&gpiof 12 GPIO_PULL_UP>;
+	};
+};
+
+&gpiof {
+	status = "okay";
+};
