@@ -116,14 +116,29 @@
 	dma-names = "rx", "tx";
 };
 
-&spi0 {
+&usart5 {
 	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart5_default>;
+	pinctrl-names = "default";
+};
+
+&spi0 {
+	status = "disabled";
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
-	dmas = <&dma0 1 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
-	       <&dma0 2 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+	dmas = <&dma0 3 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_RX)>,
+	       <&dma0 4 (GD32_DMA_PRIORITY_HIGH | GD32_DMA_PERIPH_TX)>;
 	dma-names = "rx", "tx";
+
 	nor_flash: gd25q16@0 {
 		compatible = "jedec,spi-nor";
 		size = <0x1000000>;
@@ -134,11 +149,10 @@
 	};
 };
 
-&spi1 {
+&spi2 {
 	status = "disabled";
-	pinctrl-0 = <&spi1_default>;
+	pinctrl-0 = <&spi2_default>;
 	pinctrl-names = "default";
-	cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
 };
 
 &i2c0 {

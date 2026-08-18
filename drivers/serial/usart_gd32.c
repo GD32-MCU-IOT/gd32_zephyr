@@ -21,10 +21,14 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 
 #include <gd32_usart.h>
 #include "usart_gd32.h"
+#include <soc.h>
 
-/* Unify GD32 HAL USART status register name to USART_STAT */
-#ifndef USART_STAT
-#define USART_STAT USART_STAT0
+#if !defined(CONFIG_SOC_SERIES_GD32E51X)
+#define gd32_usart_flag_get           usart_flag_get
+#define gd32_usart_flag_clear         usart_flag_clear
+#define gd32_usart_interrupt_enable   usart_interrupt_enable
+#define gd32_usart_interrupt_disable  usart_interrupt_disable
+#define gd32_usart_interrupt_flag_get usart_interrupt_flag_get
 #endif
 
 /* ========== DMA ASYNC API Support ========== */
@@ -49,6 +53,9 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
 	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
+#elif defined(CONFIG_SOC_SERIES_GD32E51X)
+#define USART_DATA_TX(usartx) gd32e51x_usart_data_tx(usartx)
+#define USART_DATA_RX(usartx) gd32e51x_usart_data_rx(usartx)
 #else
 #define USART_DATA_TX(usartx) (&USART_DATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_DATA(usartx))
@@ -665,7 +672,7 @@ static int usart_gd32_async_rx_enable(
 	dma_cfg->user_data = (void *)dev;
 
 	/* Clear IDLE flag before enabling DMA to prevent spurious interrupts */
-	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
+	gd32_usart_flag_clear(cfg->reg, USART_FLAG_IDLE);
 	/* 1. Configure DMA */
 	ret = dma_config(dma->dev, dma->channel, dma_cfg);
 	if (ret != 0) {
@@ -695,9 +702,9 @@ static int usart_gd32_async_rx_enable(
 	}
 
 	/* 4. Enable IDLE and RBNE interrupts for data flow and completion flags */
-	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
-	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_RBNE);
-	usart_interrupt_enable(cfg->reg, USART_INT_IDLE);
+	gd32_usart_flag_clear(cfg->reg, USART_FLAG_IDLE);
+	gd32_usart_flag_clear(cfg->reg, USART_FLAG_RBNE);
+	gd32_usart_interrupt_enable(cfg->reg, USART_INT_IDLE);
 
 	/* Request next buffer from app early */
 	if (data->async_cb) {
@@ -728,7 +735,7 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	}
 
 	/* Disable IDLE interrupt first */
-	usart_interrupt_disable(cfg->reg, USART_INT_IDLE);
+	gd32_usart_interrupt_disable(cfg->reg, USART_INT_IDLE);
 
 	/* Flush any remaining RX data */
 	usart_gd32_dma_rx_flush(dev);
@@ -743,9 +750,9 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
 	dma_stop(dma->dev, dma->channel);
 
 	/* Disable RBNE interrupt and clear flags */
-	usart_interrupt_disable(cfg->reg, USART_INT_RBNE);
-	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_IDLE);
-	usart_interrupt_flag_clear(cfg->reg, USART_FLAG_RBNE);
+	gd32_usart_interrupt_disable(cfg->reg, USART_INT_RBNE);
+	gd32_usart_flag_clear(cfg->reg, USART_FLAG_IDLE);
+	gd32_usart_flag_clear(cfg->reg, USART_FLAG_RBNE);
 
 	/*
 	 * Per Zephyr UART async API: RX_BUF_RELEASED must be sent before RX_DISABLED.
@@ -843,9 +850,9 @@ static void usart_gd32_isr(const struct device *dev)
 	bool idle_flag, rbne_flag, tc_flag;
 
 	/* Check all possible interrupt sources */
-	idle_flag = usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_IDLE);
-	rbne_flag = usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_RBNE);
-	tc_flag = usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC);
+	idle_flag = gd32_usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_IDLE);
+	rbne_flag = gd32_usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_RBNE);
+	tc_flag = gd32_usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC);
 
 	if (idle_flag) {
 		/*
@@ -855,14 +862,14 @@ static void usart_gd32_isr(const struct device *dev)
 		usart_data_receive(cfg->reg);
 
 		/* Double-check if flag is still set */
-		if (usart_flag_get(cfg->reg, USART_FLAG_IDLE)) {
+		if (gd32_usart_flag_get(cfg->reg, USART_FLAG_IDLE)) {
 			/* force clear if still set */
-			usart_flag_clear(cfg->reg, USART_FLAG_IDLE);
+			gd32_usart_flag_clear(cfg->reg, USART_FLAG_IDLE);
 		}
 
-		if (usart_flag_get(cfg->reg, USART_FLAG_ORERR)) {
+		if (gd32_usart_flag_get(cfg->reg, USART_FLAG_ORERR)) {
 			/* force clear if still set */
-			usart_flag_clear(cfg->reg, USART_FLAG_ORERR);
+			gd32_usart_flag_clear(cfg->reg, USART_FLAG_ORERR);
 		}
 
 		/* IDLE interrupt: data transmission completed,
@@ -954,6 +961,10 @@ static int usart_gd32_init(const struct device *dev)
 		return ret;
 	}
 
+#if defined(CONFIG_SOC_SERIES_GD32E51X)
+	gd32e51x_usart5_pinmux_quirk(cfg->reg, cfg->pcfg);
+#endif
+
 	/*
 	 * In order to keep the transfer data size to 8 bits(1 byte),
 	 * append word length to 9BIT if parity bit enabled.
@@ -1009,7 +1020,7 @@ static int usart_gd32_poll_in(const struct device *dev, unsigned char *c)
 	const struct gd32_usart_config *const cfg = dev->config;
 	uint32_t status;
 
-	status = usart_flag_get(cfg->reg, USART_FLAG_RBNE);
+	status = gd32_usart_flag_get(cfg->reg, USART_FLAG_RBNE);
 
 	if (!status) {
 		return -EPERM;
@@ -1026,7 +1037,7 @@ static void usart_gd32_poll_out(const struct device *dev, unsigned char c)
 
 	usart_data_transmit(cfg->reg, c);
 
-	while (usart_flag_get(cfg->reg, USART_FLAG_TBE) == RESET) {
+	while (gd32_usart_flag_get(cfg->reg, USART_FLAG_TBE) == RESET) {
 		;
 	}
 }
@@ -1283,28 +1294,27 @@ static int usart_gd32_config_get(const struct device *dev,
 static int usart_gd32_err_check(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
-	uint32_t status = USART_STAT(cfg->reg);
 	int errors = 0;
 
-	if (status & USART_FLAG_ORERR) {
-		usart_flag_clear(cfg->reg, USART_FLAG_ORERR);
+	if (gd32_usart_flag_get(cfg->reg, USART_FLAG_ORERR)) {
+		gd32_usart_flag_clear(cfg->reg, USART_FLAG_ORERR);
 
 		errors |= UART_ERROR_OVERRUN;
 	}
 
-	if (status & USART_FLAG_PERR) {
-		usart_flag_clear(cfg->reg, USART_FLAG_PERR);
+	if (gd32_usart_flag_get(cfg->reg, USART_FLAG_PERR)) {
+		gd32_usart_flag_clear(cfg->reg, USART_FLAG_PERR);
 
 		errors |= UART_ERROR_PARITY;
 	}
 
-	if (status & USART_FLAG_FERR) {
-		usart_flag_clear(cfg->reg, USART_FLAG_FERR);
+	if (gd32_usart_flag_get(cfg->reg, USART_FLAG_FERR)) {
+		gd32_usart_flag_clear(cfg->reg, USART_FLAG_FERR);
 
 		errors |= UART_ERROR_FRAMING;
 	}
 
-	usart_flag_clear(cfg->reg, USART_FLAG_NERR);
+	gd32_usart_flag_clear(cfg->reg, USART_FLAG_NERR);
 
 	return errors;
 }
@@ -1317,7 +1327,7 @@ int usart_gd32_fifo_fill(const struct device *dev, const uint8_t *tx_data,
 	int num_tx = 0U;
 
 	while ((len - num_tx > 0) &&
-	       usart_flag_get(cfg->reg, USART_FLAG_TBE)) {
+	       gd32_usart_flag_get(cfg->reg, USART_FLAG_TBE)) {
 		usart_data_transmit(cfg->reg, tx_data[num_tx++]);
 	}
 
@@ -1331,7 +1341,7 @@ int usart_gd32_fifo_read(const struct device *dev, uint8_t *rx_data,
 	int num_rx = 0U;
 
 	while ((size - num_rx > 0) &&
-	       usart_flag_get(cfg->reg, USART_FLAG_RBNE)) {
+	       gd32_usart_flag_get(cfg->reg, USART_FLAG_RBNE)) {
 		rx_data[num_rx++] = usart_data_receive(cfg->reg);
 	}
 
@@ -1342,76 +1352,76 @@ void usart_gd32_irq_tx_enable(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	usart_interrupt_enable(cfg->reg, USART_INT_TC);
+	gd32_usart_interrupt_enable(cfg->reg, USART_INT_TC);
 }
 
 void usart_gd32_irq_tx_disable(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	usart_interrupt_disable(cfg->reg, USART_INT_TC);
+	gd32_usart_interrupt_disable(cfg->reg, USART_INT_TC);
 }
 
 int usart_gd32_irq_tx_ready(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	return usart_flag_get(cfg->reg, USART_FLAG_TBE) &&
-	       usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC);
+	return gd32_usart_flag_get(cfg->reg, USART_FLAG_TBE) &&
+	       gd32_usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC);
 }
 
 int usart_gd32_irq_tx_complete(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	return usart_flag_get(cfg->reg, USART_FLAG_TC);
+	return gd32_usart_flag_get(cfg->reg, USART_FLAG_TC);
 }
 
 void usart_gd32_irq_rx_enable(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	usart_interrupt_enable(cfg->reg, USART_INT_RBNE);
+	gd32_usart_interrupt_enable(cfg->reg, USART_INT_RBNE);
 }
 
 void usart_gd32_irq_rx_disable(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	usart_interrupt_disable(cfg->reg, USART_INT_RBNE);
+	gd32_usart_interrupt_disable(cfg->reg, USART_INT_RBNE);
 }
 
 int usart_gd32_irq_rx_ready(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	return usart_flag_get(cfg->reg, USART_FLAG_RBNE);
+	return gd32_usart_flag_get(cfg->reg, USART_FLAG_RBNE);
 }
 
 void usart_gd32_irq_err_enable(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	usart_interrupt_enable(cfg->reg, USART_INT_ERR);
-	usart_interrupt_enable(cfg->reg, USART_INT_PERR);
+	gd32_usart_interrupt_enable(cfg->reg, USART_INT_ERR);
+	gd32_usart_interrupt_enable(cfg->reg, USART_INT_PERR);
 }
 
 void usart_gd32_irq_err_disable(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	usart_interrupt_disable(cfg->reg, USART_INT_ERR);
-	usart_interrupt_disable(cfg->reg, USART_INT_PERR);
+	gd32_usart_interrupt_disable(cfg->reg, USART_INT_ERR);
+	gd32_usart_interrupt_disable(cfg->reg, USART_INT_PERR);
 }
 
 int usart_gd32_irq_is_pending(const struct device *dev)
 {
 	const struct gd32_usart_config *const cfg = dev->config;
 
-	return ((usart_flag_get(cfg->reg, USART_FLAG_RBNE) &&
-		 usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_RBNE)) ||
-		(usart_flag_get(cfg->reg, USART_FLAG_TC) &&
-		 usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC)));
+	return ((gd32_usart_flag_get(cfg->reg, USART_FLAG_RBNE) &&
+		 gd32_usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_RBNE)) ||
+		(gd32_usart_flag_get(cfg->reg, USART_FLAG_TC) &&
+		 gd32_usart_interrupt_flag_get(cfg->reg, USART_INT_FLAG_TC)));
 }
 
 int usart_gd32_irq_update(const struct device *dev)

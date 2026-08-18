@@ -58,4 +58,17 @@
 				 <SPI1_MISO_PB14>;
 		};
 	};
+
+	spi2_default: spi2_default {
+		group1 {
+			pinmux = <SPI2_SCK_PC10_RMP>, <SPI2_MOSI_PC12_RMP>,
+				 <SPI2_MISO_PC11_RMP>;
+		};
+	};
+
+	usart5_default: usart5_default {
+		group1 {
+			pinmux = <USART5_TX_PC6>, <USART5_RX_PC7>;
+		};
+	};
 };
