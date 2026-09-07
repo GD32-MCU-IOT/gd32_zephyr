@@ -30,19 +30,34 @@
 		};
 	};
 
+	clocks {
+		hxtal: hxtal {
+			compatible = "gd,gd32-hxtal-clock";
+			#clock-cells = <0>;
+			status = "disabled";
+		};
+
+		pll: pll {
+			compatible = "gd,gd32-pll-clock";
+			#clock-cells = <0>;
+			clocks = <&hxtal>;
+			status = "disabled";
+		};
+	};
+
+	sram0: memory@20000000 {
+		compatible = "mmio-sram";
+		reg = <0x20000000 DT_SIZE_K(512)>;
+	};
+
+	sram1: memory@10000000 {
+		compatible = "mmio-sram";
+		reg = <0x10000000 DT_SIZE_K(64)>;
+	};
+
 	soc {
-		sram0: memory@20000000 {
-			compatible = "mmio-sram";
-			reg = <0x20000000 DT_SIZE_K(512)>;
-		};
-
-		sram1: memory@10000000 {
-			compatible = "mmio-sram";
-			reg = <0x10000000 DT_SIZE_K(64)>;
-		};
-
 		rcu: reset-clock-controller@40023800 {
-			compatible = "gd,gd32-rcu";
+			compatible = "gd,gd32f527-rcu", "gd,gd32-rcu";
 			reg = <0x40023800 0x400>;
 			status = "okay";
 
@@ -57,11 +72,11 @@
 				#reset-cells = <1>;
 				status = "okay";
 			};
+		};
 
-			ckout0: clock-output-0 {
-				compatible = "gd,gd32-clock-ckout";
-				status = "disabled";
-			};
+		ckout0: clock-output-0 {
+			compatible = "gd,gd32-clock-ckout";
+			status = "disabled";
 		};
 
 		fmc: flash-controller@40023c00 {
