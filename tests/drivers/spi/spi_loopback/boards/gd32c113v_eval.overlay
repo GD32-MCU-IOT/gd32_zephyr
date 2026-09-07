@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32c113v(b)xx-pinctrl.h>
+
+/ {
+	zephyr,user {
+		/* PC12 (MOSI) is shorted to PC11 (MISO) for the loopback test. */
+		mosi-gpios = <&gpioc 12 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioc 11 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* Free PC10/PC11/PC12 (uart3/uart4 headers) so spi2 can remap onto them. */
+&uart3 {
+	status = "disabled";
+};
+
+&uart4 {
+	status = "disabled";
+};
+
+&pinctrl {
+	spi2_loopback: spi2_loopback {
+		group1 {
+			pinmux = <SPI2_SCK_PC10_OUT_RMP>, <SPI2_MISO_PC11_INP_RMP>,
+				 <SPI2_MOSI_PC12_OUT_RMP>;
+		};
+	};
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_loopback>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioc 8 GPIO_ACTIVE_LOW>;
+
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
+
+&gpioc {
+	status = "okay";
+};

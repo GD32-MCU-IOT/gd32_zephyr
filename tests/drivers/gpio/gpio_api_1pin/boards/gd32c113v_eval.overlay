@@ -1,0 +1,32 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	aliases {
+		/*
+		 * Override the board led0 (PC0, an active-high LED whose circuit
+		 * holds the pin high so single_ended cannot determine the level).
+		 * Use a free, floating, ACTIVE_LOW pin: the GD32 GPIO driver
+		 * supports open-drain but not open-source, and the single_ended
+		 * test only exercises the open-drain path when the pin is
+		 * ACTIVE_LOW (pull-up). Nothing must be wired to this pin.
+		 */
+		led0 = &test_gpio_led0;
+	};
+
+	test_gpio_leds {
+		compatible = "gpio-leds";
+
+		test_gpio_led0: test_gpio_led0 {
+			gpios = <&gpioe 2 GPIO_ACTIVE_LOW>;
+			label = "TEST GPIO 1PIN";
+		};
+	};
+};
+
+&gpioe {
+	status = "okay";
+};
