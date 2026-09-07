@@ -21,7 +21,13 @@
 /** RCU configuration bit (from id cell) */
 #define GD32_CLOCK_ID_BIT(id)	 ((id) & 0x1FU)
 
+#if defined(CONFIG_SOC_SERIES_GD32F527) && DT_NODE_HAS_PROP(DT_NODELABEL(rcu), clock_frequency) && \
+	DT_NODE_HAS_PROP(DT_NODELABEL(rcu), ahb_prescaler)
+#define CPU_FREQ                                                                                   \
+	(DT_PROP(DT_NODELABEL(rcu), clock_frequency) * DT_PROP(DT_NODELABEL(rcu), ahb_prescaler))
+#else
 #define CPU_FREQ DT_PROP(DT_PATH(cpus, cpu_0), clock_frequency)
+#endif
 
 /** AHB prescaler exponents */
 static const uint8_t ahb_exp[16] = {
@@ -199,7 +205,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 			continue;
 		}
 
-#if defined(CONFIG_SOC_SERIES_GD32F4XX)
+#if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527)
 		uint32_t cfg1 = sys_read32(config->base + RCU_CFG1_OFFSET);
 
 		/*
@@ -238,7 +244,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 		if (psc != 1U) {
 			*rate *= 2U;
 		}
-#endif /* CONFIG_SOC_SERIES_GD32F4XX */
+#endif /* CONFIG_SOC_SERIES_GD32F4XX || CONFIG_SOC_SERIES_GD32F527 */
 	}
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_timer) */
 

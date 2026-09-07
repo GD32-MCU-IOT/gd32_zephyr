@@ -186,3 +186,33 @@
 	width = <480>;
 	height = <272>;
 };
+
+&ckout0 {
+	clocks = <&cctl GD32_CKOUT0SRC_PLLP>;
+	clock-names = "clksel";
+	prescaler = <GD32_CKOUT0_DIV4>;
+	pinctrl-0 = <&ckout0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&hxtal {
+	clock-frequency = <DT_FREQ_M(25)>;
+	status = "okay";
+};
+
+&pll {
+	pll-psc = <25>;
+	pll-n = <400>;
+	pll-p = <2>;
+	pll-q = <9>;
+	status = "okay";
+};
+
+&rcu {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(200)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <4>;
+	apb2-prescaler = <2>;
+};

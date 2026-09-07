@@ -1,0 +1,78 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+title: GigaDevice GD32F527 RCU Clock Tree Configuration
+
+description: |
+  GigaDevice GD32F527 Reset and Clock Unit (RCU) system clock tree
+  configuration.
+
+  This binding complements the MFD "gd,gd32-rcu" binding
+  (mfd/gd,gd32-rcu.yaml) and models the GD32F527 system clock source
+  selection and the AHB/APB bus prescalers. The RCU node keeps its MFD
+  role (parent of the CCTL and RCTL child nodes) and additionally carries
+  the clock tree configuration.
+
+  GD32F527 exposes a dedicated RCU_PLL register with PSC/N/P/Q fields.
+  The main PLL configuration is described by the gd,gd32-pll-clock node
+  referenced from "clocks".
+
+  Example:
+
+    rcu: reset-clock-controller@40023800 {
+        compatible = "gd,gd32f527-rcu", "gd,gd32-rcu";
+        clocks = <&pll>;               /* Select PLL as SYSCLK source */
+        clock-frequency = <DT_FREQ_M(200)>; /* = SYSCLK / AHB prescaler */
+        ahb-prescaler = <1>;
+        apb1-prescaler = <4>;
+        apb2-prescaler = <2>;
+    };
+
+compatible: "gd,gd32f527-rcu"
+
+include: gd,gd32-rcu.yaml
+
+properties:
+  clocks:
+    description: |
+      System clock source. Reference a gd,gd32-pll-clock node (PLL), a
+      gd,gd32-hxtal-clock node (HXTAL), or a fixed-clock node (IRC16M).
+
+  clock-frequency:
+    type: int
+    description: |
+      Core clock frequency (Hz) = SYSCLK / AHB prescaler.
+
+  ahb-prescaler:
+    type: int
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+      - 64
+      - 128
+      - 256
+      - 512
+    description: AHB prescaler. Defines actual core clock frequency (HCLK).
+
+  apb1-prescaler:
+    type: int
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+    description: APB1 prescaler.
+
+  apb2-prescaler:
+    type: int
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+    description: APB2 prescaler.

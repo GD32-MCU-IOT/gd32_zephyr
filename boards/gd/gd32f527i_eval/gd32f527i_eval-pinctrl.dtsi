@@ -97,4 +97,11 @@
 			slew-rate = "max-speed-50mhz";
 		};
 	};
+
+	ckout0_default: ckout0_default {
+		group1 {
+			pinmux = <CK_OUT0_PA8>;
+			slew-rate = "max-speed-200mhz";
+		};
+	};
 };

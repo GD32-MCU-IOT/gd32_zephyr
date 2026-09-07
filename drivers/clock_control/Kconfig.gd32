@@ -15,3 +15,12 @@ config CLOCK_CONTROL_GD32_CKOUT
 	depends on DT_HAS_GD_GD32_CLOCK_CKOUT_ENABLED
 	help
 	  Enable driver for GD32 CKOUT clock output configuration.
+
+config CLOCK_CONTROL_GD32_PLL
+	bool "GD32 PLL/system clock DTS configuration"
+	depends on DT_HAS_GD_GD32F527_RCU_ENABLED
+	depends on SOC_SERIES_GD32F527
+	help
+	  Enable DTS-driven PLL and system clock tree configuration for the
+	  GD32F527. When enabled, the main PLL, AHB/APB prescalers and system
+	  clock source are configured from the devicetree during PRE_KERNEL_1.
