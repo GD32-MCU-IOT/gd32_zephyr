@@ -147,6 +147,10 @@ tests:
       - gd32vf103v_eval
       - gd32a503v_eval
       - gd32f470i_eval
+  drivers.flash.common.gd32c113_internal:
+    platform_allow:
+      - gd32c113v_eval
+    extra_args: EXTRA_CONF_FILE=boards/gd32c113v_eval_internal.conf
   drivers.flash.common.silabs.dma:
     platform_allow:
       - xg24_rb4187c
