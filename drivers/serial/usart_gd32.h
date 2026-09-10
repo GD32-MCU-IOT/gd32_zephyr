@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -124,7 +124,7 @@ struct gd32_usart_data {
 	uint8_t *rx_next_buffer;
 	/** Next RX buffer length */
 	size_t rx_next_buffer_len;
-	/** Device pointer for work queue callbacks (TODO: can be removed with CONTAINER_OF) */
+	/** Device pointer for work queue callbacks */
 	const struct device *dev;
 #endif
 

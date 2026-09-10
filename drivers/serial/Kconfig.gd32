@@ -11,6 +11,8 @@ config USART_GD32
 	select SERIAL_SUPPORT_INTERRUPT
 	select SERIAL_SUPPORT_ASYNC
 	select DMA if UART_ASYNC_API
-	select USE_GD32_USART
+	# GD32M53x names the HAL module UART, every other series names it USART.
+	select USE_GD32_UART if SOC_SERIES_GD32M53X
+	select USE_GD32_USART if !SOC_SERIES_GD32M53X
 	help
 	  This option enables the USART driver for GD32 SoC family.

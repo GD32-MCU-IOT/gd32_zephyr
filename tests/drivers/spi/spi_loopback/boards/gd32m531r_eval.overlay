@@ -1,0 +1,53 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * GD32M531R-EVAL SPI loopback test overlay.
+ *
+ * Use alternate SPI0 pins (PB0/SCK, PB2/MISO, PB1/MOSI) instead of the
+ * board-default PF pins, so that the on-board GD25Q16 Flash (which shares
+ * the PF SPI0 bus) is unaffected by the loopback short.
+ *
+ * Hardware requirement: short PB1 (MOSI) to PB2 (MISO).
+ */
+
+&pinctrl {
+	spi0_loopback_pb: spi0_loopback_pb {
+		group1 {
+			pinmux = <SPI0_SCK_PB0>, <SPI0_MISO_PB2>, <SPI0_MOSI_PB1>;
+		};
+	};
+};
+
+/ {
+	zephyr,user {
+		/* Used by parts of spi_loopback deinit checks. */
+		mosi-gpios = <&gpiob 1 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* Board DTS has a SPI NOR at spi0 reg=0; disable it for loopback test nodes. */
+&spi_flash0 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&spi0_loopback_pb>;
+
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
