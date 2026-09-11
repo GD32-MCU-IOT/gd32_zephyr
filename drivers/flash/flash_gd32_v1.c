@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 BrainCo Inc.
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
 #include <gd32_fmc.h>
+#include <gd32_icache.h>
 
 LOG_MODULE_DECLARE(flash_gd32);
 
@@ -37,6 +38,9 @@ LOG_MODULE_DECLARE(flash_gd32);
 #define GD32_FMC_V1_WRITE_ERR	(FMC_STAT_OPERR | FMC_STAT_PGSERR | \
 				 FMC_STAT_PGMERR | FMC_STAT_WPERR)
 #define GD32_FMC_V1_ERASE_ERR	(FMC_STAT_OPERR | FMC_STAT_WPERR)
+#elif defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+#define GD32_FMC_V1_WRITE_ERR	FMC_STAT_WPERR
+#define GD32_FMC_V1_ERASE_ERR	FMC_STAT_WPERR
 #else
 #define GD32_FMC_V1_WRITE_ERR	(FMC_STAT_PGERR | FMC_STAT_WPERR)
 #define GD32_FMC_V1_ERASE_ERR	FMC_STAT_WPERR
@@ -73,6 +77,24 @@ static int gd32_fmc_v1_wait_idle(void)
 			return -ETIMEDOUT;
 		}
 	}
+
+	return 0;
+}
+
+static int gd32_fmc_v1_icache_invalidate(void)
+{
+#if defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+	const int64_t expired_time = k_uptime_get() + GD32_NV_FLASH_V1_TIMEOUT;
+
+	ICACHE_FC |= ICACHE_FC_ENDC;
+	ICACHE_CTL |= ICACHE_CTL_INVAL;
+	while (!(ICACHE_STAT & ICACHE_STAT_END)) {
+		if (k_uptime_get() > expired_time) {
+			LOG_ERR("FMC icache invalidate timeout");
+			return -ETIMEDOUT;
+		}
+	}
+#endif
 
 	return 0;
 }
@@ -143,6 +165,10 @@ expired_out:
 
 	gd32_fmc_v1_lock();
 
+	if (ret == 0) {
+		ret = gd32_fmc_v1_icache_invalidate();
+	}
+
 	return ret;
 }
 
@@ -190,6 +216,10 @@ expired_out:
 #endif
 
 	gd32_fmc_v1_lock();
+
+	if (ret == 0) {
+		ret = gd32_fmc_v1_icache_invalidate();
+	}
 
 	return ret;
 }
