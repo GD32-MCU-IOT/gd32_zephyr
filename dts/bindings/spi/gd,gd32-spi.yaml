@@ -25,3 +25,12 @@ properties:
 
   pinctrl-names:
     required: true
+
+  quad-capable:
+    type: boolean
+    description: |
+      This instance implements the SPI_QCTL register and supports quad wire
+      mode. Quad wire mode is master only, half duplex and 8-bit frames only.
+      It also requires cs-gpios, because entering and leaving quad mode
+      toggles SPIEN, which would release a hardware driven NSS in the middle
+      of a transaction.
