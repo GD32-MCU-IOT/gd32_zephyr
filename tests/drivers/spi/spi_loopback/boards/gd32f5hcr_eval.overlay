@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * SPI0 (PB3/PB5/PB4 + PA10 CS) is reserved for the on-board GD25Q16 NOR flash
+ * used by the flash test, so the SPI loopback runs on SPI1 with a dedicated set
+ * of free GPIOD pins:
+ *   SCK  = PD2
+ *   MOSI = PD0
+ *   MISO = PD3
+ * The fixture must short MOSI (PD0) to MISO (PD3) for the loopback transfers.
+ */
+
+/ {
+	zephyr,user {
+		/* PD0 (MOSI) is shorted to PD3 (MISO) for the deinit test. */
+		mosi-gpios = <&gpiod 0 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* The NOR flash lives on SPI0; keep it out of the loopback build. */
+&nor_flash {
+	status = "disabled";
+};
+
+&pinctrl {
+	spi1_default: spi1_default {
+		group1 {
+			pinmux = <SPI1_SCK_PD2>, <SPI1_MOSI_PD0>,
+				 <SPI1_MISO_PD3>;
+		};
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiod 4 GPIO_ACTIVE_LOW>;
+
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
