@@ -94,6 +94,22 @@ LOG_MODULE_REGISTER(spi_gd32);
 
 #endif /* CONFIG_SOC_SERIES_GD32H7XX || CONFIG_SOC_SERIES_GD32H75E */
 
+/*
+ * Quad wire mode drives SPI_IO0..SPI_IO3 through the SPI_QCTL register, which
+ * only exists on the instances marked quad-capable. CONFIG_SPI_EXTENDED_MODES is
+ * required as well, because SPI_LINES_QUAD does not fit in a 16 bit
+ * spi_operation_t.
+ */
+#if defined(CONFIG_SPI_EXTENDED_MODES) && DT_ANY_INST_HAS_BOOL_STATUS_OKAY(quad_capable)
+#define SPI_GD32_HAS_QUAD 1
+#ifndef SPI_QCTL_IO23_DRV
+/* Series that drive SPI_IO2 and SPI_IO3 unconditionally have no IO23_DRV bit. */
+#define SPI_QCTL_IO23_DRV 0U
+#endif
+#else
+#define SPI_GD32_HAS_QUAD 0
+#endif
+
 #ifdef CONFIG_SPI_GD32_DMA
 
 enum spi_gd32_dma_direction {
@@ -123,6 +139,7 @@ struct spi_gd32_config {
 	uint16_t clkid;
 	struct reset_dt_spec reset;
 	const struct pinctrl_dev_config *pcfg;
+	bool quad_capable;
 #ifdef CONFIG_SPI_GD32_DMA
 	const struct spi_gd32_dma_config dma[NUM_OF_DIRECTION];
 #endif
@@ -218,6 +235,36 @@ static int spi_gd32_configure(const struct device *dev,
 	}
 
 	SPI_CTL0(cfg->reg) &= ~SPI_CTL0_SPIEN;
+
+#if SPI_GD32_HAS_QUAD
+	/* SPI_IO2 and SPI_IO3 stay driven in every mode, as the vendor firmware
+	 * does, so the flash never sees WP# or HOLD# float.
+	 */
+	if (cfg->quad_capable) {
+		SPI_QCTL(cfg->reg) |= SPI_QCTL_IO23_DRV;
+	}
+
+	/* QMOD must only be touched while SPIEN is cleared. */
+	switch (config->operation & SPI_LINES_MASK) {
+	case SPI_LINES_SINGLE:
+		if (cfg->quad_capable) {
+			SPI_QCTL(cfg->reg) &= ~SPI_QCTL_QMOD;
+		}
+		break;
+	case SPI_LINES_QUAD:
+		if (!cfg->quad_capable || !spi_cs_is_gpio(config) ||
+		    SPI_WORD_SIZE_GET(config->operation) != 8) {
+			LOG_ERR("quad mode needs a quad-capable instance, cs-gpios "
+				"and 8-bit frames");
+			return -ENOTSUP;
+		}
+		SPI_QCTL(cfg->reg) |= SPI_QCTL_QMOD;
+		break;
+	default:
+		LOG_ERR("Only single and quad lines are supported");
+		return -ENOTSUP;
+	}
+#endif /* SPI_GD32_HAS_QUAD */
 
 #if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
 	uint32_t cfg0 = SPI_CFG0(cfg->reg);
@@ -613,6 +660,25 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 		goto error;
 	}
 #endif
+
+#if SPI_GD32_HAS_QUAD
+	if ((config->operation & SPI_LINES_MASK) == SPI_LINES_QUAD) {
+		if (tx_bufs != NULL && rx_bufs != NULL) {
+			LOG_ERR("quad mode is half duplex, tx and rx are exclusive");
+			ret = -ENOTSUP;
+			goto error;
+		}
+
+		/* Frames still go out on SPI_IO0 while reading, which is what
+		 * clocks the bus, so only the direction bit changes here.
+		 */
+		if (rx_bufs != NULL) {
+			SPI_QCTL(cfg->reg) |= SPI_QCTL_QRD;
+		} else {
+			SPI_QCTL(cfg->reg) &= ~SPI_QCTL_QRD;
+		}
+	}
+#endif /* SPI_GD32_HAS_QUAD */
 
 	SPI_CTL0(cfg->reg) |= SPI_CTL0_SPIEN;
 
@@ -1017,6 +1083,7 @@ static int spi_gd32_deinit(const struct device *dev)
 		.clkid = DT_INST_CLOCKS_CELL(idx, id),			       \
 		.reset = RESET_DT_SPEC_INST_GET(idx),			       \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(idx),		       \
+		.quad_capable = DT_INST_PROP(idx, quad_capable),	       \
 		IF_ENABLED(CONFIG_SPI_GD32_DMA, (.dma = DMAS_DECL(idx),))      \
 		IF_ENABLED(CONFIG_SPI_GD32_INTERRUPT,			       \
 			   (.irq_configure = spi_gd32_irq_configure_##idx)) }; \
