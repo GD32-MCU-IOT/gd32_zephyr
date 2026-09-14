@@ -1,0 +1,24 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	aliases {
+		led0 = &test_gpio_led0;
+	};
+
+	test_gpio_leds {
+		compatible = "gpio-leds";
+
+		test_gpio_led0: test_gpio_led0 {
+			gpios = <&gpioc 0 GPIO_ACTIVE_LOW>;
+			label = "TEST GPIO LED0";
+		};
+	};
+};
+
+&gpioc {
+	status = "okay";
+};

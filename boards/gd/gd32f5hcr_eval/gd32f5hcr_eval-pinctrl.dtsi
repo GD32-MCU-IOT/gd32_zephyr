@@ -1,0 +1,28 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32w51x_f5hcr(i)xx-pinctrl.h>
+
+&pinctrl {
+	usart2_default: usart2_default {
+		group1 {
+			pinmux = <USART2_TX_PB10>, <USART2_RX_PB11>;
+		};
+	};
+
+	i2c1_default: i2c1_default {
+		group1 {
+			pinmux = <I2C1_SCL_PB15>, <I2C1_SDA_PA8>;
+		};
+	};
+
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_SCK_PB3>, <SPI0_MOSI_PB5>,
+				 <SPI0_MISO_PB4>;
+		};
+	};
+};

@@ -98,6 +98,12 @@ if(${CONFIG_SOC_SERIES_GD32C11X})
   zephyr_compile_definitions(GD32C11X)
 endif()
 
+# GD32W51X_F5HC series HAL public headers require GD32F5HC definition
+if(${CONFIG_SOC_SERIES_GD32W51X_F5HC})
+  zephyr_compile_definitions(GD32F5HC)
+  zephyr_compile_definitions(SYS_NS)
+endif()
+
 # Global includes to be used outside hal_gigadevice
 zephyr_include_directories(${gd32_soc_sys_dir}/include)
 zephyr_include_directories(${gd32_std_dir}/include)
@@ -163,6 +169,24 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_TRNG     ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_TSI      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_tsi.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USART    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_usart.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_WWDGT    ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_wwdgt.c)
+
+# For GD32F527
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_PKCAU     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_pkcau.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sai.c)
+
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau.c)
+# GD32F527, GD32G5X3, GD32H7XX, GD32L23X, GD32W51X_F5HC have AES/DES/TDES split into separate files
+if(CONFIG_SOC_SERIES_GD32F527
+    OR CONFIG_SOC_SERIES_GD32G5X3
+    OR CONFIG_SOC_SERIES_GD32H7XX
+    OR CONFIG_SOC_SERIES_GD32L23X
+    OR CONFIG_SOC_SERIES_GD32W51X_F5HC)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau_aes.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau_des.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau_tdes.c)
+endif()
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
 
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usb_core.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usb_dev.c)

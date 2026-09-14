@@ -1,0 +1,124 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <gd/gd32w51x_f5hc/gd32f5hcri.dtsi>
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+#include "gd32f5hcr_eval-pinctrl.dtsi"
+
+/ {
+	model = "GigaDevice GD32F5HCR-EVAL";
+	compatible = "gd,gd32f5hcr-eval";
+
+	chosen {
+		zephyr,flash = &flash0;
+		zephyr,sram = &sram0;
+		zephyr,console = &usart2;
+		zephyr,shell-uart = &usart2;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led1: led_1 {
+			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
+			label = "LED1";
+		};
+
+		led2: led_2 {
+			gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
+			label = "LED2";
+		};
+
+		led3: led_3 {
+			gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>;
+			label = "LED3";
+		};
+
+		led4: led_4 {
+			gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;
+			label = "LED4";
+		};
+	};
+
+	aliases {
+		led0 = &led1;
+		led1 = &led2;
+		led2 = &led3;
+		led3 = &led4;
+		eeprom-0 = &eeprom0;
+	};
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpiod {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	dmas = <&dma0 7 7 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH) 0>,
+	       <&dma0 3 7 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH) 0>;
+	dma-names = "tx", "rx";
+
+	eeprom0: eeprom@50 {
+		compatible = "atmel,at24";
+		reg = <0x50>;
+		status = "okay";
+		size = <256>;
+		pagesize = <8>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
+&usart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart2_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 1 4 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH) 0>,
+	       <&dma0 4 7 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH) 0>;
+	dma-names = "rx", "tx";
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
+	dmas = <&dma1 2 3 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH) 0>,
+	       <&dma1 5 3 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH) 0>;
+	dma-names = "rx", "tx";
+
+	nor_flash: gd25q16@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
+};

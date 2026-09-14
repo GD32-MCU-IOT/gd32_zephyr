@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * GD32F5HCR-EVAL board overlay for UART async API tests.
+ *
+ * Use USART1 (PA4/TX, PA5/RX) as the test DUT so that USART2 can remain
+ * the Zephyr console without conflicting with the test.
+ *
+ * Hardware requirement: short PA4 (USART1_TX) to PA5 (USART1_RX) for
+ * loopback testing.
+ */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+#include <dt-bindings/pinctrl/gd32w51x_f5hcr(i)xx-pinctrl.h>
+
+&pinctrl {
+	usart1_default: usart1_default {
+		group1 {
+			pinmux = <USART1_TX_PA4>, <USART1_RX_PA5>;
+		};
+	};
+};
+
+dut: &usart1 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart1_default>;
+	pinctrl-names = "default";
+	dmas = <&dma0 6 4 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH) 0>,
+	       <&dma0 5 4 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH) 0>;
+	dma-names = "tx", "rx";
+};
+
+&dma0 {
+	status = "okay";
+};
