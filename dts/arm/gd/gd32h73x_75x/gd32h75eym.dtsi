@@ -5,7 +5,7 @@
  */
 
 #include <mem.h>
-#include <arm/gd/gd32h75e/gd32h75e.dtsi>
+#include <arm/gd/gd32h73x_75x/gd32h75e.dtsi>
 
 / {
 	soc {
