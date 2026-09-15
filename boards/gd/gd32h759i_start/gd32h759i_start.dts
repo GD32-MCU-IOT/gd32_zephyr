@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <gd/gd32h7xx/gd32h759im.dtsi>
+#include <gd/gd32h73x_75x/gd32h759im.dtsi>
 #include "gd32h759i_start-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
@@ -25,18 +25,22 @@
 
 	leds {
 		compatible = "gpio-leds";
+
 		led1: led1 {
 			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
 			label = "LED1";
 		};
+
 		led2: led2 {
 			gpios = <&gpioc 10 GPIO_ACTIVE_LOW>;
 			label = "LED2";
 		};
+
 		led3: led3 {
 			gpios = <&gpioc 11 GPIO_ACTIVE_LOW>;
 			label = "LED3";
 		};
+
 		led4: led4 {
 			gpios = <&gpioc 12 GPIO_ACTIVE_LOW>;
 			label = "LED4";
@@ -45,6 +49,7 @@
 
 	gpio_keys {
 		compatible = "gpio-keys";
+
 		user_key: user_key {
 			gpios = <&gpiod 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 			label = "USER_KEY";
