@@ -30,7 +30,7 @@ description: |
     };
 
   This matches the convention used by every other Zephyr peripheral.
-  Series with multiple MAC instances (e.g. GD32H7xx ENET0/ENET1) repeat
+  Series with multiple MAC instances (e.g. GD32H73x_75x ENET0/ENET1) repeat
   this pair of labels per instance, unmodified.
 
 compatible: "gd,gd32-ethernet"

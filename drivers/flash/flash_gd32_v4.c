@@ -39,7 +39,7 @@ static const struct flash_pages_layout gd32_fmc_v4_layout[] = {
 
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
 
-/* GD32H7xx error flags */
+/* GD32H73x_75x error flags */
 #define GD32_FMC_V4_WRITE_ERR (FMC_STAT_WPERR | FMC_STAT_PGSERR)
 #define GD32_FMC_V4_ERASE_ERR (FMC_STAT_WPERR | FMC_STAT_PGSERR)
 

@@ -49,9 +49,8 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
-#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H7XX) || \
-	defined(CONFIG_SOC_SERIES_GD32H75E) || defined(CONFIG_SOC_SERIES_GD32G5X3) || \
-	defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+#if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H73X_75X) || \
+	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
 #elif defined(CONFIG_SOC_SERIES_GD32E51X)
@@ -801,7 +800,7 @@ static int usart_gd32_async_rx_disable(const struct device *dev)
  *
  * The actual buffer switch happens in the DMA RX callback when the
  * current buffer is full. This eliminates the DMA stop/restart GAP
- * that causes ORERR and data loss on H7xx.
+ * that causes ORERR and data loss on GD32H73x_75x.
  */
 static int usart_gd32_async_rx_buf_rsp(
 	const struct device *dev,
