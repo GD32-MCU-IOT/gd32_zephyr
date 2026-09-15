@@ -45,11 +45,9 @@ family:
   - name: gd32g5x3
     socs:
     - name: gd32g553
-  - name: gd32h7xx
+  - name: gd32h73x_75x
     socs:
     - name: gd32h759
-  - name: gd32h75e
-    socs:
     - name: gd32h75e
   - name: gd32l23x
     socs:

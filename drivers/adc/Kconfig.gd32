@@ -9,7 +9,7 @@ config ADC_GD32
 	default y
 	depends on DT_HAS_GD_GD32_ADC_ENABLED
 	select PINCTRL
-	select USE_GD32_TRIGSEL if SOC_SERIES_GD32H7XX || SOC_SERIES_GD32H75E
+	select USE_GD32_TRIGSEL if SOC_SERIES_GD32H73X_75X
 	select USE_GD32_ADC
 	help
 	  Enable GigaDevice GD32 ADC driver

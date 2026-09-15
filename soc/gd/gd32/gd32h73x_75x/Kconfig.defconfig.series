@@ -1,9 +1,10 @@
 # Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-if SOC_SERIES_GD32H7XX
+if SOC_SERIES_GD32H73X_75X
 
 rsource "Kconfig.defconfig.gd32h759"
+rsource "Kconfig.defconfig.gd32h75e"
 
 config ROM_START_OFFSET
 	default 0x400 if BOOTLOADER_MCUBOOT
@@ -15,4 +16,4 @@ config CACHE_MANAGEMENT
 config CAN_GD32_CAN_V2_FD
 	default y
 
-endif # SOC_SERIES_GD32H7XX
+endif # SOC_SERIES_GD32H73X_75X
