@@ -4,9 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_RESET_GD32H7XX_H_
-#define ZEPHYR_INCLUDE_DT_BINDINGS_RESET_GD32H7XX_H_
+#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_RESET_GD32H73X_75X_H_
+#define ZEPHYR_INCLUDE_DT_BINDINGS_RESET_GD32H73X_75X_H_
 #include "gd32-common.h"
+
+/**
+ * @file
+ * @brief GD32H73x_75x reset controller register offsets and peripheral
+ * reset definitions.
+ *
+ * Device Tree Bindings for GD32H73x_75x (incl. GD32H75E) reset
+ * configurations. These definitions refer to RCU register offsets and
+ * bit positions from the corresponding RCU HAL.
+ */
 
 /**
  * @name Register offsets
@@ -148,4 +158,4 @@
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_RESET_GD32H7XX_H_ */
+#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_RESET_GD32H73X_75X_H_ */

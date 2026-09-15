@@ -45,7 +45,7 @@ extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
  * single fixed MAC and take none. These wrappers hide the difference.
  * ARG_UNUSED(base) on non-H7 keeps cfg->base evaluated at every call site.
  */
-#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+#if defined(CONFIG_SOC_GD32H759)
 #define GD32_ENET_MAC_CFG(base)                     ENET_MAC_CFG(base)
 #define gd32_enet_software_reset(base)              enet_software_reset(base)
 #define gd32_enet_init(base, mode, chksum, filt)    enet_init((base), (mode), (chksum), (filt))

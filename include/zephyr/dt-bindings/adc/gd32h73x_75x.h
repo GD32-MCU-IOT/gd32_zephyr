@@ -6,14 +6,14 @@
 
 /**
  * @file
- * @brief GD32H7XX and GD32H75E ADC clock prescaler definitions
+ * @brief GD32H73x_75x ADC clock prescaler definitions
  *
- * Device Tree Bindings for GD32H7XX and GD32H75E ADC clock configurations.
+ * Device Tree Bindings for GD32H73x_75x (incl. GD32H75E) ADC clock configurations.
  * These definitions refer to ADC_CLK_* values from the corresponding ADC HAL.
  */
 
-#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_ADC_GD32H7XX_H_
-#define ZEPHYR_INCLUDE_DT_BINDINGS_ADC_GD32H7XX_H_
+#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_ADC_GD32H73X_75X_H_
+#define ZEPHYR_INCLUDE_DT_BINDINGS_ADC_GD32H73X_75X_H_
 
 /** Synchronous clock mode: ADC clock = HCLK / 2 */
 #define GD32_ADC_CLK_SYNC_HCLK_DIV2  0x00080000
@@ -57,4 +57,4 @@
 /** Asynchronous clock mode: ADC clock = async_clk / 256 */
 #define GD32_ADC_CLK_ASYNC_DIV256 0x00B00000
 
-#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_ADC_GD32H7XX_H_ */
+#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_ADC_GD32H73X_75X_H_ */
