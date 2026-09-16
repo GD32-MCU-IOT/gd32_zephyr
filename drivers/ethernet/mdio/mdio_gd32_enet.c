@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(mdio_gd32_enet, CONFIG_MDIO_LOG_LEVEL);
  * MDIO is embedded in the MAC's own registers, accessed via
  * enet_phy_write_read().
  */
-#if defined(CONFIG_SOC_SERIES_GD32H7XX)
+#if defined(CONFIG_SOC_GD32H759)
 #define gd32_enet_phy_write_read(base, direction, addr, reg, pval)                                 \
 	enet_phy_write_read((base), (direction), (addr), (reg), (pval))
 #else
