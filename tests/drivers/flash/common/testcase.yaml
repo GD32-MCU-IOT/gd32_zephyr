@@ -154,6 +154,10 @@ tests:
   drivers.flash.common.gd32_nor:
     platform_allow:
       - gd32f5hcr_eval
+  drivers.flash.common.gd32c113_internal:
+    platform_allow:
+      - gd32c113v_eval
+    extra_args: EXTRA_CONF_FILE=boards/gd32c113v_eval_internal.conf
   drivers.flash.common.silabs.dma:
     platform_allow:
       - xg24_rb4187c
