@@ -1,0 +1,35 @@
+/*
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
+ */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+#include <dt-bindings/pinctrl/gd32f307v(g-e-c)xx-pinctrl.h>
+
+/*
+ * Moved off the default PA2/PA3 pair: on the connectivity-line GD32F307 those
+ * are ETH_MDIO/ETH_COL and the on-board PHY loads/drives them, so a jumper
+ * never reaches the receiver. PD5/PD6 have no ENET alternate function.
+ */
+&pinctrl {
+	usart1_remap: usart1_remap {
+		group1 {
+			pinmux = <USART1_TX_PD5_RMP>, <USART1_RX_PD6_RMP>;
+		};
+	};
+};
+
+/* Connect PD5 (TX) to PD6 (RX) for loopback test */
+dut: &usart1 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart1_remap>;
+	pinctrl-names = "default";
+	dmas = <&dma0 6 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dma0 5 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "tx", "rx";
+};
+
+&dma0 {
+	status = "okay";
+};
