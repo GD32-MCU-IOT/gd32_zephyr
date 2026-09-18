@@ -1,0 +1,28 @@
+# Copyright (c) 2025 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Flash memory binding of GD32 M53x FMC.
+
+  The M53x FMC programs the main flash in 128-bit quad-words protected by a
+  9-bit ECC. A quad-word can only be programmed once per erase cycle, and a
+  partially programmed quad-word is silently discarded by the hardware, so
+  this FMC is not compatible with the v1..v4 backends.
+
+  GD32 series use this type flash memory:
+    - GD32M53x
+
+include: soc-nv-flash.yaml
+
+compatible: "gd,gd32-nv-flash-m53x"
+
+properties:
+  max-erase-time-ms:
+    type: int
+    required: true
+    description: Max erase time(millisecond) of a flash page
+
+  page-size:
+    type: int
+    required: true
+    description: Flash memory page size
