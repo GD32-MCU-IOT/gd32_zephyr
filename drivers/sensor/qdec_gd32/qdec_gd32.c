@@ -7,6 +7,7 @@
 #define DT_DRV_COMPAT gd_gd32_qdec
 
 #include <errno.h>
+#include <limits.h>
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/clock_control.h>
@@ -47,7 +48,16 @@ static void qdec_gd32_update_overflow(const struct device *dev)
 	}
 
 	timer_interrupt_flag_clear(config->reg, TIMER_INT_FLAG_UP);
-	delta = (TIMER_CTL0(config->reg) & TIMER_CTL0_DIR) != 0U ? -0x10000 : 0x10000;
+	/* Decide overflow direction by sampling the counter right after the wrap:
+	 * an up-overflow lands near 0 while a down-underflow lands near CAR, so a
+	 * midpoint comparison is robust to ISR latency. This avoids reading
+	 * TIMER_CTL0_DIR, which only reflects the *current* direction and can flip
+	 * within a single count if the encoder reverses before the ISR runs.
+	 */
+	uint16_t cnt = (uint16_t)TIMER_CNT(config->reg);
+	uint32_t mid = ((uint32_t)TIMER_CAR(config->reg) + 1U) / 2U;
+
+	delta = (cnt < mid) ? (int32_t)0x10000 : -(int32_t)0x10000;
 	if (config->invert_direction) {
 		delta = -delta;
 	}
@@ -100,11 +110,23 @@ static int qdec_gd32_channel_get(const struct device *dev, enum sensor_channel c
 	return 0;
 }
 
+/* Keep enough headroom so that later +/-0x10000 overflow adjustments and the
+ * addition of the 16-bit hardware counter stay within the int32_t range.
+ */
+#define QDEC_GD32_COUNT_MIN (INT32_MIN + 0x10000)
+#define QDEC_GD32_COUNT_MAX (INT32_MAX - 0x10000)
+
 int qdec_gd32_set_count(const struct device *dev, int32_t count)
 {
 	const struct qdec_gd32_config *config = dev->config;
 	struct qdec_gd32_data *data = dev->data;
 	unsigned int key = irq_lock();
+
+	if (count > QDEC_GD32_COUNT_MAX) {
+		count = QDEC_GD32_COUNT_MAX;
+	} else if (count < QDEC_GD32_COUNT_MIN) {
+		count = QDEC_GD32_COUNT_MIN;
+	}
 
 	data->overflow_count = count;
 	data->sample = count;
@@ -125,8 +147,7 @@ static int qdec_gd32_init(const struct device *dev)
 		return result;
 	}
 
-	result = clock_control_on(GD32_CLOCK_CONTROLLER,
-				  (clock_control_subsys_t)&config->clkid);
+	result = clock_control_on(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&config->clkid);
 	if (result != 0) {
 		return result;
 	}
@@ -141,11 +162,10 @@ static int qdec_gd32_init(const struct device *dev)
 	TIMER_CAR(config->reg) = UINT16_MAX;
 	TIMER_CNT(config->reg) = 0U;
 	timer_quadrature_decoder_mode_config(config->reg, config->encoder_mode,
-					     TIMER_IC_POLARITY_RISING,
-					     TIMER_IC_POLARITY_RISING);
+					     TIMER_IC_POLARITY_RISING, TIMER_IC_POLARITY_RISING);
 	TIMER_CHCTL0(config->reg) &= ~(TIMER_CHCTL0_CH0CAPFLT | TIMER_CHCTL0_CH1CAPFLT);
-	TIMER_CHCTL0(config->reg) |= ((uint32_t)config->input_filter << 4U) |
-				      ((uint32_t)config->input_filter << 12U);
+	TIMER_CHCTL0(config->reg) |=
+		((uint32_t)config->input_filter << 4U) | ((uint32_t)config->input_filter << 12U);
 	TIMER_CHCTL2(config->reg) |= TIMER_CHCTL2_CH0EN | TIMER_CHCTL2_CH1EN;
 	timer_interrupt_flag_clear(config->reg, TIMER_INT_FLAG_UP);
 	timer_interrupt_enable(config->reg, TIMER_INT_UP);
@@ -160,26 +180,26 @@ static DEVICE_API(sensor, qdec_gd32_api) = {
 	.channel_get = qdec_gd32_channel_get,
 };
 
-#define QDEC_GD32_DEFINE(n)                                                                      \
-	static void qdec_gd32_irq_config_##n(const struct device *dev)                            \
-	{                                                                                         \
+#define QDEC_GD32_DEFINE(n)                                                                        \
+	static void qdec_gd32_irq_config_##n(const struct device *dev)                             \
+	{                                                                                          \
 		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), qdec_gd32_isr,              \
 			    DEVICE_DT_INST_GET(n), 0);                                             \
 		irq_enable(DT_INST_IRQN(n));                                                       \
-	}                                                                                         \
-	PINCTRL_DT_INST_DEFINE(n);                                                                \
-	static struct qdec_gd32_data qdec_gd32_data_##n;                                          \
-	static const struct qdec_gd32_config qdec_gd32_config_##n = {                             \
+	}                                                                                          \
+	PINCTRL_DT_INST_DEFINE(n);                                                                 \
+	static struct qdec_gd32_data qdec_gd32_data_##n;                                           \
+	static const struct qdec_gd32_config qdec_gd32_config_##n = {                              \
 		.reg = DT_INST_REG_ADDR(n),                                                        \
 		.clkid = DT_INST_CLOCKS_CELL(n, id),                                               \
 		.reset = RESET_DT_SPEC_INST_GET(n),                                                \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                         \
-		.encoder_mode = DT_INST_PROP(n, gd_encoder_mode),                                   \
-		.input_filter = DT_INST_PROP(n, gd_input_filter),                                   \
-		.invert_direction = DT_INST_PROP(n, gd_invert_direction),                           \
-		.irq_config = qdec_gd32_irq_config_##n,                                             \
-	};                                                                                        \
-	SENSOR_DEVICE_DT_INST_DEFINE(n, qdec_gd32_init, NULL, &qdec_gd32_data_##n,                \
+		.encoder_mode = DT_INST_PROP(n, gd_encoder_mode),                                  \
+		.input_filter = DT_INST_PROP(n, gd_input_filter),                                  \
+		.invert_direction = DT_INST_PROP(n, gd_invert_direction),                          \
+		.irq_config = qdec_gd32_irq_config_##n,                                            \
+	};                                                                                         \
+	SENSOR_DEVICE_DT_INST_DEFINE(n, qdec_gd32_init, NULL, &qdec_gd32_data_##n,                 \
 				     &qdec_gd32_config_##n, POST_KERNEL,                           \
 				     CONFIG_SENSOR_INIT_PRIORITY, &qdec_gd32_api);
 
