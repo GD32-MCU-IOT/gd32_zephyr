@@ -244,7 +244,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 		 * Otherwise, they are set to twice the frequency of the APB
 		 * domain.
 		 */
-		if (psc != 1U) {
+		if (psc >= 4U) {
 			*rate *= 2U;
 		}
 #endif /* CONFIG_SOC_SERIES_GD32F4XX || CONFIG_SOC_SERIES_GD32F527 ||
