@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Test DMA UART on UART2 (PF8-TX / PF9-RX, AF6).
+ * Short PF8 and PF9 for loopback.
+ *
+ * Why PF8 (not PF10):
+ *   UART2_TX can be PF8 or PF10.
+ *   PF10 = I2C0_SDA — shorting PF10-PF9 would short I2C SDA to SCL,
+ *   breaking the I2C test that runs separately.
+ *   PF8 = SPI0_MOSI — but SPI loopback uses the alternate PB pin group,
+ *   so PF8 is free. Shorting PF8-PF9 is safe for all other tests:
+ *     - I2C test: PF8 is idle (UART2 disabled), PF9=SCL, PF10=SDA.
+ *     - Flash test: PF8=MOSI, PF9 is I2C0_SCL (idle, harmless).
+ *     - SPI loopback: uses PB0/PB1/PB2, PF8/PF9 untouched.
+ *
+ * Why not other UARTs:
+ *   UART0 - PG11(TX)/PG13(RX) conflict with JTAG (JTDO/JTDI),
+ *            debugger holds the pins via 0-ohm resistors on eval board.
+ *   UART1 - PB14/PB15 not routed to header on this eval board.
+ *   UART3 - Used as zephyr,console (PF13/PF14).
+ *
+ * PF8/PF9 are shared with SPI0_MOSI and I2C0_SCL respectively,
+ * so both SPI0 and I2C0 must be disabled when testing UART2.
+ */
+
+&pinctrl {
+	uart2_test: uart2_test {
+		group1 {
+			pinmux = <UART2_TX_PF8>, <UART2_RX_PF9>;
+		};
+	};
+};
+
+dut: &uart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart2_test>;
+	pinctrl-names = "default";
+};
+
+&spi0 {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
