@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32m531r(b-z-c)xx-pinctrl.h>
+
+&pinctrl {
+	uart3_default: uart3_default {
+		group1 {
+			pinmux = <UART3_TX_PF13>, <UART3_RX_PF14>;
+		};
+	};
+
+	uart2_default: uart2_default {
+		group1 {
+			pinmux = <UART2_TX_PF8>, <UART2_RX_PF9>;
+		};
+	};
+
+	uart0_default: uart0_default {
+		group1 {
+			pinmux = <UART0_TX_PG11>, <UART0_RX_PG13>;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SCL_PF9>, <I2C0_SDA_PF10>;
+			drive-open-drain;
+		};
+	};
+
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_SCK_PF11>, <SPI0_MISO_PF12>, <SPI0_MOSI_PF8>;
+		};
+	};
+};
