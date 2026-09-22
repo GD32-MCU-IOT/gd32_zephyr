@@ -317,6 +317,7 @@
 			resets = <&rctl GD32_RESET_SPI5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			quad-capable;
 			status = "disabled";
 		};
 
