@@ -103,4 +103,16 @@
 			slew-rate = "max-speed-200mhz";
 		};
 	};
+
+	can0_default: can0_default {
+		group1 {
+			pinmux = <CAN0_TX_PB9>, <CAN0_RX_PB8>;
+		};
+	};
+
+	can1_default: can1_default {
+		group1 {
+			pinmux = <CAN1_TX_PB6>, <CAN1_RX_PB5>;
+		};
+	};
 };

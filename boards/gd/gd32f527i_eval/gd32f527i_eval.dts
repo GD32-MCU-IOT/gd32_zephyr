@@ -20,6 +20,7 @@
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
 		zephyr,display = &tli;
+		zephyr,canbus = &can0;
 	};
 
 	leds {
@@ -215,4 +216,25 @@
 	ahb-prescaler = <1>;
 	apb1-prescaler = <4>;
 	apb2-prescaler = <2>;
+};
+
+&can0 {
+	status = "okay";
+	pinctrl-0 = <&can0_default>;
+	pinctrl-names = "default";
+	bitrate = <500000>;
+	bitrate-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
+};
+
+/* CAN1 TX (PB6) is shared with I2C0 SCL, which owns the on-board EEPROM. */
+&can1 {
+	status = "disabled";
+	pinctrl-0 = <&can1_default>;
+	pinctrl-names = "default";
+	bitrate = <500000>;
+	bitrate-data = <1000000>;
+	sample-point = <800>;
+	sample-point-data = <800>;
 };
