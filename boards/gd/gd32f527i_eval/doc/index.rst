@@ -20,6 +20,9 @@ The following hardware is described by the current Zephyr board files:
 - USART0 console with TX on PA9 and RX on PA10
 - AT24-compatible EEPROM on I2C0 at address 0x50
 - GD25Q16-compatible SPI NOR flash on SPI5
+- CAN0 with TX on PB9 and RX on PB8. These pins are only routed to the extension
+  headers, so an external CAN transceiver is required. The on-board transceiver is
+  wired to PH13/PI9, which are shared with the TLI LCD.
 - DMA support for enabled I2C, USART, and SPI peripherals
 
 Supported Features
