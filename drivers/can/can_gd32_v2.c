@@ -711,7 +711,7 @@ static int can_gd32_send(const struct device *dev, const struct can_frame *frame
 	tx_msg.fdf = (frame->flags & CAN_FRAME_FDF) != 0 ? 1U : 0U;
 	tx_msg.brs = (frame->flags & CAN_FRAME_BRS) != 0 ? 1U : 0U;
 #endif
-#if defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_GD32H75E)
 	/* GD32H75E HAL: mailbox descriptor `data` is an inline uint8_t[64] array */
 	memcpy(tx_msg.data, frame->data, data_length);
 #else

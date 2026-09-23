@@ -19,15 +19,15 @@
 
 #include <gd32_adc.h>
 #include <gd32_rcu.h>
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #include <gd32_trigsel.h>
 #endif
 
 /*
- * GD32H75E HAL uses "ROUTRG"/"ROUTINE" naming where GD32H7XX uses "REGTRG"/"REGULAR".
+ * GD32H75E HAL uses "ROUTRG"/"ROUTINE" naming where GD32H73x_75x uses "REGTRG"/"REGULAR".
  * Provide aliases so the shared init code below needs no per-SoC ifdefs.
  */
-#if defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_GD32H75E)
 #define TRIGSEL_OUTPUT_ADC0_REGTRG TRIGSEL_OUTPUT_ADC0_ROUTRG
 #define TRIGSEL_OUTPUT_ADC1_REGTRG TRIGSEL_OUTPUT_ADC1_ROUTRG
 #define TRIGSEL_OUTPUT_ADC2_REGTRG TRIGSEL_OUTPUT_ADC2_ROUTRG
@@ -72,7 +72,7 @@ LOG_MODULE_REGISTER(adc_gd32, CONFIG_ADC_LOG_LEVEL);
 #define ADC2_ENABLE		DT_NODE_HAS_STATUS_OKAY(ADC2_NODE)
 
 /* ADC0 and ADC1 share ADC0 SYNCCTL. ADC2 uses its own SYNCCTL. */
-#if (defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)) && \
+#if (defined(CONFIG_SOC_SERIES_GD32H73X_75X)) && \
 	ADC0_ENABLE && ADC1_ENABLE
 BUILD_ASSERT(DT_PROP(ADC0_NODE, rcu_clock_source) == DT_PROP(ADC1_NODE, rcu_clock_source),
 	     "ADC0 and ADC1 share ADC0 SYNCCTL; use the same rcu-clock-source");
@@ -110,7 +110,7 @@ BUILD_ASSERT(DT_PROP(ADC0_NODE, rcu_clock_source) == DT_PROP(ADC1_NODE, rcu_cloc
 
 #define SPT_WIDTH   3U
 #define SAMPT1_SIZE 10U
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define ADC_GD32_H7_DEFAULT_SAMPLE_TIME       0U
 #define ADC_GD32_H7_ADC01_MIN_ACQ_TICKS       4U
 #define ADC_GD32_H7_ADC01_MAX_ACQ_TICKS       811U
@@ -201,7 +201,7 @@ struct adc_gd32_dma_data {
 struct adc_gd32_config {
 	uint32_t reg;
 #if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32F50X) || \
-	defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	uint32_t rcu_clock_source;
 #endif
 	uint16_t clkid;
@@ -210,7 +210,7 @@ struct adc_gd32_config {
 	const struct pinctrl_dev_config *pcfg;
 	uint8_t irq_num;
 	void (*irq_config_func)(void);
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	uint32_t trigger_select;
 #endif
 #ifdef CONFIG_ADC_GD32_DMA
@@ -361,7 +361,7 @@ static inline void adc_gd32_calibration(const struct adc_gd32_config *cfg)
 #endif
 }
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 static int adc_gd32_h7_sample_time_from_acq_time(const struct adc_gd32_config *cfg,
 						 uint16_t acq_time, uint16_t *sample_time)
 {
@@ -411,7 +411,7 @@ static int adc_gd32_h7_sample_time_from_acq_time(const struct adc_gd32_config *c
 static int adc_gd32_configure_sampt(const struct adc_gd32_config *cfg,
 				    uint8_t channel, uint16_t acq_time)
 {
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	uint16_t sample_time;
 	int ret;
 
@@ -487,7 +487,7 @@ static int adc_gd32_channel_setup(const struct device *dev,
 					chan_cfg->acquisition_time);
 }
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 static int adc_gd32_h7_resolution_id(const struct adc_gd32_config *cfg,
 				     uint8_t resolution, uint8_t *resolution_id)
 {
@@ -547,7 +547,7 @@ static int adc_gd32_start_read(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	{
 		int ret = adc_gd32_h7_resolution_id(cfg, sequence->resolution,
 						       &resolution_id);
@@ -576,8 +576,7 @@ static int adc_gd32_start_read(const struct device *dev,
 #endif
 
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || \
-	defined(CONFIG_SOC_SERIES_GD32H7XX) || \
-	defined(CONFIG_SOC_SERIES_GD32H75E) || \
+	defined(CONFIG_SOC_SERIES_GD32H73X_75X) || \
 	defined(CONFIG_SOC_SERIES_GD32F3X0) || \
 	defined(CONFIG_SOC_SERIES_GD32L23X)
 	ADC_CTL0(cfg->reg) &= ~ADC_CTL0_DRES;
@@ -596,7 +595,7 @@ static int adc_gd32_start_read(const struct device *dev,
 	}
 
 	/* Single conversion mode with regular group. */
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	ADC_RSQ8(cfg->reg) &= ~ADC_RSQX_RSQN;
 	ADC_RSQ8(cfg->reg) |= index;
 #else
@@ -696,7 +695,7 @@ static int adc_gd32_init(const struct device *dev)
 	(void)clock_control_on(GD32_CLOCK_CONTROLLER,
 			       (clock_control_subsys_t)&cfg->clkid);
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	if (cfg->reg == ADC1) {
 		uint16_t adc0_clkid = DT_CLOCKS_CELL(ADC0_NODE, id);
 
@@ -712,7 +711,7 @@ static int adc_gd32_init(const struct device *dev)
 	rcu_adc_clock_config(cfg->rcu_clock_source);
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	adc_clock_config(cfg->reg, cfg->rcu_clock_source);
 
 	if (cfg->trigger_select == 0U) {
@@ -830,14 +829,14 @@ static void adc_gd32_global_irq_cfg(void)
 }
 
 #if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32F50X) || \
-	defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+	defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define ADC_CLOCK_SOURCE(n)									\
 	.rcu_clock_source = DT_INST_PROP(n, rcu_clock_source)
 #else
 #define ADC_CLOCK_SOURCE(n)
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define ADC_TRIGGER_SELECT(n)									\
 	.trigger_select = DT_INST_PROP(n, trigger_select),
 #else

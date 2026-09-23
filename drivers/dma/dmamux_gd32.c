@@ -310,8 +310,8 @@ static DEVICE_API(dma, dmamux_gd32_api) = {
  * Channel map generation macros
  *
  * Maps DMAMUX channels to underlying DMA controllers:
- *   For F50x: DMAMUX ch0-6  -> DMA0 ch0-6； DMAMUX ch7-11 -> DMA1 ch0-4
- *   For H7xx: DMAMUX ch0-7  -> DMA0 ch0-7； DMAMUX ch8-18 -> DMA1 ch0-7
+ *   For F50x: DMAMUX ch0-6  -> DMA0 ch0-6; DMAMUX ch7-11 -> DMA1 ch0-4
+ *   For H73x_75x: DMAMUX ch0-7  -> DMA0 ch0-7; DMAMUX ch8-18 -> DMA1 ch0-7
  */
 
 #define DMAMUX_DMA0_DEV DEVICE_DT_GET_OR_NULL(DT_NODELABEL(dma0))

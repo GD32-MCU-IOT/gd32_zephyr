@@ -7,12 +7,12 @@
 #include <freq.h>
 #include <arm/armv7-m.dtsi>
 #include <zephyr/dt-bindings/adc/adc.h>
-#include <zephyr/dt-bindings/adc/gd32h7xx.h>
+#include <zephyr/dt-bindings/adc/gd32h73x_75x.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
-#include <zephyr/dt-bindings/clock/gd32h7xx-clocks.h>
-#include <zephyr/dt-bindings/reset/gd32h7xx.h>
+#include <zephyr/dt-bindings/clock/gd32h73x_75x-clocks.h>
+#include <zephyr/dt-bindings/reset/gd32h73x_75x.h>
 
 / {
 	cpus {

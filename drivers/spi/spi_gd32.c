@@ -49,7 +49,7 @@ LOG_MODULE_REGISTER(spi_gd32);
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 
 #define SPI_DATA_TX(spix) SPI_TDATA(spix)
 #define SPI_DATA_RX(spix) SPI_RDATA(spix)
@@ -71,7 +71,7 @@ LOG_MODULE_REGISTER(spi_gd32);
 #define SPI_INT_ENABLE_ERR(spix)                                                                   \
 	(SPI_INT(spix) |= (SPI_INT_RXOREIE | SPI_INT_TXUREIE | SPI_INT_CRCERIE | SPI_INT_CONFEIE))
 
-#else /* CONFIG_SOC_SERIES_GD32H7XX || CONFIG_SOC_SERIES_GD32H75E */
+#else /* CONFIG_SOC_SERIES_GD32H73X_75X */
 
 #define SPI_DATA_TX(spix) SPI_DATA(spix)
 #define SPI_DATA_RX(spix) SPI_DATA(spix)
@@ -92,7 +92,7 @@ LOG_MODULE_REGISTER(spi_gd32);
 
 #define SPI_INT_ENABLE_ERR(spix) (SPI_CTL1(spix) |= SPI_CTL1_ERRIE)
 
-#endif /* CONFIG_SOC_SERIES_GD32H7XX || CONFIG_SOC_SERIES_GD32H75E */
+#endif /* CONFIG_SOC_SERIES_GD32H73X_75X */
 
 /* SPI_QCTL only exists on the instances marked quad-capable in the devicetree. */
 #define SPI_GD32_HAS_QUAD DT_ANY_INST_HAS_BOOL_STATUS_OKAY(quad_capable)
@@ -273,7 +273,7 @@ static int spi_gd32_configure(const struct device *dev,
 	}
 #endif /* SPI_GD32_QUAD_ENABLED */
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	uint32_t cfg0 = SPI_CFG0(cfg->reg);
 	uint32_t cfg1 = SPI_CFG1(cfg->reg);
 
@@ -330,7 +330,7 @@ static int spi_gd32_configure(const struct device *dev,
 	SPI_CFG0(cfg->reg) = cfg0;
 	SPI_CFG1(cfg->reg) = cfg1;
 	SPI_I2SCTL(cfg->reg) &= ~SPI_I2SCTL_I2SSEL;
-#else  /* CONFIG_SOC_SERIES_GD32H7XX || CONFIG_SOC_SERIES_GD32H75E */
+#else  /* CONFIG_SOC_SERIES_GD32H73X_75X */
 	SPI_CTL0(cfg->reg) |= SPI_MASTER;
 	SPI_CTL0(cfg->reg) &= ~SPI_TRANSMODE_BDTRANSMIT;
 #if defined(CONFIG_SOC_SERIES_GD32G5X3)
@@ -390,7 +390,7 @@ static int spi_gd32_configure(const struct device *dev,
 			break;
 		}
 	}
-#endif /* CONFIG_SOC_SERIES_GD32H7XX || CONFIG_SOC_SERIES_GD32H75E */
+#endif /* CONFIG_SOC_SERIES_GD32H73X_75X */
 
 	data->ctx.config = config;
 
@@ -403,7 +403,7 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 	const struct spi_gd32_config *cfg = dev->config;
 	struct spi_context *ctx = &data->ctx;
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	uint32_t tx_frame = 0U, rx_frame = 0U;
 
 	/* Set transfer count and start transfer */
@@ -435,7 +435,7 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 
 		spi_context_update_tx(ctx, 2, 1);
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	else if (SPI_WORD_SIZE_GET(ctx->config->operation) == 32) {
 		if (spi_context_tx_buf_on(ctx)) {
 			tx_frame = UNALIGNED_GET((uint32_t *)(data->ctx.tx_buf));
@@ -471,7 +471,7 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 
 		spi_context_update_rx(ctx, 2, 1);
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
 		rx_frame = SPI_DATA_RX(cfg->reg);
 		if (spi_context_rx_buf_on(ctx)) {
@@ -526,7 +526,7 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 		dma_cfg->source_data_size = 2;
 		dma_cfg->dest_data_size = 2;
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
 		dma_cfg->source_data_size = 4;
 		dma_cfg->dest_data_size = 4;
@@ -611,7 +611,7 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 		return 0;
 	}
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	/* Disable SPI before configuring transfer count */
 	spi_disable(cfg->reg);
 	/* Configure SPI transfer count for GD32H7 */
@@ -635,7 +635,7 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 	/* Enable SPI DMA requests AFTER DMA channels are started */
 	SPI_DMA_ENABLE(cfg->reg);
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	/* Start SPI master transfer for GD32H7 */
 	spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
 #endif
@@ -715,7 +715,7 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 	} else
 #endif
 	{
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 		SPI_STATC(cfg->reg) &= ~(SPI_STAT_RP | SPI_STAT_TP | SPI_GD32_ERR_MASK);
 		SPI_INT(cfg->reg) |= (SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_FEIE);
 #else
@@ -786,7 +786,7 @@ static void spi_gd32_complete(const struct device *dev, int status)
 	struct spi_gd32_data *data = dev->data;
 	const struct spi_gd32_config *cfg = dev->config;
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	SPI_INT(cfg->reg) &= ~(SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_FEIE);
 #else
 	SPI_CTL1(cfg->reg) &= ~(SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE);
@@ -889,7 +889,7 @@ static void spi_gd32_dma_callback(const struct device *dma_dev, void *arg,
 			spi_context_update_tx(&data->ctx, 2, chunk_len);
 			spi_context_update_rx(&data->ctx, 2, chunk_len);
 		}
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 		else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
 			spi_context_update_tx(&data->ctx, 4, chunk_len);
 			spi_context_update_rx(&data->ctx, 4, chunk_len);

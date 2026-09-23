@@ -4,10 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H7XX_CLOCKS_H_
-#define ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H7XX_CLOCKS_H_
+#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H73X_75X_CLOCKS_H_
+#define ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H73X_75X_CLOCKS_H_
 
 #include "gd32-clocks-common.h"
+
+/**
+ * @file
+ * @brief GD32H73x_75x clock controller register offsets and peripheral
+ * clock enable/disable definitions.
+ *
+ * Device Tree Bindings for GD32H73x_75x (incl. GD32H75E) clock
+ * configurations. These definitions refer to RCU register offsets and
+ * bit positions from the corresponding RCU HAL.
+ */
 
 /**
  * @name Register offsets
@@ -170,4 +180,4 @@
 #define GD32_CLOCK_CAN1 GD32_CLOCK_CONFIG(ADDAPB2EN, 1U) /**< CAN1 clock */
 #define GD32_CLOCK_CAN2 GD32_CLOCK_CONFIG(ADDAPB2EN, 2U) /**< CAN2 clock */
 
-#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H7XX_CLOCKS_H_ */
+#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H73X_75X_CLOCKS_H_ */
