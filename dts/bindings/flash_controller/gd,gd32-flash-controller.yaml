@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 description: |
-  There are three types GD32 FMC.
+  GigaDevice GD32 flash memory controller (FMC).
 
   GD32 FMC v1: its flash memory has 1 bank, page size is equal in the bank,
   flash size is smaller than 512KB.
@@ -16,6 +16,16 @@ description: |
 
   GD32 FMC v4: its flash memory has 1 bank, page size is equal in the bank,
   flash size is smaller than 3840KB, with flash RTDEC. Such as GD32H7xx.
+
+  The FMC version above is selected by the gd,gd32-nv-flash-* compatible of
+  the flash memory child node.
+
+  Variants with their own binding include this one, and the SoC node lists
+  the variant compatible first:
+
+    compatible = "gd,gd32-flash-controller-m53x", "gd,gd32-flash-controller";
+
+    - gd,gd32-flash-controller-m53x: GD32M53x
 
 compatible: "gd,gd32-flash-controller"
 

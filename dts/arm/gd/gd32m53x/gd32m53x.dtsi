@@ -73,7 +73,7 @@
 		};
 
 		fmc: flash-controller@40022000 {
-			compatible = "gd,gd32-flash-controller";
+			compatible = "gd,gd32-flash-controller-m53x", "gd,gd32-flash-controller";
 			reg = <0x40022000 0x400>;
 
 			#address-cells = <1>;
