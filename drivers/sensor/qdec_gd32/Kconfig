@@ -1,0 +1,11 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config QDEC_GD32
+	bool "GD32 timer quadrature decoder"
+	default y
+	depends on DT_HAS_GD_GD32_QDEC_ENABLED
+	select PINCTRL
+	select USE_GD32_TIMER
+	help
+	  Enable the GD32 timer quadrature decoder sensor driver.
