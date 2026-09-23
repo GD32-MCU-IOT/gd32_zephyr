@@ -1,0 +1,19 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&dac {
+	status = "okay";
+	pinctrl-0 = <&dac_default>;
+	pinctrl-names = "default";
+};
+
+/ {
+	zephyr,user {
+		dac = <&dac>;
+		dac-channel-id = <0>;
+		dac-resolution = <12>;
+	};
+};

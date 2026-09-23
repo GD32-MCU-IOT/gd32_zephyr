@@ -31,6 +31,14 @@ LOG_MODULE_REGISTER(dac_gd32, CONFIG_DAC_LOG_LEVEL);
 #define DAC_CTL_DEN0 DAC_CTL_DEN
 #define DAC0_R8DH    DAC_R8DH
 #define DAC0_R12DH   DAC_R12DH
+#elif defined(CONFIG_SOC_SERIES_GD32F527)
+#define DAC_CTL            DAC_CTL0(DAC0)
+#define DAC_CTL_DEN0       DAC_CTL0_DEN0
+#define DAC_CTL_DEN1       DAC_CTL0_DEN1
+#define DAC0_R8DH          DAC_OUT0_R8DH(DAC0)
+#define DAC0_R12DH         DAC_OUT0_R12DH(DAC0)
+#define DAC1_R8DH          DAC_OUT1_R8DH(DAC0)
+#define DAC1_R12DH         DAC_OUT1_R12DH(DAC0)
 #endif
 
 struct dac_gd32_config {
