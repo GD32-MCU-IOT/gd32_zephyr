@@ -366,6 +366,7 @@ static int can_gd32_exit_sleep_mode(GD_CAN_TypeDef *can)
 {
 	uint32_t start_time;
 	/* exit sleep mode */
+	can->CANX_CTL |= CAN_CTL_IWMOD;
 	can->CANX_CTL &= ~CAN_CTL_SLPWMOD;
 	start_time = k_cycle_get_32();
 	/*  Wait for the sleep mode to exit successfully */
