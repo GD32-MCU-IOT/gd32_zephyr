@@ -73,15 +73,21 @@
 		};
 
 		fmc: flash-controller@40022000 {
-			compatible = "gd,gd32-flash-controller";
+			compatible = "gd,gd32m53x-flash-controller", "gd,gd32-flash-controller";
 			reg = <0x40022000 0x400>;
+			interrupts = <4 0>;
+			gd,program-unit-bytes = <16>;
+			gd,ecc-bits = <9>;
+			gd,page-bytes = <1024>;
 
 			#address-cells = <1>;
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "gd,gd32-nv-flash-m53x", "soc-nv-flash";
+				compatible = "gd,gd32-nv-flash", "soc-nv-flash";
+				/* 128-bit quad-word + 9-bit ECC, one program per erase */
 				write-block-size = <16>;
+				/* maximum erase time (ms) for a 1K page */
 				max-erase-time-ms = <2400>;
 				page-size = <DT_SIZE_K(1)>;
 			};
