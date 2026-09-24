@@ -1,0 +1,56 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+title: GigaDevice GD32F5HC PLLI2S Clock
+
+description: |
+  GigaDevice GD32F5HC PLLI2S clock node.
+
+  PLLI2S shares its input source selector (RCU_PLL PLLSEL) with the main
+  PLL, but has its own prescaler, multiplication factor and output divider
+  in RCU_PLLCFG.
+
+  The output frequency is computed as:
+
+    f(CK_PLLI2S) = f(PLLI2S VCO clock) / PLLI2SDIV
+
+      with f(PLLI2S VCO clock) = f(PLLI2S VCO source clock) * PLLI2SN
+      and  f(PLLI2S VCO source clock) = f(PLL input clock) / PLLI2SPSC
+
+  Hardware constraints (user manual 6.7.23, datasheet table 4-25):
+    f(PLLI2S VCO source clock) must be within 2 MHz .. 16 MHz
+    f(PLLI2S VCO clock)        must not exceed 550 MHz
+
+  plli2s-div carries the raw RCU_PLLCFG PLLI2SDIV field encoding because the
+  divider supports half steps that cannot be expressed as an integer ratio:
+  0 selects /32, 3 selects /1.5, 4 selects /2, 5 selects /2.5 and so on up
+  to 63 which selects /31.5. Values 1 and 2 are reserved.
+
+compatible: "gd,gd32f5hc-plli2s-clock"
+
+include: [clock-controller.yaml, base.yaml]
+
+properties:
+  "#clock-cells":
+    const: 0
+
+  plli2s-psc:
+    type: int
+    required: true
+    description: |
+      PLLI2S VCO source clock prescaler.
+      Valid range: 1 - 8
+
+  plli2s-n:
+    type: int
+    required: true
+    description: |
+      PLLI2S VCO clock multiplication factor.
+      Valid range: 8 - 127
+
+  plli2s-div:
+    type: int
+    required: true
+    description: |
+      Raw RCU_PLLCFG PLLI2SDIV field value selecting the PLLI2S output
+      divider. Valid range: 0, 3 - 63 (1 and 2 are reserved).

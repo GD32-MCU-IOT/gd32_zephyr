@@ -4,6 +4,7 @@
 if SOC_GD32W51X_F5HC
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default $(dt_node_int_prop_int,/soc/reset-clock-controller@40023800,clock-frequency) if CLOCK_CONTROL_GD32_F5HC_PLL
 	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
 
 config NUM_IRQS
