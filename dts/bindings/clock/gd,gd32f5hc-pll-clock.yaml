@@ -1,0 +1,101 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+title: GigaDevice GD32F5HC Main PLL Clock
+
+description: |
+  GigaDevice GD32F5HC main PLL clock node.
+
+  This node models the main PLL used to generate the system clock. It takes
+  one of gd,gd32-hxtal-clock (HXTAL), gd,gd32f5hc-irc48m-clock (IRC48M) or a
+  fixed-clock node (IRC16M) as input clock, and produces a single output
+  clock (PLL_P).
+
+  The GD32F5HC RCU_PLL register exposes PSC/N/P fields only. Unlike GD32F527
+  and GD32F4xx there is no PLLQ field, and the source selector is two bits
+  wide (PLLSEL[1:0]) to cover the additional IRC48M input.
+
+  The output frequency is computed as:
+
+    f(CK_PLLP) = f(VCO clock) / PLLP
+
+      with f(VCO clock) = f(VCO source clock) * PLLN
+      and  f(VCO source clock) = f(PLL input clock) / PLLPSC
+
+  Hardware constraints (user manual 6.7.2, datasheet table 4-24):
+    f(VCO source clock) must be within 1 MHz .. 2 MHz
+    f(VCO clock)        must be within 64 MHz .. 500 MHz
+
+  Spread spectrum modulation is optional and only applies to the main PLL.
+  When enabled, the valid PLLN range narrows to 69..504 (center spread) or
+  71..508 (down spread).
+
+  Property mapping to rcu_pll_config() arguments:
+    pll-psc  : PLL VCO source clock prescaler (2..63)
+    pll-n    : PLL VCO clock multiplication factor (64..511)
+    pll-p    : PLLP output division factor (2, 4, 6, 8)
+
+compatible: "gd,gd32f5hc-pll-clock"
+
+include: [clock-controller.yaml, base.yaml]
+
+properties:
+  "#clock-cells":
+    const: 0
+
+  clocks:
+    required: true
+    description: |
+      PLL input clock source. Reference a gd,gd32-hxtal-clock node (HXTAL),
+      a gd,gd32f5hc-irc48m-clock node (IRC48M) or a fixed-clock node
+      (IRC16M).
+
+  pll-psc:
+    type: int
+    required: true
+    description: |
+      PLL VCO source clock prescaler.
+      Valid range: 2 - 63
+
+  pll-n:
+    type: int
+    required: true
+    description: |
+      PLL VCO clock multiplication factor.
+      Valid range: 64 - 511
+
+  pll-p:
+    type: int
+    required: true
+    description: PLLP output frequency division factor.
+    enum:
+      - 2
+      - 4
+      - 6
+      - 8
+
+  spread-spectrum:
+    type: boolean
+    description: |
+      Enable spread spectrum modulation on the main PLL clock. Requires
+      ss-modulation-freq and ss-modulation-depth to be set.
+
+  ss-type:
+    type: string
+    default: "center"
+    enum:
+      - "center"
+      - "down"
+    description: Spread spectrum modulation type.
+
+  ss-modulation-freq:
+    type: int
+    description: |
+      Spread spectrum modulation frequency in Hz. Used to compute MODCNT as
+      round(f(VCO source clock) / 4 / ss-modulation-freq).
+
+  ss-modulation-depth:
+    type: int
+    description: |
+      Spread spectrum modulation amplitude in units of 0.1 %. For example 20
+      selects a 2.0 % modulation depth.

@@ -30,6 +30,34 @@
 		};
 	};
 
+	clocks {
+		hxtal: hxtal {
+			compatible = "gd,gd32-hxtal-clock";
+			#clock-cells = <0>;
+			status = "disabled";
+		};
+
+		irc48m: irc48m {
+			compatible = "gd,gd32f5hc-irc48m-clock";
+			#clock-cells = <0>;
+			clock-frequency = <DT_FREQ_M(48)>;
+			status = "disabled";
+		};
+
+		pll: pll {
+			compatible = "gd,gd32f5hc-pll-clock";
+			#clock-cells = <0>;
+			clocks = <&hxtal>;
+			status = "disabled";
+		};
+
+		plli2s: plli2s {
+			compatible = "gd,gd32f5hc-plli2s-clock";
+			#clock-cells = <0>;
+			status = "disabled";
+		};
+	};
+
 	soc {
 		sram0: memory@20000000 {
 			compatible = "mmio-sram";
@@ -37,7 +65,7 @@
 		};
 
 		rcu: reset-clock-controller@40023800 {
-			compatible = "gd,gd32-rcu";
+			compatible = "gd,gd32f5hc-rcu", "gd,gd32-rcu";
 			reg = <0x40023800 0x400>;
 			status = "okay";
 
@@ -52,6 +80,11 @@
 				#reset-cells = <1>;
 				status = "okay";
 			};
+		};
+
+		ckout0: clock-output-0 {
+			compatible = "gd,gd32-clock-ckout";
+			status = "disabled";
 		};
 
 		fmc: flash-controller@40023c00 {

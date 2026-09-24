@@ -1,0 +1,19 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+title: GigaDevice GD32F5HC IRC48M Internal Clock
+
+description: |
+  GigaDevice GD32F5HC internal 48 MHz RC oscillator (IRC48M).
+
+  This node models the IRC48M as a fixed-rate clock source. It is referenced
+  through a "clocks" property to select IRC48M as the main PLL input or as
+  the system clock source.
+
+  Note that the factory trimming of IRC48M is not accurate enough for USB
+  use without the runtime trimming performed by the CTC unit.
+
+compatible: "gd,gd32f5hc-irc48m-clock"
+
+# fixed-clock provides clock-frequency and "#clock-cells" definitions.
+include: [fixed-clock.yaml]
