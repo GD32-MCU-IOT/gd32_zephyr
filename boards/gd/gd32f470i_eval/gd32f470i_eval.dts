@@ -21,6 +21,7 @@
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
 		zephyr,flash-controller = &fmc;
+		zephyr,canbus = &can0;
 	};
 
 	leds {
@@ -174,4 +175,11 @@
 
 &fwdgt {
 	status = "okay";
+};
+
+&can0 {
+	status = "okay";
+	pinctrl-0 = <&can0_default>;
+	pinctrl-names = "default";
+	bitrate = <500000>;
 };
