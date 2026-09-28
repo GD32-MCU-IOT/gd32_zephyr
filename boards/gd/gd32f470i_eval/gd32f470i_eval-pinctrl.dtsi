@@ -39,4 +39,16 @@
 				 <SPI5_IO2_PG10>, <SPI5_IO3_PG11>;
 		};
 	};
+
+	can0_default: can0_default {
+		group1 {
+			pinmux = <CAN0_TX_PB9>;
+		};
+
+		group2 {
+			pinmux = <CAN0_RX_PB8>;
+			/* Keep RX recessive when no transceiver is attached. */
+			bias-pull-up;
+		};
+	};
 };

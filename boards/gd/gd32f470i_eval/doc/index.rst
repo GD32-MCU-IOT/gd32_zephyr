@@ -50,6 +50,12 @@ Serial Port
 The GD32F470I-EVAL board has one serial communication port. The default port
 is USART0 with TX connected at PA9 and RX at PA10.
 
+CAN
+===
+
+The GD32F470I-EVAL board has one CAN interface. CAN0 is used with TX connected
+at PB9 and RX at PB8.
+
 Programming and Debugging
 *************************
 

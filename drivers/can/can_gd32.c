@@ -32,6 +32,9 @@ LOG_MODULE_REGISTER(can_gd32, CONFIG_CAN_LOG_LEVEL);
 #elif defined(CAN_BT_BS1_3_0)
 #define CAN_GD32_BT_TIMING_MASK \
 	(CAN_BT_BS1_3_0 | CAN_BT_BS2_2_0 | CAN_BT_BAUDPSC)
+#else
+#define CAN_GD32_BT_TIMING_MASK \
+	(CAN_BT_BS1 | CAN_BT_BS2 | CAN_BT_BAUDPSC)
 #endif
 
 #ifdef CAN_TMP_FDF
@@ -1015,7 +1018,7 @@ static int can_gd32_send(const struct device *dev, const struct can_frame *frame
 	if ((frame->flags & CAN_FRAME_RTR) != 0) {
 		TxMail->CANX_TMI |= CAN_TMI_FT;
 	}
-	TxMail->CANX_TMP &= ~(CAN_TMP_DLENC | CAN_TMP_ESI | CAN_TMP_FDF | CAN_TMP_TSEN);
+	TxMail->CANX_TMP &= ~(CAN_GD32_TMP_FRAME_MASK | CAN_TMP_TSEN);
 	TxMail->CANX_TMP |= (frame->dlc & 0xF);
 
 #ifdef CONFIG_CAN_FD_MODE
@@ -1301,11 +1304,19 @@ static DEVICE_API(can, can_api_funcs) = {
 		       .phase_seg1 = 0x01,
 		       .phase_seg2 = 0x01,
 		       .prescaler = 0x01},
+#ifdef CAN_BT_BS1_6_4
 	.timing_max = {.sjw = 0x20,
 		       .prop_seg = 0x00,
 		       .phase_seg1 = 0x80,
 		       .phase_seg2 = 0x20,
 		       .prescaler = 0x400},
+#else
+	.timing_max = {.sjw = 0x04,
+		       .prop_seg = 0x00,
+		       .phase_seg1 = 0x10,
+		       .phase_seg2 = 0x08,
+		       .prescaler = 0x400},
+#endif
 #ifdef CONFIG_CAN_FD_MODE
 	.set_timing_data = can_gd32_set_timing_data,
 	/* Data timing limits for GD32C11X */

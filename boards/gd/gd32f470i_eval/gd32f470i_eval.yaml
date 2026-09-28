@@ -11,6 +11,7 @@ toolchain:
   - zephyr
   - gnuarmemb
 supported:
+  - can
   - counter
   - dac
   - flash
