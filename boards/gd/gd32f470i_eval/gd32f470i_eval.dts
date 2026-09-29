@@ -183,3 +183,10 @@
 	pinctrl-names = "default";
 	bitrate = <500000>;
 };
+
+&cpu0 {
+	/* same as the default configuration of system_gd32f4xx.c
+	 * in modules/hal.
+	 */
+	clock-frequency = <DT_FREQ_M(200)>;
+};
