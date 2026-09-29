@@ -13,7 +13,13 @@ toolchain:
 supported:
   - gpio
   - uart
+  - usart
   - watchdog
   - pwm
   - counter
+  - pinctrl
+  - clock_control
+  - spi
+  - i2c
+  - dma
 vendor: gd
