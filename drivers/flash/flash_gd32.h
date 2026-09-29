@@ -22,6 +22,8 @@ typedef uint32_t flash_prg_t;
 typedef uint16_t flash_prg_t;
 #elif (1 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint8_t flash_prg_t;
+#elif (8 == SOC_NV_FLASH_PRG_SIZE)
+/* Double-word FMC programs through two 32-bit writes, so flash_prg_t is not defined. */
 #elif (16 == SOC_NV_FLASH_PRG_SIZE)
 /* Quad-word FMC has no scalar programming unit, so flash_prg_t is not defined. */
 #else

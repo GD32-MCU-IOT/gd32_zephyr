@@ -80,15 +80,20 @@
 		};
 
 		fmc: flash-controller@40023c00 {
-			compatible = "gd,gd32-flash-controller";
+			compatible = "gd,gd32f527-flash-controller", "gd,gd32-flash-controller";
 			reg = <0x40023c00 0x400>;
+			gd,program-unit-bytes = <8>;
+			gd,ecc-bits = <8>;
+			gd,page-bytes = <4096>;
 
 			#address-cells = <1>;
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "gd,gd32-nv-flash-v1", "soc-nv-flash";
-				write-block-size = <2>;
+				compatible = "gd,gd32-nv-flash", "soc-nv-flash";
+				/* 64-bit double-word + 8-bit ECC */
+				write-block-size = <8>;
+				/* maximum erase time (ms) for a 4K page */
 				max-erase-time-ms = <8000>;
 				page-size = <DT_SIZE_K(4)>;
 			};
