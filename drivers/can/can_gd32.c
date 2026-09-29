@@ -1304,7 +1304,7 @@ static DEVICE_API(can, can_api_funcs) = {
 		       .phase_seg1 = 0x01,
 		       .phase_seg2 = 0x01,
 		       .prescaler = 0x01},
-#ifdef CAN_BT_BS1_6_4
+#if defined(CAN_BT_BS1_6_4) && defined(CONFIG_CAN_FD_MODE)
 	.timing_max = {.sjw = 0x20,
 		       .prop_seg = 0x00,
 		       .phase_seg1 = 0x80,

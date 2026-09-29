@@ -106,7 +106,7 @@
 
 	can0_default: can0_default {
 		group1 {
-			pinmux = <CAN0_TX_PB9>, <CAN0_RX_PB8>;
+			pinmux = <CAN0_TX_PH13>, <CAN0_RX_PI9>;
 		};
 	};
 
