@@ -340,8 +340,8 @@ static int gd32_fmc_v2_bank1_erase_block(off_t offset, size_t size)
 			return ret;
 		}
 
-		size -= GD32_NV_FLASH_V2_BANK0_SIZE;
-		page_addr += GD32_NV_FLASH_V2_BANK0_SIZE;
+		size -= GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
+		page_addr += GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
 	}
 
 	return 0;
