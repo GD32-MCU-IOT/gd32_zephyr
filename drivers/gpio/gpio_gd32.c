@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021 Teslabs Engineering S.L.
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -35,6 +35,16 @@
 /** GPIO mode: output open-drain @ 2MHz (CTL bits) */
 #define CTL_MODE_OUT_OD 0x6U
 #endif /* CONFIG_GD32_HAS_AF_PINMUX */
+
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+/* GD32F50x keeps the EXTISS registers in AFIO, not in SYSCFG. */
+#define GPIO_GD32_EXTI_CLKID DT_CLOCKS_CELL(DT_NODELABEL(afio), id)
+#else
+#define GPIO_GD32_EXTI_CLKID						       \
+	COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(SYSCFG_NODE),		       \
+		    (DT_CLOCKS_CELL(SYSCFG_NODE, id)),			       \
+		    (DT_CLOCKS_CELL(AFIO_NODE, id)))
+#endif /* CONFIG_SOC_SERIES_GD32F50X */
 
 /** EXTISS mask */
 #define EXTISS_MSK 0xFU
@@ -462,9 +472,7 @@ static int gpio_gd32_init(const struct device *port)
 		.common = GPIO_COMMON_CONFIG_FROM_DT_INST(n),		       \
 		.reg = DT_INST_REG_ADDR(n),				       \
 		.clkid = DT_INST_CLOCKS_CELL(n, id),			       \
-		COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(SYSCFG_NODE),	       \
-			    (.clkid_exti = DT_CLOCKS_CELL(SYSCFG_NODE, id),),  \
-			    (.clkid_exti = DT_CLOCKS_CELL(AFIO_NODE, id),))    \
+		.clkid_exti = GPIO_GD32_EXTI_CLKID,			       \
 		.reset = RESET_DT_SPEC_INST_GET(n),			       \
 	};								       \
 									       \

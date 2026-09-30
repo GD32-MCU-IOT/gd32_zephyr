@@ -1,0 +1,28 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* 64KB storage partition at the end of the 1MB on-chip flash
+		 * (bank1, 4KB page size).
+		 */
+		storage_partition: partition@f0000 {
+			label = "storage";
+			reg = <0x000f0000 DT_SIZE_K(64)>;
+		};
+	};
+};
+
+/*
+ * nor_flash is left enabled (as in the board's default .dts) since this
+ * test's device under test is selected purely by Kconfig (CONFIG_SPI_NOR):
+ * see drivers.flash.common.default (tests nor_flash) vs
+ * drivers.flash.common.gd32f503_internal (tests flash0) in testcase.yaml.
+ */
