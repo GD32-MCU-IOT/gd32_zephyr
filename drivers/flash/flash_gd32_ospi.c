@@ -30,9 +30,9 @@ LOG_MODULE_REGISTER(flash_gd32_ospi, CONFIG_FLASH_LOG_LEVEL);
 
 #include "spi_nor_gd25x512me.h"
 
-#include <gd32h7xx_ospi.h>
-#include <gd32h7xx_ospim.h>
-#include <gd32h7xx_rcu.h>
+#include <gd32_ospi.h>
+#include <gd32_ospim.h>
+#include <gd32_rcu.h>
 
 #define GD32_OSPI_FLASH_NODE DT_DRV_INST(0)
 #define GD32_OSPI_CTRL_NODE  DT_INST_PARENT(0)
