@@ -143,6 +143,13 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 		return -EBUSY;
 	}
 
+#if defined(CONFIG_SOC_SERIES_GD32F527)
+	/* GD32F527 FMC requires the program size (PSZ) to match flash_prg_t. */
+	FMC_CTL &= ~FMC_CTL_DWPGE;
+	FMC_CTL &= ~FMC_CTL_PSZ;
+	FMC_CTL |= CTL_PSZ_HALF_WORD;
+#endif
+
 	FMC_CTL |= FMC_CTL_PG;
 
 	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
