@@ -102,7 +102,7 @@ static int flash_gd32_get_size(const struct device *dev, uint64_t *size)
 {
 	ARG_UNUSED(dev);
 
-	*size = SOC_NV_FLASH_SIZE;
+	*size = (uint64_t)SOC_NV_FLASH_SIZE;
 
 	return 0;
 }

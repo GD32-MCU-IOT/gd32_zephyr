@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	resources {
+		compatible = "test-gpio-basic-api";
+		/* Bridge PE7 (out) to PE8 (in) for 2-pin GPIO loopback test. */
+		out-gpios = <&gpioe 7 0>;
+		in-gpios = <&gpioe 8 0>;
+	};
+};
+
+&gpioe {
+	status = "okay";
+};
