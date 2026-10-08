@@ -1,0 +1,83 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+title: GigaDevice GD32F5HC RCU Clock Tree Configuration
+
+description: |
+  GigaDevice GD32F5HC Reset and Clock Unit (RCU) system clock tree
+  configuration.
+
+  This binding complements the MFD "gd,gd32-rcu" binding
+  (mfd/gd,gd32-rcu.yaml) and models the GD32F5HC system clock source
+  selection and the AHB/APB bus prescalers. The RCU node keeps its MFD
+  role (parent of the CCTL and RCTL child nodes) and additionally carries
+  the clock tree configuration.
+
+  The main PLL configuration is described by the gd,gd32f5hc-pll-clock node
+  referenced from "clocks".
+
+  Maximum frequencies (datasheet table 4-3):
+    HCLK  200 MHz
+    PCLK2 100 MHz
+    PCLK1  50 MHz
+
+  Example:
+
+    rcu: reset-clock-controller@40023800 {
+        compatible = "gd,gd32f5hc-rcu", "gd,gd32-rcu";
+        clocks = <&pll>;               /* Select PLL as SYSCLK source */
+        clock-frequency = <DT_FREQ_M(200)>; /* = SYSCLK / AHB prescaler */
+        ahb-prescaler = <1>;
+        apb1-prescaler = <4>;
+        apb2-prescaler = <2>;
+    };
+
+compatible: "gd,gd32f5hc-rcu"
+
+include: gd,gd32-rcu.yaml
+
+properties:
+  clocks:
+    description: |
+      System clock source. Reference a gd,gd32f5hc-pll-clock node (PLLP), a
+      gd,gd32-hxtal-clock node (HXTAL), a gd,gd32f5hc-irc48m-clock node
+      (IRC48M), or a fixed-clock node (IRC16M).
+
+  clock-frequency:
+    type: int
+    description: |
+      Core clock frequency (Hz) = SYSCLK / AHB prescaler.
+
+  ahb-prescaler:
+    type: int
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+      - 64
+      - 128
+      - 256
+      - 512
+    description: AHB prescaler. Defines actual core clock frequency (HCLK).
+
+  apb1-prescaler:
+    type: int
+    enum:
+      - 4
+      - 8
+      - 16
+    description: |
+      APB1 prescaler. The GD32F5HC RCU_CFG0 APB1PSC encodings below /4 are
+      reserved, so PCLK1 can never exceed HCLK/4.
+
+  apb2-prescaler:
+    type: int
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+    description: APB2 prescaler.

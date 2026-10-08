@@ -24,3 +24,12 @@ config CLOCK_CONTROL_GD32_PLL
 	  Enable DTS-driven PLL and system clock tree configuration for the
 	  GD32F527. When enabled, the main PLL, AHB/APB prescalers and system
 	  clock source are configured from the devicetree during PRE_KERNEL_1.
+
+config CLOCK_CONTROL_GD32_F5HC_PLL
+	bool "GD32F5HC PLL/system clock DTS configuration"
+	depends on DT_HAS_GD_GD32F5HC_RCU_ENABLED
+	depends on SOC_SERIES_GD32W51X_F5HC
+	help
+	  Enable DTS-driven PLL and system clock tree configuration for the
+	  GD32F5HC. When enabled, the main PLL, AHB/APB prescalers and system
+	  clock source are configured from the devicetree during PRE_KERNEL_1.
