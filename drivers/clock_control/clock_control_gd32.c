@@ -224,15 +224,17 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 
 		/* TIMERSEL = 0 */
 		if ((cfg1 & RCU_CFG1_TIMERSEL_MSK) == 0U) {
-			if (psc <= 2U) {
-				*rate = CPU_FREQ;
+			/* APBxPSC is 0b0xx or 0b100 */
+			if (psc <= 4U) {
+				*rate = ahb_freq;
 			} else {
 				*rate *= 2U;
 			}
 		/* TIMERSEL = 1 */
 		} else {
-			if (psc <= 4U) {
-				*rate = CPU_FREQ;
+			/* APBxPSC is 0b0xx, 0b100 or 0b101 */
+			if (psc <= 5U) {
+				*rate = ahb_freq;
 			} else {
 				*rate *= 4U;
 			}
