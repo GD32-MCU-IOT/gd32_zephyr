@@ -1,0 +1,27 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+
+/* Short PD5 (TX) to PD6 (RX); both also reach the idle QSPI flash IO1/IO2 via 33R. */
+&pinctrl {
+	usart1_default: usart1_default {
+		group1 {
+			pinmux = <USART1_TX_PD5>, <USART1_RX_PD6>;
+		};
+	};
+};
+
+/* DMAMUX channels 10/11 are unused by the board DTS; requests 26/27 = USART1 RX/TX. */
+dut: &usart1 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart1_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 10 26 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 11 27 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx", "tx";
+};

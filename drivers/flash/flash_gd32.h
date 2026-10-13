@@ -16,7 +16,9 @@
 #define SOC_NV_FLASH_ADDR	DT_REG_ADDR(SOC_NV_FLASH_NODE)
 #define SOC_NV_FLASH_PRG_SIZE	DT_PROP(SOC_NV_FLASH_NODE, write_block_size)
 
-#if (4 == SOC_NV_FLASH_PRG_SIZE)
+#if (8 == SOC_NV_FLASH_PRG_SIZE)
+typedef uint64_t flash_prg_t;
+#elif (4 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint32_t flash_prg_t;
 #elif (2 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint16_t flash_prg_t;
