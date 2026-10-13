@@ -14,6 +14,3 @@ flash: 512
 supported:
   - gpio
   - uart
-  - usart
-  - pinctrl
-  - clock_control

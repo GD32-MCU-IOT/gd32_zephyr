@@ -9,7 +9,8 @@
 #include <gd/gd32g5x3/gd32g5x3.dtsi>
 
 &cpu0 {
-	clock-frequency = <DT_FREQ_M(200)>;
+	/* Must match the PLL setting in the HAL system_gd32g5x3.c (216 MHz). */
+	clock-frequency = <DT_FREQ_M(216)>;
 };
 
 &flash0 {
