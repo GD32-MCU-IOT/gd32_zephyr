@@ -1,0 +1,31 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	zephyr,user {
+		/* PA7 (MOSI) is shorted to PA6 (MISO) for the deinit test. */
+		mosi-gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* spi0 uses PA5/PA6/PA7 from the board pinctrl; spi2 keeps the NOR flash. */
+&spi0 {
+	status = "okay";
+
+	/* APB2 is 216 MHz, so the slowest SPI clock is 216 MHz / 256 = 843.75 kHz. */
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
