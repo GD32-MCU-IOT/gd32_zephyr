@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Loopback runs on SPI0, the only controller whose MOSI and MISO both reach an
+ * expansion header (JP9 pin 5 = PA7, pin 4 = PA6):
+ *   SCK  = PA5  (JP9 pin 3)
+ *   MOSI = PA7  (JP9 pin 5)
+ *   MISO = PA6  (JP9 pin 4)
+ *   CS   = PA4  (JP9 pin 2)
+ * SPI1 cannot be used at all: its fixed MISO pin PB14 is not routed to any
+ * header. SPI2 remapped (PC10/11/12) only reaches JP11.
+ *
+ * Board jumpers JP12 (PA5) and JP13 (PA7) must sit in the SPI position; JP13's
+ * other position ties PA7 to the ENET PHY's RMII0_CRS_DV output.
+ *
+ * CS is moved off the board's PE3 onto SPI0's own NSS pin PA4 so the on-board
+ * GD25Q16 NOR flash is never selected while random loopback data is clocked.
+ */
+
+/ {
+	zephyr,user {
+		/* PA7 (MOSI) is shorted to PA6 (MISO) for the deinit test. */
+		mosi-gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* The NOR flash shares SPI0; keep it out of the loopback build. */
+&spi_flash0 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "okay";
+	cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
