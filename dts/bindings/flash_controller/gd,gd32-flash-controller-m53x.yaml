@@ -1,0 +1,18 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32 M53x FMC.
+
+  Up to 256KB main flash and 64KB data flash, both erased in 1KB pages.
+  Flash is programmed in 128-bit quad-words, each stored with a 9-bit ECC
+  (single-bit correction, double-bit detection). A quad-word can only be
+  programmed once per erase cycle, so this FMC is not compatible with the
+  v1..v4 variants.
+
+  GD32 series using this FMC:
+    - GD32M53x
+
+compatible: "gd,gd32-flash-controller-m53x"
+
+include: gd,gd32-flash-controller.yaml
