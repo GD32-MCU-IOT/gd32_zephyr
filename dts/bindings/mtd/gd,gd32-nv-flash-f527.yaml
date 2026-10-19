@@ -1,0 +1,36 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Flash memory binding of GD32 F527 FMC.
+
+  The F527 FMC erases the main flash in 4 KB pages through FMC_PECFG and
+  programs it in 64-bit double-words protected by an 8-bit ECC. Its register
+  layout differs from the v1..v4 backends.
+
+  GD32 series use this type flash memory:
+    - GD32F527
+
+include: soc-nv-flash.yaml
+
+compatible: "gd,gd32-nv-flash-f527"
+
+properties:
+  max-erase-time-ms:
+    type: int
+    required: true
+    description: Max erase time(millisecond) of a flash page
+
+  page-size:
+    type: int
+    required: true
+    description: Flash memory page size
+
+  write-block-size:
+    required: true
+    type: int
+    enum:
+      - 8
+    description: |
+      Number of bytes used in write operations. The FMC programs the flash in
+      64-bit double-words.
