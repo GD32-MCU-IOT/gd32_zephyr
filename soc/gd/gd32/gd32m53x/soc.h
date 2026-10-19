@@ -176,8 +176,8 @@
  * SPI single-instance compatibility shim.
  * GD32M53x HAL defines SPI register macros without a base-address argument;
  * Zephyr SPI driver passes the periph base register address. These macros
- * turn the object-like HAL macros into function-like ones that discard the
- * periph argument.
+ * turn the object-like HAL macros into function-like ones that take the
+ * periph base address.
  *
  * Safe: HAL .c files do NOT include soc.h (verified via build.ninja).
  */
@@ -192,14 +192,14 @@
 #undef SPI_TCRC
 #undef SPI_QCTL
 
-#define SPI_CTL0(spix)    REG32(SPI + 0x00000000U)
-#define SPI_CTL1(spix)    REG32(SPI + 0x00000004U)
-#define SPI_STAT(spix)    REG32(SPI + 0x00000008U)
-#define SPI_DATA(spix)    REG32(SPI + 0x0000000CU)
-#define SPI_CRCPOLY(spix) REG32(SPI + 0x00000010U)
-#define SPI_RCRC(spix)    REG32(SPI + 0x00000014U)
-#define SPI_TCRC(spix)    REG32(SPI + 0x00000018U)
-#define SPI_QCTL(spix)    REG32(SPI + 0x00000080U)
+#define SPI_CTL0(spix)    REG32(spix + 0x00000000U)
+#define SPI_CTL1(spix)    REG32(spix + 0x00000004U)
+#define SPI_STAT(spix)    REG32(spix + 0x00000008U)
+#define SPI_DATA(spix)    REG32(spix + 0x0000000CU)
+#define SPI_CRCPOLY(spix) REG32(spix + 0x00000010U)
+#define SPI_RCRC(spix)    REG32(spix + 0x00000014U)
+#define SPI_TCRC(spix)    REG32(spix + 0x00000018U)
+#define SPI_QCTL(spix)    REG32(spix + 0x00000080U)
 
 #endif /* CONFIG_SPI_GD32 */
 

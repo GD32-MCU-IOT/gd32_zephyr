@@ -17,6 +17,14 @@ include: soc-nv-flash.yaml
 compatible: "gd,gd32-nv-flash-m53x"
 
 properties:
+  write-block-size:
+    type: int
+    required: true
+    const: 16
+    description: |
+      The main flash is programmed in 128-bit (16-byte) quad-words, each
+      protected by a 9-bit ECC.
+
   max-erase-time-ms:
     type: int
     required: true
@@ -25,4 +33,5 @@ properties:
   page-size:
     type: int
     required: true
-    description: Flash memory page size
+    const: 1024
+    description: Flash memory page size, which is also the minimum erase unit.
