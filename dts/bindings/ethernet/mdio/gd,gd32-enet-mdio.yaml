@@ -11,8 +11,8 @@ description: |
   of each MAC instance, so this node is always a child of a
   "gd,gd32-ethernet" node and has no "reg" of its own.
 
-  Note: GD32H7xx also has an unrelated standalone "MDIO" peripheral
-  (gd32h7xx_mdio.h) that is not used by, and has no relation to, the
+  Note: GD32H73x_75x also has an unrelated standalone "MDIO" peripheral
+  (gd32h73x_75x_mdio.h) that is not used by, and has no relation to, the
   Ethernet MDIO described here.
 
 compatible: "gd,gd32-enet-mdio"

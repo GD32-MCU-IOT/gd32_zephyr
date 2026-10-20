@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,12 +7,12 @@
 #include <freq.h>
 #include <arm/armv7-m.dtsi>
 #include <zephyr/dt-bindings/adc/adc.h>
-#include <zephyr/dt-bindings/adc/gd32h7xx.h>
+#include <zephyr/dt-bindings/adc/gd32h73x_75x.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
-#include <zephyr/dt-bindings/clock/gd32h7xx-clocks.h>
-#include <zephyr/dt-bindings/reset/gd32h7xx.h>
+#include <zephyr/dt-bindings/clock/gd32h73x_75x-clocks.h>
+#include <zephyr/dt-bindings/reset/gd32h73x_75x.h>
 
 / {
 	cpus {
@@ -58,11 +58,12 @@
 
 			#address-cells = <1>;
 			#size-cells = <1>;
+			ranges;
 
 			flash0: flash@8000000 {
 				compatible = "gd,gd32-nv-flash-v4", "soc-nv-flash";
 				write-block-size = <4>;
-				max-erase-time-ms = <8000>;
+				max-erase-time-ms = <1200>;
 				page-size = <DT_SIZE_K(4)>;
 			};
 		};
@@ -220,8 +221,8 @@
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			interrupts = <72 0>, <73 0>;
 			interrupt-names = "event", "error";
-			clocks = <&cctl GD32_CLOCK_I2C1>;
-			resets = <&rctl GD32_RESET_I2C1>;
+			clocks = <&cctl GD32_CLOCK_I2C2>;
+			resets = <&rctl GD32_RESET_I2C2>;
 			status = "disabled";
 		};
 
@@ -310,7 +311,7 @@
 			#interrupt-cells = <1>;
 			#address-cells = <0>;
 			reg = <0x58000000 0x400>;
-			num-lines = <37>;
+			num-lines = <38>;
 			interrupts = <6 0>, <7 0>, <8 0>, <9 0>,
 				     <10 0>, <23 0>, <40 0>;
 			interrupt-names = "line0", "line1", "line2", "line3",
@@ -444,7 +445,7 @@
 		timer0: timer@40010000 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40010000 0x400>;
-			interrupts = <40 0>, <41 0>, <42 0>, <43 0>;
+			interrupts = <24 0>, <25 0>, <26 0>, <27 0>;
 			interrupt-names = "brk", "up", "trgcom", "cc";
 			clocks = <&cctl GD32_CLOCK_TIMER0>;
 			resets = <&rctl GD32_RESET_TIMER0>;
@@ -462,7 +463,7 @@
 		timer1: timer@40000000 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40000000 0x400>;
-			interrupts = <44 0>;
+			interrupts = <28 0>;
 			interrupt-names = "global";
 			clocks = <&cctl GD32_CLOCK_TIMER1>;
 			resets = <&rctl GD32_RESET_TIMER1>;
@@ -480,7 +481,7 @@
 		timer2: timer@40000400 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40000400 0x400>;
-			interrupts = <45 0>;
+			interrupts = <29 0>;
 			interrupt-names = "global";
 			clocks = <&cctl GD32_CLOCK_TIMER2>;
 			resets = <&rctl GD32_RESET_TIMER2>;
@@ -497,7 +498,7 @@
 		timer3: timer@40000800 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40000800 0x400>;
-			interrupts = <46 0>;
+			interrupts = <30 0>;
 			interrupt-names = "global";
 			clocks = <&cctl GD32_CLOCK_TIMER3>;
 			resets = <&rctl GD32_RESET_TIMER3>;
@@ -514,7 +515,7 @@
 		timer4: timer@40000c00 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40000c00 0x400>;
-			interrupts = <66 0>;
+			interrupts = <50 0>;
 			interrupt-names = "global";
 			clocks = <&cctl GD32_CLOCK_TIMER4>;
 			resets = <&rctl GD32_RESET_TIMER4>;
@@ -532,7 +533,7 @@
 		timer5: timer@40001000 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40001000 0x400>;
-			interrupts = <70 0>;
+			interrupts = <54 0>;
 			interrupt-names = "global";
 			clocks = <&cctl GD32_CLOCK_TIMER5>;
 			resets = <&rctl GD32_RESET_TIMER5>;
@@ -543,7 +544,7 @@
 		timer6: timer@40001400 {
 			compatible = "gd,gd32-timer";
 			reg = <0x40001400 0x400>;
-			interrupts = <71 0>;
+			interrupts = <55 0>;
 			interrupt-names = "global";
 			clocks = <&cctl GD32_CLOCK_TIMER6>;
 			resets = <&rctl GD32_RESET_TIMER6>;

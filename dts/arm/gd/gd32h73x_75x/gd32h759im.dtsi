@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026, GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <mem.h>
-#include <arm/gd/gd32h75e/gd32h75e.dtsi>
+#include <arm/gd/gd32h73x_75x/gd32h73x_75x.dtsi>
 
 / {
 	soc {
@@ -14,15 +14,6 @@
 			reg = <0x58000400 0x400>;
 			clocks = <&cctl GD32_CLOCK_SYSCFG>;
 		};
-
-		/* Additional USART instances specific to GD32H75EYM */
-		/* Note: USART0-5, UART3-7 are defined in gd32h75e.dtsi */
-
-		/* Additional I2C instances specific to GD32H75EYM */
-		/* Note: I2C0-3 are defined in gd32h75e.dtsi */
-
-		/* Additional SPI instances specific to GD32H75EYM */
-		/* Note: SPI0-5 are defined in gd32h75e.dtsi */
 
 		timer7: timer@40010400 {
 			compatible = "gd,gd32-timer";
@@ -163,6 +154,40 @@
 			};
 		};
 
+		timer30: timer@4000e800 {
+			compatible = "gd,gd32-timer";
+			reg = <0x4000e800 0x400>;
+			interrupts = <163 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER30>;
+			resets = <&rctl GD32_RESET_TIMER30>;
+			channels = <4>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer31: timer@4000ec00 {
+			compatible = "gd,gd32-timer";
+			reg = <0x4000ec00 0x400>;
+			interrupts = <164 0>;
+			interrupt-names = "global";
+			clocks = <&cctl GD32_CLOCK_TIMER31>;
+			resets = <&rctl GD32_RESET_TIMER31>;
+			channels = <4>;
+			status = "disabled";
+
+			pwm {
+				compatible = "gd,gd32-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
 		timer42: timer@4001d800 {
 			compatible = "gd,gd32-timer";
 			reg = <0x4001d800 0x400>;
@@ -236,42 +261,126 @@
 			status = "disabled";
 		};
 
+		ospi0: spi@52005000 {
+			compatible = "gd,gd32-ospi";
+			reg = <0x52005000 0x1000>, <0x90000000 DT_SIZE_M(256)>;
+			interrupts = <92 0>;
+			clock-names = "ospix", "ospi-ker";
+			clocks = <&cctl GD32_CLOCK_OSPI0>, <&cctl GD32_CLOCK_OSPI0>;
+			resets = <&rctl GD32_RESET_OSPI0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		ospi1: spi@5200a000 {
+			compatible = "gd,gd32-ospi";
+			reg = <0x5200a000 0x1000>, <0x70000000 DT_SIZE_M(256)>;
+			interrupts = <150 0>;
+			clock-names = "ospix", "ospi-ker";
+			clocks = <&cctl GD32_CLOCK_OSPI1>, <&cctl GD32_CLOCK_OSPI1>;
+			resets = <&rctl GD32_RESET_OSPI1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		enet0: ethernet@40028000 {
+			compatible = "gd,gd32-ethernet";
+			reg = <0x40028000 0x2000>;
+			interrupts = <61 0>, <62 0>;
+			clocks = <&cctl GD32_CLOCK_ENET0>, <&cctl GD32_CLOCK_ENET0TX>,
+				 <&cctl GD32_CLOCK_ENET0RX>;
+			resets = <&rctl GD32_RESET_ENET0>;
+			status = "disabled";
+
+			enet0_mdio: mdio {
+				compatible = "gd,gd32-enet-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+			};
+		};
+
+		enet1: ethernet@4002a000 {
+			compatible = "gd,gd32-ethernet";
+			reg = <0x4002a000 0x2000>;
+			interrupts = <176 0>, <177 0>;
+			clocks = <&cctl GD32_CLOCK_ENET1>, <&cctl GD32_CLOCK_ENET1TX>,
+				 <&cctl GD32_CLOCK_ENET1RX>;
+			resets = <&rctl GD32_RESET_ENET1>;
+			status = "disabled";
+
+			enet1_mdio: mdio {
+				compatible = "gd,gd32-enet-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+			};
+		};
+
+		usbhs0: usb@40040000 {
+			compatible = "gd,gd32-usbhs";
+			reg = <0x40040000 0x40000>;
+			interrupts = <77 0>;
+			interrupt-names = "usbhs";
+			clocks = <&cctl GD32_CLOCK_USBHS0>;
+			resets = <&rctl GD32_RESET_USBHS0>;
+			gd,usbhs-index = <0>;
+			num-bidir-endpoints = <8>;
+			ram-size = <4096>;
+			maximum-speed = "full-speed";
+			status = "disabled";
+		};
+
+		usbhs1: usb@40080000 {
+			compatible = "gd,gd32-usbhs";
+			reg = <0x40080000 0x40000>;
+			interrupts = <175 0>;
+			interrupt-names = "usbhs";
+			clocks = <&cctl GD32_CLOCK_USBHS1>;
+			resets = <&rctl GD32_RESET_USBHS1>;
+			gd,usbhs-index = <1>;
+			num-bidir-endpoints = <8>;
+			ram-size = <4096>;
+			maximum-speed = "full-speed";
+			status = "disabled";
+		};
 	};
 
-	/* AXI SRAM (512 KB dedicated) */
+	/* AXI SRAM: 512 KB dedicated + 320 KB from shared RAM (factory option bytes) */
 	sram0: memory@24000000 {
-		reg = <0x24000000 DT_SIZE_K(512)>;
+		reg = <0x24000000 DT_SIZE_K(832)>;
 		compatible = "mmio-sram";
 	};
 
-	/* SRAM0 (16 KB) */
+	/* SRAM0 */
 	sram1: memory@30000000 {
 		reg = <0x30000000 DT_SIZE_K(16)>;
 		compatible = "zephyr,memory-region", "mmio-sram";
 		zephyr,memory-region = "SRAM1";
 	};
 
-	/* SRAM1 (16 KB) */
-	sram2: memory@30040000 {
-		reg = <0x30040000 DT_SIZE_K(16)>;
+	/* SRAM1 */
+	sram2: memory@30004000 {
+		reg = <0x30004000 DT_SIZE_K(16)>;
 		compatible = "zephyr,memory-region", "mmio-sram";
 		zephyr,memory-region = "SRAM2";
 	};
 
-	/* Data TCM RAM (128 KB, factory default from shared RAM) */
+	/* Data TCM RAM (128 KB from shared RAM, factory option bytes) */
 	dtcm: memory@20000000 {
 		compatible = "zephyr,memory-region", "arm,dtcm";
 		reg = <0x20000000 DT_SIZE_K(128)>;
 		zephyr,memory-region = "DTCM";
 	};
 
-	/* Instruction TCM RAM (64 KB) */
+	/* Instruction TCM RAM (64KB as `TCM_AXI_SHARED` is `000`) */
 	itcm: memory@0 {
 		compatible = "zephyr,memory-region", "arm,itcm";
 		reg = <0x00000000 DT_SIZE_K(64)>;
 		zephyr,memory-region = "ITCM";
 	};
-
 };
 
 &flash0 {
