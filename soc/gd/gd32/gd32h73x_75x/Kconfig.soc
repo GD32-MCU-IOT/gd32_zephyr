@@ -1,0 +1,23 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_GD32H73X_75X
+	bool
+	select SOC_FAMILY_GD_GD32
+	help
+	  Enable support for GigaDevice GD32H73x/GD32H75x MCU series
+
+config SOC_SERIES
+	default "gd32h73x_75x" if SOC_SERIES_GD32H73X_75X
+
+config SOC_GD32H759
+	bool
+	select SOC_SERIES_GD32H73X_75X
+
+config SOC_GD32H75E
+	bool
+	select SOC_SERIES_GD32H73X_75X
+
+config SOC
+	default "gd32h759" if SOC_GD32H759
+	default "gd32h75e" if SOC_GD32H75E

@@ -75,9 +75,13 @@ if(${CONFIG_SOC_SERIES_GD32E51X})
   endif()
 endif()
 
-# GD32H7XX series HAL public headers require extra definitions
-if(${CONFIG_SOC_SERIES_GD32H7XX})
-  zephyr_compile_definitions(GD32H7XX)
+# GD32H73X_75X series HAL public headers require extra definitions
+if(${CONFIG_SOC_SERIES_GD32H73X_75X})
+  if(${CONFIG_SOC_GD32H75E})
+    zephyr_compile_definitions(GD32H75E)
+  else()
+    zephyr_compile_definitions(GD32H73X_75X)
+  endif()
 endif()
 
 # GD32F30X series HAL public headers require extra definitions
@@ -89,10 +93,6 @@ if(${CONFIG_SOC_SERIES_GD32F30X})
   endif()
 endif()
 
-# GD32H75E series HAL public headers require extra definitions
-if(${CONFIG_SOC_SERIES_GD32H75E})
-  zephyr_compile_definitions(GD32H75E)
-endif()
 
 # GD32C11X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32C11X})
@@ -191,10 +191,10 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_PKCAU     ${gd32_std_src_dir}/${CON
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_SAI       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_sai.c)
 
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau.c)
-# GD32F527, GD32G5X3, GD32H7XX, GD32L23X, GD32W51X_F5HC have AES/DES/TDES split into separate files
+# GD32F527, GD32G5X3, GD32H73X_75X, GD32L23X, GD32W51X_F5HC have AES/DES/TDES split into separate files
 if(CONFIG_SOC_SERIES_GD32F527
     OR CONFIG_SOC_SERIES_GD32G5X3
-    OR CONFIG_SOC_SERIES_GD32H7XX
+    OR CONFIG_SOC_SERIES_GD32H73X_75X
     OR CONFIG_SOC_SERIES_GD32L23X
     OR CONFIG_SOC_SERIES_GD32W51X_F5HC)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_CAU       ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_cau_aes.c)
@@ -207,5 +207,7 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usb_dev.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/driver/Source/drv_usbd_int.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/device/core/Source/usbd_core.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/device/core/Source/usbd_enum.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_USBHS      ${gd32_usbhs_dir}/device/core/Source/usbd_transc.c)
 
 endif()

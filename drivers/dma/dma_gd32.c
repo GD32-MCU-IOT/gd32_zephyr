@@ -49,7 +49,7 @@
 #define DMA_CHMADDR(dma, ch) REG32((dma + 0x14UL) + 0x14UL * (uint32_t)(ch))
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define GD32_DMA_V1_NO_SUBPERIPHERAL
 #endif
 

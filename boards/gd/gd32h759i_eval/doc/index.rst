@@ -12,9 +12,9 @@ on GD32H759I Cortex-M7 Stretch Performance MCU.
 The GD32H759IMK6 features a single-core ARM Cortex-M7 MCU which can run up
 to 600 MHz with 3072kiB of Flash, 1024kiB of SRAM and 176 PINs.
 
-.. image:: img/gd32H759I_eval.jpg
+.. image:: img/gd32h759i_eval.webp
      :align: center
-     :alt: gd32H759I_eval
+     :alt: gd32h759i_eval
 
 
 Hardware
@@ -112,7 +112,7 @@ allows flash programming and debugging over USB. There is also a JTAG header
 
    .. zephyr-app-commands::
       :zephyr-app: samples/hello_world
-      :board: gd32h7xx_eval
+      :board: gd32h759i_eval
       :goals: build
       :compact:
 
@@ -135,17 +135,17 @@ allows flash programming and debugging over USB. There is also a JTAG header
 
    .. zephyr-app-commands::
       :zephyr-app: samples/hello_world
-      :board: gd32h7xx_eval
+      :board: gd32h759i_eval
       :goals: flash
       :compact:
 
-   You should see "Hello World! gd32h7xx_eval" in your terminal.
+   You should see "Hello World! gd32h759i_eval" in your terminal.
 
 #. To debug an image:
 
    .. zephyr-app-commands::
       :zephyr-app: samples/hello_world
-      :board: gd32h7xx_eval
+      :board: gd32h759i_eval
       :goals: debug
       :compact:
 
