@@ -1,7 +1,7 @@
 # Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-config SOC_SERIES_GD32H75E
+config SOC_SERIES_GD32H73X_75X
 	select ARM
 	select CPU_HAS_ARM_MPU
 	select CPU_HAS_FPU

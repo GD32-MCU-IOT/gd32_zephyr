@@ -46,7 +46,7 @@ struct pwm_gd32_config {
 	bool is_advanced;
 	/** Prescaler. */
 	uint16_t prescaler;
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	/** aligned mode selection. */
 	uint16_t alignedmode;
 	/** counter direction selection. */
@@ -62,7 +62,7 @@ struct pwm_gd32_config {
 	const struct pinctrl_dev_config *pcfg;
 };
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define TIMER_MAX_CH 4u
 #endif
 
@@ -70,7 +70,7 @@ struct pwm_gd32_config {
 #define TIMER_CHCTL2_CHXEN(ch) BIT(4U * (ch))
 /** Obtain polarity bit for the given channel */
 #define TIMER_CHCTL2_CHXP(ch)  BIT(1U + (4U * (ch)))
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 /** Obtain channel enable bit for the given channel */
 #define TIMER_CHCTL2_MCHXEN(ch) BIT(2U + (4U * (ch)))
 /** Obtain polarity bit for complementary output of the given channel */
@@ -86,7 +86,7 @@ static int pwm_gd32_set_cycles(const struct device *dev, uint32_t channel, uint3
 			       uint32_t pulse_cycles, pwm_flags_t flags)
 {
 	const struct pwm_gd32_config *config = dev->config;
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	if (channel >= TIMER_MAX_CH) {
 		return -EINVAL;
 	}
@@ -118,7 +118,7 @@ static int pwm_gd32_set_cycles(const struct device *dev, uint32_t channel, uint3
 		TIMER_CHCTL2(config->reg) &= ~TIMER_CHCTL2_MCHXP(channel);
 #endif /* TIMER_MCH_0 */
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	if (config->alignedmode == TIMER_COUNTER_EDGE) {
 		/* remove 1 period cycle */
 		period_cycles -= 1U;
@@ -199,7 +199,7 @@ static int pwm_gd32_init(const struct device *dev)
 	const struct pwm_gd32_config *config = dev->config;
 	struct pwm_gd32_data *data = dev->data;
 	int ret;
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	timer_parameter_struct timer_initpara;
 #endif
 
@@ -216,7 +216,7 @@ static int pwm_gd32_init(const struct device *dev)
 	/* cache timer clock value */
 	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,
 				     (clock_control_subsys_t *)&config->clkid, &data->tim_clk);
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	/* initialize timer */
 	timer_struct_para_init(&timer_initpara);
 
@@ -253,7 +253,7 @@ static int pwm_gd32_init(const struct device *dev)
 	return 0;
 }
 
-#if defined(CONFIG_SOC_SERIES_GD32H7XX) || defined(CONFIG_SOC_SERIES_GD32H75E)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define PWM_GD32_DEFINE(i)                                                                         \
 	static struct pwm_gd32_data pwm_gd32_data_##i;                                             \
                                                                                                    \

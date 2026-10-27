@@ -15,7 +15,7 @@ description: |
   unit, the sector size is not equal.
 
   GD32 FMC v4: its flash memory has 1 bank, page size is equal in the bank,
-  flash size is smaller than 3840KB, with flash RTDEC. Such as GD32H7xx.
+  flash size is smaller than 3840KB, with flash RTDEC. Such as GD32H73x_75x.
 
 compatible: "gd,gd32-flash-controller"
 

@@ -29,7 +29,7 @@ config USE_GD32_I2C_V2
 	select I2C_GD32_I2C_V2
 	help
 		Driver variant matching `gd,gd32-i2c-v2` compatible.
-		This version includes enhanced features and optimizations for GD32H7XX and newer series.
+		This version includes enhanced features and optimizations for GD32H73x_75x and newer series.
 
 config USE_GD32_I2C_V3
 	bool "I2C driver version 3"

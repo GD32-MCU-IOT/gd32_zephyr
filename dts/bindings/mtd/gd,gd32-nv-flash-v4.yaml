@@ -5,7 +5,7 @@ description: |
   Flash memory binding of GD32 FMC v4.
 
   GD32 series use this type flash memory:
-    - GD32H7xx
+    - GD32H73x_75x
 
 include: soc-nv-flash.yaml
 

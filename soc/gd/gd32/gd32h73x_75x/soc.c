@@ -34,6 +34,21 @@ void soc_reset_hook(void)
 	for (; p < end; p++) {
 		*p = 0;
 	}
+
+	/* nodelabels sram1/sram2 are the hardware SRAM0/SRAM1 */
+	p = (volatile uint32_t *)DT_REG_ADDR(DT_NODELABEL(sram1));
+	end = (volatile uint32_t *)(DT_REG_ADDR(DT_NODELABEL(sram1)) +
+				    DT_REG_SIZE(DT_NODELABEL(sram1)));
+	for (; p < end; p++) {
+		*p = 0;
+	}
+
+	p = (volatile uint32_t *)DT_REG_ADDR(DT_NODELABEL(sram2));
+	end = (volatile uint32_t *)(DT_REG_ADDR(DT_NODELABEL(sram2)) +
+				    DT_REG_SIZE(DT_NODELABEL(sram2)));
+	for (; p < end; p++) {
+		*p = 0;
+	}
 }
 
 void soc_early_init_hook(void)
