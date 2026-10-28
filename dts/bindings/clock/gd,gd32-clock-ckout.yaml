@@ -13,7 +13,11 @@ description: |
   It configures the source multiplexer and output divider used to route
   an internal clock to the CK_OUT pin.
 
-  Example:
+  Source and divider macros are SoC-specific; use the ones from the
+  matching gd32<series>-clocks.h header. For example GD32F527 uses
+  GD32_CKOUT0SRC_PLLP, while GD32H73x_75x uses GD32_CKOUT0SRC_PLL0P.
+
+  Example (GD32F527):
 
     &ckout0 {
         clocks = <&cctl GD32_CKOUT0SRC_PLLP>;

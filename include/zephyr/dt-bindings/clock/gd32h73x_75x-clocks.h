@@ -180,4 +180,67 @@
 #define GD32_CLOCK_CAN1 GD32_CLOCK_CONFIG(ADDAPB2EN, 1U) /**< CAN1 clock */
 #define GD32_CLOCK_CAN2 GD32_CLOCK_CONFIG(ADDAPB2EN, 2U) /**< CAN2 clock */
 
+/** @} */
+
+/**
+ * @name CKOUT0 clock output definitions
+ * @{
+ */
+
+/** CKOUT0 source selection field encoder (RCU_CFG2_CKOUT0SEL, bits 4-6) */
+#define GD32_CKOUT0_SEL(val) (((val) & 0x7U) << 4U)
+
+/** CKOUT0 source: IRC64MDIV */
+#define GD32_CKOUT0SRC_IRC64MDIV GD32_CKOUT0_SEL(0U)
+/** CKOUT0 source: LXTAL */
+#define GD32_CKOUT0SRC_LXTAL     GD32_CKOUT0_SEL(1U)
+/** CKOUT0 source: HXTAL */
+#define GD32_CKOUT0SRC_HXTAL     GD32_CKOUT0_SEL(2U)
+/** CKOUT0 source: PLL0P */
+#define GD32_CKOUT0SRC_PLL0P     GD32_CKOUT0_SEL(3U)
+/** CKOUT0 source: IRC48M */
+#define GD32_CKOUT0SRC_IRC48M    GD32_CKOUT0_SEL(4U)
+/** CKOUT0 source: PER */
+#define GD32_CKOUT0SRC_PER       GD32_CKOUT0_SEL(5U)
+/** CKOUT0 source: USBHS0 60M */
+#define GD32_CKOUT0SRC_USBHS060M GD32_CKOUT0_SEL(6U)
+/** CKOUT0 source: USBHS1 60M */
+#define GD32_CKOUT0SRC_USBHS160M GD32_CKOUT0_SEL(7U)
+
+/** CKOUT0 divider field encoder (RCU_CFG2_CKOUT0DIV, bits 0-3) */
+#define GD32_CKOUT0_DIVCFG(val) (((val) & 0xFU) << 0U)
+
+/** CKOUT0 divider: 1 */
+#define GD32_CKOUT0_DIV1  GD32_CKOUT0_DIVCFG(1U)
+/** CKOUT0 divider: 2 */
+#define GD32_CKOUT0_DIV2  GD32_CKOUT0_DIVCFG(2U)
+/** CKOUT0 divider: 3 */
+#define GD32_CKOUT0_DIV3  GD32_CKOUT0_DIVCFG(3U)
+/** CKOUT0 divider: 4 */
+#define GD32_CKOUT0_DIV4  GD32_CKOUT0_DIVCFG(4U)
+/** CKOUT0 divider: 5 */
+#define GD32_CKOUT0_DIV5  GD32_CKOUT0_DIVCFG(5U)
+/** CKOUT0 divider: 6 */
+#define GD32_CKOUT0_DIV6  GD32_CKOUT0_DIVCFG(6U)
+/** CKOUT0 divider: 7 */
+#define GD32_CKOUT0_DIV7  GD32_CKOUT0_DIVCFG(7U)
+/** CKOUT0 divider: 8 */
+#define GD32_CKOUT0_DIV8  GD32_CKOUT0_DIVCFG(8U)
+/** CKOUT0 divider: 9 */
+#define GD32_CKOUT0_DIV9  GD32_CKOUT0_DIVCFG(9U)
+/** CKOUT0 divider: 10 */
+#define GD32_CKOUT0_DIV10 GD32_CKOUT0_DIVCFG(10U)
+/** CKOUT0 divider: 11 */
+#define GD32_CKOUT0_DIV11 GD32_CKOUT0_DIVCFG(11U)
+/** CKOUT0 divider: 12 */
+#define GD32_CKOUT0_DIV12 GD32_CKOUT0_DIVCFG(12U)
+/** CKOUT0 divider: 13 */
+#define GD32_CKOUT0_DIV13 GD32_CKOUT0_DIVCFG(13U)
+/** CKOUT0 divider: 14 */
+#define GD32_CKOUT0_DIV14 GD32_CKOUT0_DIVCFG(14U)
+/** CKOUT0 divider: 15 */
+#define GD32_CKOUT0_DIV15 GD32_CKOUT0_DIVCFG(15U)
+
+/** @} */
+
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H73X_75X_CLOCKS_H_ */
