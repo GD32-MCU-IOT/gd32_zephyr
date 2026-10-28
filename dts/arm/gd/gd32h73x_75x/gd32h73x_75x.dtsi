@@ -52,6 +52,11 @@
 			};
 		};
 
+		ckout0: clock-output-0 {
+			compatible = "gd,gd32-clock-ckout";
+			status = "disabled";
+		};
+
 		fmc: flash-controller@52002000 {
 			compatible = "gd,gd32-flash-controller";
 			reg = <0x52002000 0x400>;
