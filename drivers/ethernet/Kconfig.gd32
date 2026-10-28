@@ -13,6 +13,7 @@ menuconfig ETH_GD32
 	select HWINFO
 	select CRC
 	select NET_CHECKSUM_OFFLOAD_SUPPORTED if NET_L2_ETHERNET
+	select NOCACHE_MEMORY if DCACHE
 	help
 	  Enable GigaDevice GD32 Ethernet MAC driver.
 

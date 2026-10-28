@@ -20,6 +20,8 @@
 #include <ethernet/eth_stats.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/sys/crc.h>
+#include <zephyr/sys/barrier.h>
+#include <zephyr/linker/section_tags.h>
 
 #include <gd32_enet.h>
 #include <gd32_syscfg.h>
@@ -30,35 +32,42 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(eth_gd32, CONFIG_ETHERNET_LOG_LEVEL);
 
-/*
- * HAL owns the descriptor rings/buffers (gd32<series>_enet.c); these
- * globals are its "current descriptor" cursors, read via
- * enet_desc_information_get() for zero-copy TX/RX.
- */
+/* gd32h73x_75x HAL is per-instance and has no descriptor rings; driver owns them. */
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#define GD32_ENET_MULTI_INSTANCE 1
+#define GD32_ENET_DRV_DESC       1
+#endif
+
+#if !defined(GD32_ENET_DRV_DESC)
+/* HAL that owns the descriptor rings and current-descriptor cursors. */
 extern enet_descriptors_struct *dma_current_txdesc;
 extern enet_descriptors_struct *dma_current_rxdesc;
 extern enet_descriptors_struct rxdesc_tab[ENET_RXBUF_NUM];
 extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
+#endif
 
 /*
- * GD32H7 HAL takes a per-instance base address; other series have a
- * single fixed MAC and take none. These wrappers hide the difference.
- * ARG_UNUSED(base) on non-H7 keeps cfg->base evaluated at every call site.
+ * Multi-instance HALs take a per-instance base address; other series have
+ * a single fixed MAC and take none. These wrappers hide the difference.
  */
-#if defined(CONFIG_SOC_GD32H759)
+#if defined(GD32_ENET_MULTI_INSTANCE)
 #define GD32_ENET_MAC_CFG(base)                     ENET_MAC_CFG(base)
 #define gd32_enet_software_reset(base)              enet_software_reset(base)
 #define gd32_enet_init(base, mode, chksum, filt)    enet_init((base), (mode), (chksum), (filt))
-#define gd32_enet_enable(base)                      enet_enable(base)
-#define gd32_enet_disable(base)                     enet_disable(base)
+#define gd32_enet_enable(base)                                                                     \
+	do {                                                                                       \
+		enet_tx_enable(base);                                                              \
+		enet_rx_enable(base);                                                              \
+	} while (0)
+#define gd32_enet_disable(base)                                                                    \
+	do {                                                                                       \
+		enet_tx_disable(base);                                                             \
+		enet_rx_disable(base);                                                             \
+	} while (0)
 #define gd32_enet_interrupt_enable(base, flag)      enet_interrupt_enable((base), (flag))
 #define gd32_enet_interrupt_flag_get(base, flag)    enet_interrupt_flag_get((base), (flag))
 #define gd32_enet_interrupt_flag_clear(base, flag)  enet_interrupt_flag_clear((base), (flag))
 #define gd32_enet_mac_address_set(base, addr, p)    enet_mac_address_set((base), (addr), (p))
-#define gd32_enet_descriptors_chain_init(base, dir) enet_descriptors_chain_init((base), (dir))
-#define gd32_enet_desc_info_get(base, desc, info) enet_desc_information_get((base), (desc), (info))
-#define gd32_enet_nocopy_rx(base)                 ENET_NOCOPY_FRAME_RECEIVE(base)
-#define gd32_enet_nocopy_tx(base, len)            ENET_NOCOPY_FRAME_TRANSMIT((base), (len))
 #define gd32_enet_dma_resume(base, dir)           enet_dmaprocess_resume((base), (dir))
 #define gd32_syscfg_enet_phy_cfg(base, mode)      syscfg_enet_phy_interface_config((base), (mode))
 #else
@@ -92,6 +101,15 @@ extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
  */
 #define ETH_GD32_TX_DESC_WAIT_US 2000U
 
+#if defined(GD32_ENET_DRV_DESC)
+struct eth_gd32_dma {
+	enet_descriptors_struct rx_desc[ENET_RXBUF_NUM];
+	enet_descriptors_struct tx_desc[ENET_TXBUF_NUM];
+	uint8_t rx_buf[ENET_RXBUF_NUM][ROUND_UP(ENET_RXBUF_SIZE, 4)];
+	uint8_t tx_buf[ENET_TXBUF_NUM][ROUND_UP(ENET_TXBUF_SIZE, 4)];
+};
+#endif
+
 struct eth_gd32_config {
 	uintptr_t base;
 	uint16_t clkid[3];
@@ -100,6 +118,9 @@ struct eth_gd32_config {
 	const struct device *phy_dev;
 	void (*irq_config_func)(void);
 	bool rmii;
+#if defined(GD32_ENET_DRV_DESC)
+	struct eth_gd32_dma *dma;
+#endif
 };
 
 struct eth_gd32_data {
@@ -108,6 +129,10 @@ struct eth_gd32_data {
 	struct k_sem rx_sem;
 	struct k_mutex tx_mutex;
 	struct k_thread rx_thread;
+#if defined(GD32_ENET_DRV_DESC)
+	volatile enet_descriptors_struct *rx_cur;
+	volatile enet_descriptors_struct *tx_cur;
+#endif
 
 	K_KERNEL_STACK_MEMBER(rx_thread_stack, CONFIG_ETH_GD32_RX_THREAD_STACK_SIZE);
 
@@ -115,6 +140,214 @@ struct eth_gd32_data {
 	struct net_stats_eth stats;
 #endif
 };
+
+#if defined(GD32_ENET_DRV_DESC)
+static int eth_gd32_desc_init(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+	struct eth_gd32_data *data = dev->data;
+	struct eth_gd32_dma *dma = cfg->dma;
+	uint32_t tx_status = ENET_TDES0_TCHM;
+	size_t i;
+
+	if (IS_ENABLED(CONFIG_ETH_GD32_HW_CHECKSUM)) {
+		tx_status |= ENET_CHECKSUM_TCPUDPICMP_FULL & ENET_TDES0_CM;
+	}
+
+	for (i = 0U; i < ENET_TXBUF_NUM; i++) {
+		dma->tx_desc[i].status = tx_status;
+		dma->tx_desc[i].control_buffer_size = 0U;
+		dma->tx_desc[i].buffer1_addr = (uint32_t)dma->tx_buf[i];
+		dma->tx_desc[i].buffer2_next_desc_addr =
+			(uint32_t)&dma->tx_desc[(i + 1U) % ENET_TXBUF_NUM];
+	}
+
+	/* DINTC stays clear so RS is raised right after each frame. */
+	for (i = 0U; i < ENET_RXBUF_NUM; i++) {
+		dma->rx_desc[i].status = ENET_RDES0_DAV;
+		dma->rx_desc[i].control_buffer_size =
+			ENET_RDES1_RCHM | (ENET_RXBUF_SIZE & ENET_RDES1_RB1S);
+		dma->rx_desc[i].buffer1_addr = (uint32_t)dma->rx_buf[i];
+		dma->rx_desc[i].buffer2_next_desc_addr =
+			(uint32_t)&dma->rx_desc[(i + 1U) % ENET_RXBUF_NUM];
+	}
+
+	data->tx_cur = &dma->tx_desc[0];
+	data->rx_cur = &dma->rx_desc[0];
+
+	ENET_DMA_TDTADDR(cfg->base) = (uint32_t)&dma->tx_desc[0];
+	ENET_DMA_RDTADDR(cfg->base) = (uint32_t)&dma->rx_desc[0];
+
+	return 0;
+}
+
+static inline uint32_t eth_gd32_rx_status(const struct device *dev)
+{
+	struct eth_gd32_data *data = dev->data;
+
+	return data->rx_cur->status;
+}
+
+static uint32_t eth_gd32_rx_len(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+	struct eth_gd32_data *data = dev->data;
+	uint32_t status = data->rx_cur->status;
+	uint32_t len;
+
+	if ((status & ENET_RDES0_ERRS) || !(status & ENET_RDES0_FDES) ||
+	    !(status & ENET_RDES0_LDES)) {
+		return 0U;
+	}
+
+	len = GET_RDES0_FRML(status);
+
+	/* Strip FCS unless the MAC already dropped it for type frames. */
+	if (!((GD32_ENET_MAC_CFG(cfg->base) & ENET_MAC_CFG_TFCD) && (status & ENET_RDES0_FRMT))) {
+		len = (len > 4U) ? (len - 4U) : 0U;
+	}
+
+	return len;
+}
+
+static inline uint8_t *eth_gd32_rx_buf(const struct device *dev)
+{
+	struct eth_gd32_data *data = dev->data;
+
+	return (uint8_t *)data->rx_cur->buffer1_addr;
+}
+
+static void eth_gd32_rx_release(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+	struct eth_gd32_data *data = dev->data;
+
+	data->rx_cur->status = ENET_RDES0_DAV;
+	barrier_dmem_fence_full();
+
+	/* Resume RX DMA if it suspended on an unavailable buffer. */
+	if (ENET_DMA_STAT(cfg->base) & ENET_DMA_STAT_RBU) {
+		ENET_DMA_STAT(cfg->base) = ENET_DMA_STAT_RBU;
+		ENET_DMA_RPEN(cfg->base) = 0U;
+	}
+
+	data->rx_cur = (volatile enet_descriptors_struct *)data->rx_cur->buffer2_next_desc_addr;
+}
+
+static inline bool eth_gd32_tx_busy(const struct device *dev)
+{
+	struct eth_gd32_data *data = dev->data;
+
+	return (data->tx_cur->status & ENET_TDES0_DAV) != 0U;
+}
+
+static inline uint8_t *eth_gd32_tx_buf(const struct device *dev)
+{
+	struct eth_gd32_data *data = dev->data;
+
+	return (uint8_t *)data->tx_cur->buffer1_addr;
+}
+
+static int eth_gd32_tx_submit(const struct device *dev, size_t len)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+	struct eth_gd32_data *data = dev->data;
+	uint32_t stat;
+
+	data->tx_cur->control_buffer_size = len & ENET_TDES1_TB1S;
+	data->tx_cur->status |= ENET_TDES0_LSG | ENET_TDES0_FSG;
+	barrier_dmem_fence_full();
+	data->tx_cur->status |= ENET_TDES0_DAV;
+	barrier_dmem_fence_full();
+
+	/* Kick TX DMA if it suspended on an unavailable buffer or underflow. */
+	stat = ENET_DMA_STAT(cfg->base) & (ENET_DMA_STAT_TBU | ENET_DMA_STAT_TU);
+	if (stat != 0U) {
+		ENET_DMA_STAT(cfg->base) = stat;
+		ENET_DMA_TPEN(cfg->base) = 0U;
+	}
+
+	data->tx_cur = (volatile enet_descriptors_struct *)data->tx_cur->buffer2_next_desc_addr;
+
+	return 0;
+}
+#else
+static int eth_gd32_desc_init(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+	size_t i;
+
+	gd32_enet_descriptors_chain_init(cfg->base, ENET_DMA_TX);
+	gd32_enet_descriptors_chain_init(cfg->base, ENET_DMA_RX);
+
+	for (i = 0U; i < ENET_RXBUF_NUM; i++) {
+		enet_rx_desc_immediate_receive_complete_interrupt(&rxdesc_tab[i]);
+	}
+
+#if defined(CONFIG_ETH_GD32_HW_CHECKSUM)
+	for (i = 0U; i < ENET_TXBUF_NUM; i++) {
+		if (enet_transmit_checksum_config(&txdesc_tab[i], ENET_CHECKSUM_TCPUDPICMP_FULL) !=
+		    SUCCESS) {
+			LOG_ERR("Failed to enable TX checksum offload on descriptor %u", i);
+			return -EIO;
+		}
+	}
+#endif
+
+	return 0;
+}
+
+static inline uint32_t eth_gd32_rx_status(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+
+	return dma_current_rxdesc->status;
+}
+
+static inline uint32_t eth_gd32_rx_len(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+
+	return gd32_enet_desc_info_get(cfg->base, dma_current_rxdesc, RXDESC_FRAME_LENGTH);
+}
+
+static inline uint8_t *eth_gd32_rx_buf(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+
+	return (uint8_t *)gd32_enet_desc_info_get(cfg->base, dma_current_rxdesc,
+						  RXDESC_BUFFER_1_ADDR);
+}
+
+static inline void eth_gd32_rx_release(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+
+	(void)gd32_enet_nocopy_rx(cfg->base);
+}
+
+static inline bool eth_gd32_tx_busy(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+
+	return (dma_current_txdesc->status & ENET_TDES0_DAV) != 0U;
+}
+
+static inline uint8_t *eth_gd32_tx_buf(const struct device *dev)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+
+	return (uint8_t *)gd32_enet_desc_info_get(cfg->base, dma_current_txdesc,
+						  TXDESC_BUFFER_1_ADDR);
+}
+
+static inline int eth_gd32_tx_submit(const struct device *dev, size_t len)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+
+	return (gd32_enet_nocopy_tx(cfg->base, len) == SUCCESS) ? 0 : -EIO;
+}
+#endif /* GD32_ENET_DRV_DESC */
 
 /*
  * Derive a stable, per-chip locally administered MAC address from the SoC
@@ -163,24 +396,22 @@ static void eth_gd32_isr(const struct device *dev)
 
 static void eth_gd32_rx(const struct device *dev)
 {
-	const struct eth_gd32_config *cfg = dev->config;
 	struct eth_gd32_data *data = dev->data;
 	uint32_t len;
 	uint8_t *buffer;
 	struct net_pkt *pkt = NULL;
 
 	/* Process received frames while descriptor is owned by CPU. */
-	while ((dma_current_rxdesc->status & ENET_RDES0_DAV) == 0U) {
+	while ((eth_gd32_rx_status(dev) & ENET_RDES0_DAV) == 0U) {
 		unsigned int key;
 
 		/* Protect descriptor ops from ISR interleaving. */
 		key = irq_lock();
 
-		len = gd32_enet_desc_info_get(cfg->base, dma_current_rxdesc, RXDESC_FRAME_LENGTH);
+		len = eth_gd32_rx_len(dev);
 
 		if (len > 0U) {
-			buffer = (uint8_t *)gd32_enet_desc_info_get(cfg->base, dma_current_rxdesc,
-								    RXDESC_BUFFER_1_ADDR);
+			buffer = eth_gd32_rx_buf(dev);
 
 			pkt = net_pkt_rx_alloc_with_buffer(data->iface, len, AF_UNSPEC, 0,
 							   K_NO_WAIT);
@@ -196,7 +427,7 @@ static void eth_gd32_rx(const struct device *dev)
 		}
 
 		/* Always release descriptor to DMA, even for zero-length frames. */
-		gd32_enet_nocopy_rx(cfg->base);
+		eth_gd32_rx_release(dev);
 
 		irq_unlock(key);
 
@@ -236,7 +467,6 @@ static void eth_gd32_rx_thread(void *arg1, void *arg2, void *arg3)
 
 static int eth_gd32_send(const struct device *dev, struct net_pkt *pkt)
 {
-	const struct eth_gd32_config *cfg = dev->config;
 	struct eth_gd32_data *data = dev->data;
 	size_t len = net_pkt_get_len(pkt);
 	unsigned int retries = ETH_GD32_TX_DESC_WAIT_US;
@@ -254,8 +484,8 @@ static int eth_gd32_send(const struct device *dev, struct net_pkt *pkt)
 	unsigned int key = irq_lock();
 
 	/* Wait for DMA to release current TX descriptor. */
-	while (dma_current_txdesc->status & ENET_TDES0_DAV) {
-		if (retries-- == 4U) {
+	while (eth_gd32_tx_busy(dev)) {
+		if (retries-- == 0U) {
 			LOG_ERR("TX descriptor busy (DMA stalled?)");
 			ret = -EBUSY;
 			goto out;
@@ -263,8 +493,7 @@ static int eth_gd32_send(const struct device *dev, struct net_pkt *pkt)
 		k_busy_wait(1);
 	}
 
-	buffer = (uint8_t *)gd32_enet_desc_info_get(cfg->base, dma_current_txdesc,
-						    TXDESC_BUFFER_1_ADDR);
+	buffer = eth_gd32_tx_buf(dev);
 
 	net_pkt_cursor_init(pkt);
 
@@ -274,9 +503,7 @@ static int eth_gd32_send(const struct device *dev, struct net_pkt *pkt)
 		goto out;
 	}
 
-	if (gd32_enet_nocopy_tx(cfg->base, len) != SUCCESS) {
-		ret = -EIO;
-	}
+	ret = eth_gd32_tx_submit(dev, len);
 
 out:
 	irq_unlock(key);
@@ -446,23 +673,10 @@ static int eth_gd32_init(const struct device *dev)
 
 	gd32_enet_mac_address_set(cfg->base, ENET_MAC_ADDRESS0, data->mac_addr);
 
-	gd32_enet_descriptors_chain_init(cfg->base, ENET_DMA_TX);
-	gd32_enet_descriptors_chain_init(cfg->base, ENET_DMA_RX);
-
-	for (i = 0U; i < ENET_RXBUF_NUM; i++) {
-		enet_rx_desc_immediate_receive_complete_interrupt(&rxdesc_tab[i]);
+	ret = eth_gd32_desc_init(dev);
+	if (ret < 0) {
+		return ret;
 	}
-
-	/* enable the TCP, UDP and ICMP checksum insertion for the Tx frames */
-#if defined(CONFIG_ETH_GD32_HW_CHECKSUM)
-	for (i = 0U; i < ENET_TXBUF_NUM; i++) {
-		if (enet_transmit_checksum_config(&txdesc_tab[i], ENET_CHECKSUM_TCPUDPICMP_FULL) !=
-		    SUCCESS) {
-			LOG_ERR("Failed to enable TX checksum offload on descriptor %u", i);
-			return -EIO;
-		}
-	}
-#endif
 
 	k_sem_init(&data->rx_sem, 0, K_SEM_MAX_LIMIT);
 	k_mutex_init(&data->tx_mutex);
@@ -492,9 +706,18 @@ static const struct ethernet_api eth_gd32_api = {
 		irq_enable(DT_INST_IRQN(n));                                                       \
 	}
 
+#if defined(GD32_ENET_DRV_DESC)
+#define ETH_GD32_DMA_DEFINE(n) static struct eth_gd32_dma eth_gd32_dma_##n __aligned(32) __nocache;
+#define ETH_GD32_DMA_CFG(n)    .dma = &eth_gd32_dma_##n,
+#else
+#define ETH_GD32_DMA_DEFINE(n)
+#define ETH_GD32_DMA_CFG(n)
+#endif
+
 #define ETH_GD32_INIT(n)                                                                           \
 	PINCTRL_DT_INST_DEFINE(n);                                                                 \
 	ETH_GD32_IRQ_CONFIG_FUNC(n)                                                                \
+	ETH_GD32_DMA_DEFINE(n)                                                                     \
 	BUILD_ASSERT(DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, mii) ||                        \
 			     DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rmii),                 \
 		     "Unsupported PHY connection type");                                           \
@@ -508,7 +731,7 @@ static const struct ethernet_api eth_gd32_api = {
 		.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(n, phy_handle)),                          \
 		.irq_config_func = eth_gd32_irq_config_func_##n,                                   \
 		.rmii = DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rmii),                      \
-	};                                                                                         \
+		ETH_GD32_DMA_CFG(n)};                                                              \
 	static struct eth_gd32_data eth_gd32_data_##n = {                                          \
 		.mac_addr = DT_INST_PROP_OR(n, local_mac_address, {0}),                            \
 	};                                                                                         \
