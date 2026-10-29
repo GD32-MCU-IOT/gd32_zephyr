@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/gd32_dma.h>
+
+/*
+ * USART0 is the console, and USART1 (PA2/PA3) collides with the SPI0 IO2/IO3
+ * pins wired to the on-board NOR flash, so the async test runs on USART2
+ * remapped to PD8/PD9. Connect PD8 (TX) to PD9 (RX) for the loopback.
+ */
+
+&pinctrl {
+	usart2_default: usart2_default {
+		group1 {
+			pinmux = <USART2_TX_PD8>, <USART2_RX_PD9>;
+			bias-pull-up;
+		};
+	};
+};
+
+dut: &usart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart2_default>;
+	pinctrl-names = "default";
+	dmas = <&dmamux 2 25 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>,
+	       <&dmamux 3 24 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>;
+	dma-names = "tx", "rx";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dmamux {
+	status = "okay";
+};
