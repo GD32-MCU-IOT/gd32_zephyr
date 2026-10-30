@@ -109,15 +109,3 @@ properties:
       protection register that initializes to write-protected. Use this
       property to indicate that the BPR must be unlocked before write
       operations can proceed.
-
-examples:
-  - |
-    gd25x512me: ospi-nor-flash@0 {
-        compatible = "gd,gd32-ospi-nor";
-        reg = <0>;
-        size = <DT_SIZE_M(512)>; /* 512 Mbits */
-        spi-bus-width = <OSPI_OPI_MODE>; /* access on 8 data lines */
-        data-rate = <OSPI_STR_TRANSFER>; /* access in STR */
-        ospi-max-frequency = <DT_FREQ_M(50)>;
-        status = "okay";
-    };

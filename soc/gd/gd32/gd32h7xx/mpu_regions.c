@@ -6,7 +6,20 @@
 
 #include <zephyr/devicetree.h>
 #include <zephyr/linker/devicetree_regions.h>
+#include <zephyr/sys/util.h>
 #include <zephyr/arch/arm/cortex_m/arm_mpu_mem_cfg.h>
+
+/* The OSPI memory-mapped window is fixed at 256 MB on GD32H7xx. */
+#if defined(CONFIG_FLASH_GD32_OSPI_MEMORY_MAPPED)
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ospi0))
+BUILD_ASSERT(DT_REG_SIZE_BY_IDX(DT_NODELABEL(ospi0), 1) == MB(256),
+	     "ospi0 memory-mapped window must be 256 MB to match REGION_256M");
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ospi1))
+BUILD_ASSERT(DT_REG_SIZE_BY_IDX(DT_NODELABEL(ospi1), 1) == MB(256),
+	     "ospi1 memory-mapped window must be 256 MB to match REGION_256M");
+#endif
+#endif
 
 static const struct arm_mpu_region mpu_regions[] = {
 	/* configure the MPU attributes for the entire 4GB area, Reserved, no access.
@@ -38,23 +51,18 @@ static const struct arm_mpu_region mpu_regions[] = {
 
 /*
  * OSPI memory-mapped window must be Strongly-Ordered (not cacheable), else CPU
- * prefetch/burst reads hang the OSPI read state machine. Size follows the DTS
- * reg so the MPU region stays in sync if the window is resized.
+ * prefetch/burst reads hang the OSPI read state machine.
  */
 #if defined(CONFIG_FLASH_GD32_OSPI_MEMORY_MAPPED)
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ospi0))
 	MPU_REGION_ENTRY(
 		"OSPI0_MMAP", DT_REG_ADDR_BY_IDX(DT_NODELABEL(ospi0), 1),
-		{(STRONGLY_ORDERED_SHAREABLE |
-		  REGION_CUSTOMED_MEMORY_SIZE(DT_REG_SIZE_BY_IDX(DT_NODELABEL(ospi0), 1) / 1024) |
-		  FULL_ACCESS_Msk)}),
+		{(STRONGLY_ORDERED_SHAREABLE | REGION_256M | FULL_ACCESS_Msk)}),
 #endif
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ospi1))
 	MPU_REGION_ENTRY(
 		"OSPI1_MMAP", DT_REG_ADDR_BY_IDX(DT_NODELABEL(ospi1), 1),
-		{(STRONGLY_ORDERED_SHAREABLE |
-		  REGION_CUSTOMED_MEMORY_SIZE(DT_REG_SIZE_BY_IDX(DT_NODELABEL(ospi1), 1) / 1024) |
-		  FULL_ACCESS_Msk)}),
+		{(STRONGLY_ORDERED_SHAREABLE | REGION_256M | FULL_ACCESS_Msk)}),
 #endif
 #endif
 
