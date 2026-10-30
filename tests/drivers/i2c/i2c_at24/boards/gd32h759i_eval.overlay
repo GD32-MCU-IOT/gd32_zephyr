@@ -1,0 +1,10 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* PB11 is shared with I2C1_SDA; keep USART2_TX (PB10) from driving the UART loopback jumper. */
+&usart2 {
+	status = "disabled";
+};

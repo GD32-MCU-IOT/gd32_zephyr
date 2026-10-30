@@ -18,6 +18,7 @@ supported:
   - spi
   - uart
   - gpio
+  - i2c
   - dmamux
   - adc
   - can

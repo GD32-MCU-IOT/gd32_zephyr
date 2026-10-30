@@ -1,0 +1,43 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	zephyr,user {
+		/* PC12 (MOSI) is shorted to PC11 (MISO) for the loopback test. */
+		mosi-gpios = <&gpioc 12 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioc 11 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&pinctrl {
+	/* Default 2 MHz slew rate distorts SCK/MOSI at loopback speeds. */
+	spi2_loopback: spi2_loopback {
+		group1 {
+			pinmux = <SPI2_SCK_PC10>, <SPI2_MOSI_PC12>, <SPI2_MISO_PC11>;
+			slew-rate = "max-speed-50mhz";
+		};
+	};
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_loopback>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
+
+	/* APB2 / 256 is the slowest SCK; 500 kHz is below it on this SoC. */
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
