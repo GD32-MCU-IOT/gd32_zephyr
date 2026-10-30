@@ -13,19 +13,23 @@
 
 LOG_MODULE_DECLARE(flash_gd32);
 
-#define GD32_NV_FLASH_M53X_NODE		DT_INST(0, gd_gd32_nv_flash_m53x)
+#define GD32_FMC_M53X_NODE		DT_INST(0, gd_gd32m53x_flash_controller)
+#define GD32_NV_FLASH_M53X_NODE		DT_INST(0, gd_gd32_nv_flash)
 #define GD32_NV_FLASH_M53X_TIMEOUT	DT_PROP(GD32_NV_FLASH_M53X_NODE, max_erase_time_ms)
-#define GD32_NV_FLASH_M53X_PAGE_SIZE	DT_PROP(GD32_NV_FLASH_M53X_NODE, page_size)
+#define GD32_NV_FLASH_M53X_PAGE_SIZE	DT_PROP(GD32_FMC_M53X_NODE, gd_page_bytes)
 
 /*
  * The main flash keeps a 9-bit ECC next to every 128-bit quad-word, so a
  * quad-word that is not fully programmed is silently discarded by the FMC.
  */
-#define GD32_FMC_M53X_QUAD_SIZE		SOC_NV_FLASH_PRG_SIZE
+#define GD32_FMC_M53X_QUAD_SIZE		DT_PROP(GD32_FMC_M53X_NODE, gd_program_unit_bytes)
 #define GD32_FMC_M53X_QUAD_WORDS	(GD32_FMC_M53X_QUAD_SIZE / sizeof(uint32_t))
 
-BUILD_ASSERT(GD32_FMC_M53X_QUAD_SIZE == 16U,
-	     "GD32 M53x FMC requires write-block-size = <16>");
+BUILD_ASSERT(SOC_NV_FLASH_PRG_SIZE == GD32_FMC_M53X_QUAD_SIZE,
+	     "GD32 M53x FMC requires write-block-size equal to gd,program-unit-bytes");
+
+BUILD_ASSERT(DT_PROP(GD32_NV_FLASH_M53X_NODE, page_size) == GD32_NV_FLASH_M53X_PAGE_SIZE,
+	     "GD32 M53x FMC requires page-size equal to gd,page-bytes");
 
 #define GD32_FMC_M53X_WRITE_ERR	(FMC_STAT_PGSERR | FMC_STAT_PGERR | \
 				 FMC_STAT_PGAERR | FMC_STAT_WPERR)
@@ -77,8 +81,8 @@ static void gd32_fmc_m53x_cache_reset(void)
 
 bool flash_gd32_valid_range(off_t offset, uint32_t len, bool write)
 {
-	if ((offset < 0) || (offset > SOC_NV_FLASH_SIZE) ||
-	    ((offset + len) > SOC_NV_FLASH_SIZE)) {
+	if ((offset < 0) || ((uint32_t)offset > SOC_NV_FLASH_SIZE) ||
+	    (len > (SOC_NV_FLASH_SIZE - (uint32_t)offset))) {
 		return false;
 	}
 

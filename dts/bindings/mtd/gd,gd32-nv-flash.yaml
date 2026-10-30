@@ -1,0 +1,44 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32 flash memory.
+
+  This binding is for the flash memory itself, not the flash controller
+  peripheral. For that, see the "gd,gd32-flash-controller" binding and the
+  series bindings such as "gd,gd32m53x-flash-controller".
+
+  Page layout properties. Which one to use depends only on how the flash
+  pages are laid out, not on the FMC type: series sharing a layout may still
+  differ in FMC, write-block-size and driver.
+
+    - Equal pages across the whole node: use page-size.
+      Used by FMC v1 series, FMC v4 series and GD32M53x.
+    - Two banks, each with its own page size: use bank0-page-size and
+      bank1-page-size.
+      Used by FMC v2 series.
+    - Sectors of different sizes: no layout property, the sector map is
+      fixed in the driver.
+      Used by FMC v3 series.
+
+include: soc-nv-flash.yaml
+
+compatible: "gd,gd32-nv-flash"
+
+properties:
+  max-erase-time-ms:
+    type: int
+    required: true
+    description: Max erase time(millisecond) of a flash page or sector
+
+  page-size:
+    type: int
+    description: Flash memory page size, for a bank of equal pages
+
+  bank0-page-size:
+    type: int
+    description: Flash memory page size for bank0
+
+  bank1-page-size:
+    type: int
+    description: Flash memory page size for bank1

@@ -1,0 +1,38 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32M53x flash controller.
+
+  Listed before "gd,gd32-flash-controller" on the GD32M53x FMC node, so this
+  binding applies to the node and selects the GD32M53x flash driver.
+
+  The "gd,gd32-nv-flash" child node must use write-block-size equal to
+  gd,program-unit-bytes and page-size equal to gd,page-bytes; the driver
+  checks both at build time.
+
+compatible: "gd,gd32m53x-flash-controller"
+
+include: gd,gd32-flash-controller.yaml
+
+properties:
+  gd,program-unit-bytes:
+    type: int
+    required: true
+    const: 16
+    description: |
+      Main flash is programmed in 128-bit quad-words. A quad-word can only be
+      programmed once per erase cycle, and a partially written quad-word is
+      discarded by the hardware.
+
+  gd,ecc-bits:
+    type: int
+    required: true
+    const: 9
+    description: ECC bits stored with each quad-word of main flash.
+
+  gd,page-bytes:
+    type: int
+    required: true
+    const: 1024
+    description: Main flash page size, which is also the minimum erase unit.

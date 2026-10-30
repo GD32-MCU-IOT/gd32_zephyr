@@ -45,6 +45,7 @@ config GD32_NV_FLASH_V4
 config GD32_NV_FLASH_M53X
 	bool
 	default y
-	depends on DT_HAS_GD_GD32_NV_FLASH_M53X_ENABLED
+	depends on DT_HAS_GD_GD32M53X_FLASH_CONTROLLER_ENABLED && \
+		   DT_HAS_GD_GD32_NV_FLASH_ENABLED
 	help
 	  Enable the backend for GD32 M53x FMC flash driver.
