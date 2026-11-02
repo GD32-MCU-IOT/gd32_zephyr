@@ -5,9 +5,11 @@
 #
 
 description: |
-  GigaDevice GD32 Ethernet MAC. MDIO is a labeled child node in the SoC
-  dtsi ("enet_mdio: mdio { compatible = \"gd,gd32-enet-mdio\"; ... };"),
-  and board dts references both labels as flat, independent blocks, e.g.:
+  GigaDevice GD32 Ethernet MAC. The MAC is a child of a
+  "gd,gd32-ethernet-controller" node that owns the registers ("reg"), and
+  the MDIO is its sibling ("enet_mdio: mdio { compatible =
+  \"gd,gd32-enet-mdio\"; ... };"). Board dts references both labels as flat,
+  independent blocks, e.g.:
 
     &enet {
         pinctrl-0 = <&enet_rmii_default>;
@@ -38,18 +40,8 @@ compatible: "gd,gd32-ethernet"
 include: [ethernet-controller.yaml, reset-device.yaml, pinctrl-device.yaml]
 
 properties:
-  reg:
-    required: true
-
   interrupts:
     required: true
-
-  clocks:
-    required: true
-    description: |
-      MAC, MAC-TX and MAC-RX clock gates, in that order, e.g.
-      clocks = <&cctl GD32_CLOCK_ENET>, <&cctl GD32_CLOCK_ENETTX>,
-               <&cctl GD32_CLOCK_ENETRX>;
 
   resets:
     required: true

@@ -285,14 +285,24 @@
 			status = "disabled";
 		};
 
-		enet0: ethernet@40028000 {
-			compatible = "gd,gd32-ethernet";
+		/*
+		 * The MAC and the MDIO are siblings under a controller node that
+		 * owns the registers. If the MDIO were a child of the MAC, the
+		 * MAC's phy-handle would create a dependency cycle (mac -> phy ->
+		 * mdio -> mac) that this Zephyr version cannot resolve.
+		 */
+		ethernet@40028000 {
+			compatible = "gd,gd32-ethernet-controller";
 			reg = <0x40028000 0x2000>;
-			interrupts = <61 0>, <62 0>;
 			clocks = <&cctl GD32_CLOCK_ENET0>, <&cctl GD32_CLOCK_ENET0TX>,
 				 <&cctl GD32_CLOCK_ENET0RX>;
-			resets = <&rctl GD32_RESET_ENET0>;
-			status = "disabled";
+
+			enet0: ethernet {
+				compatible = "gd,gd32-ethernet";
+				interrupts = <61 0>, <62 0>;
+				resets = <&rctl GD32_RESET_ENET0>;
+				status = "disabled";
+			};
 
 			enet0_mdio: mdio {
 				compatible = "gd,gd32-enet-mdio";
@@ -302,14 +312,18 @@
 			};
 		};
 
-		enet1: ethernet@4002a000 {
-			compatible = "gd,gd32-ethernet";
+		ethernet@4002a000 {
+			compatible = "gd,gd32-ethernet-controller";
 			reg = <0x4002a000 0x2000>;
-			interrupts = <176 0>, <177 0>;
 			clocks = <&cctl GD32_CLOCK_ENET1>, <&cctl GD32_CLOCK_ENET1TX>,
 				 <&cctl GD32_CLOCK_ENET1RX>;
-			resets = <&rctl GD32_RESET_ENET1>;
-			status = "disabled";
+
+			enet1: ethernet {
+				compatible = "gd,gd32-ethernet";
+				interrupts = <176 0>, <177 0>;
+				resets = <&rctl GD32_RESET_ENET1>;
+				status = "disabled";
+			};
 
 			enet1_mdio: mdio {
 				compatible = "gd,gd32-enet-mdio";

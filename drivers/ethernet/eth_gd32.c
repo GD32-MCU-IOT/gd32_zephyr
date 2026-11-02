@@ -53,6 +53,7 @@ extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
 #if defined(GD32_ENET_MULTI_INSTANCE)
 #define GD32_ENET_MAC_CFG(base)                     ENET_MAC_CFG(base)
 #define gd32_enet_software_reset(base)              enet_software_reset(base)
+#define gd32_enet_mdc_config(base)                  enet_phy_config(base)
 #define gd32_enet_init(base, mode, chksum, filt)    enet_init((base), (mode), (chksum), (filt))
 #define gd32_enet_enable(base)                                                                     \
 	do {                                                                                       \
@@ -73,6 +74,8 @@ extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
 #else
 #define GD32_ENET_MAC_CFG(base)        ENET_MAC_CFG
 #define gd32_enet_software_reset(base) (ARG_UNUSED(base), enet_software_reset())
+/* enet_init() of these HALs configures MDC itself */
+#define gd32_enet_mdc_config(base)     (ARG_UNUSED(base), SUCCESS)
 #define gd32_enet_init(base, mode, chksum, filt)                                                   \
 	(ARG_UNUSED(base), enet_init((mode), (chksum), (filt)))
 #define gd32_enet_enable(base)                   (ARG_UNUSED(base), enet_enable())
@@ -518,11 +521,9 @@ out:
 	return ret;
 }
 
-static enum ethernet_hw_caps eth_gd32_get_capabilities(const struct device *dev,
-						       struct net_if *iface)
+static enum ethernet_hw_caps eth_gd32_get_capabilities(const struct device *dev)
 {
 	ARG_UNUSED(dev);
-	ARG_UNUSED(iface);
 
 	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE
 #if defined(CONFIG_ETH_GD32_HW_CHECKSUM)
@@ -531,11 +532,9 @@ static enum ethernet_hw_caps eth_gd32_get_capabilities(const struct device *dev,
 		;
 }
 
-static const struct device *eth_gd32_get_phy(const struct device *dev, struct net_if *iface)
+static const struct device *eth_gd32_get_phy(const struct device *dev)
 {
 	const struct eth_gd32_config *cfg = dev->config;
-
-	ARG_UNUSED(iface);
 
 	return cfg->phy_dev;
 }
@@ -618,6 +617,25 @@ static int eth_gd32_init(const struct device *dev)
 	int ret;
 	size_t i;
 
+	/* Vendor demo order: pins, PHY interface select, ENET clocks, reset, MDC */
+	ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
+	if (ret < 0) {
+		LOG_ERR("Failed to apply ENET pinctrl (%d)", ret);
+		return ret;
+	}
+
+	ret = clock_control_on(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&syscfg_clkid);
+	if (ret < 0) {
+		LOG_ERR("Failed to enable SYSCFG clock (%d)", ret);
+		return ret;
+	}
+
+	if (cfg->rmii) {
+		gd32_syscfg_enet_phy_cfg(cfg->base, SYSCFG_ENET_PHY_RMII);
+	} else {
+		gd32_syscfg_enet_phy_cfg(cfg->base, SYSCFG_ENET_PHY_MII);
+	}
+
 	for (i = 0U; i < ARRAY_SIZE(cfg->clkid); i++) {
 		ret = clock_control_on(GD32_CLOCK_CONTROLLER,
 				       (clock_control_subsys_t)&cfg->clkid[i]);
@@ -627,28 +645,16 @@ static int eth_gd32_init(const struct device *dev)
 		}
 	}
 
-	ret = clock_control_on(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&syscfg_clkid);
-	if (ret < 0) {
-		LOG_ERR("Failed to enable SYSCFG clock (%d)", ret);
-		return ret;
-	}
-
-	ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
-	if (ret < 0) {
-		LOG_ERR("Failed to apply ENET pinctrl (%d)", ret);
-		return ret;
-	}
-
 	(void)reset_line_toggle_dt(&cfg->reset);
-
-	if (cfg->rmii) {
-		gd32_syscfg_enet_phy_cfg(cfg->base, SYSCFG_ENET_PHY_RMII);
-	} else {
-		gd32_syscfg_enet_phy_cfg(cfg->base, SYSCFG_ENET_PHY_MII);
-	}
 
 	if (gd32_enet_software_reset(cfg->base) == ERROR) {
 		LOG_ERR("ENET software reset failed");
+		return -EIO;
+	}
+
+	/* The reset restores the default MDC divider, so set it again for later SMI access */
+	if (gd32_enet_mdc_config(cfg->base) == ERROR) {
+		LOG_ERR("Failed to configure MDC clock");
 		return -EIO;
 	}
 
@@ -722,10 +728,10 @@ static const struct ethernet_api eth_gd32_api = {
 			     DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rmii),                 \
 		     "Unsupported PHY connection type");                                           \
 	static const struct eth_gd32_config eth_gd32_config_##n = {                                \
-		.base = DT_INST_REG_ADDR(n),                                                       \
-		.clkid = {DT_INST_CLOCKS_CELL_BY_IDX(n, 0, id),                                    \
-			  DT_INST_CLOCKS_CELL_BY_IDX(n, 1, id),                                    \
-			  DT_INST_CLOCKS_CELL_BY_IDX(n, 2, id)},                                   \
+		.base = DT_REG_ADDR(DT_INST_PARENT(n)),                                            \
+		.clkid = {DT_CLOCKS_CELL_BY_IDX(DT_INST_PARENT(n), 0, id),                         \
+			  DT_CLOCKS_CELL_BY_IDX(DT_INST_PARENT(n), 1, id),                         \
+			  DT_CLOCKS_CELL_BY_IDX(DT_INST_PARENT(n), 2, id)},                        \
 		.reset = RESET_DT_SPEC_INST_GET(n),                                                \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                         \
 		.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(n, phy_handle)),                          \
