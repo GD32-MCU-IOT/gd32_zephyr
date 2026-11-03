@@ -155,6 +155,10 @@ tests:
     platform_allow:
       - gd32m531r_eval
     extra_args: EXTRA_CONF_FILE=boards/gd32m531r_eval_internal.conf
+  drivers.flash.common.gd32f307_internal:
+    platform_allow:
+      - gd32f307c_eval
+    extra_args: EXTRA_CONF_FILE=boards/gd32f307c_eval_internal.conf
   drivers.flash.common.gd32_nor:
     platform_allow:
       - gd32f5hcr_eval

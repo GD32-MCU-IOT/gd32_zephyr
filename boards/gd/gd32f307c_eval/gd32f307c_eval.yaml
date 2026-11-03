@@ -13,7 +13,8 @@ toolchain:
 supported:
   - gpio
   - uart
-  - watchdog
-  - pwm
-  - counter
+  - spi
+  - i2c
+  - dma
+  - flash
 vendor: gd
