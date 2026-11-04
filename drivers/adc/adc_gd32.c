@@ -483,6 +483,14 @@ static int adc_gd32_channel_setup(const struct device *dev,
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+	if (cfg->reg == ADC0 && chan_cfg->channel_id == 16U) {
+		adc_internal_channel_config(ADC_CHANNEL_INTERNAL_TEMPSENSOR, ENABLE);
+	} else if (cfg->reg == ADC0 && chan_cfg->channel_id == 17U) {
+		adc_internal_channel_config(ADC_CHANNEL_INTERNAL_VREFINT, ENABLE);
+	}
+#endif
+
 	return adc_gd32_configure_sampt(cfg, chan_cfg->channel_id,
 					chan_cfg->acquisition_time);
 }
