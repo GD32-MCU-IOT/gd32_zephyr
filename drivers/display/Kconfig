@@ -1,6 +1,7 @@
 # Display drivers
 
 # Copyright (c) 2017 Intel Corporation
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 menuconfig DISPLAY
@@ -26,6 +27,7 @@ source "drivers/display/Kconfig.co5300"
 source "drivers/display/Kconfig.dummy"
 source "drivers/display/Kconfig.ed2208_gca"
 source "drivers/display/Kconfig.gc9x01x"
+source "drivers/display/Kconfig.gd32_ili9320"
 source "drivers/display/Kconfig.gd32_tli"
 source "drivers/display/Kconfig.hub12"
 source "drivers/display/Kconfig.hx8379c"

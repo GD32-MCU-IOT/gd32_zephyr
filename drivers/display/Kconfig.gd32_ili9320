@@ -1,0 +1,13 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config GD32_ILI9320
+	bool "GD32 EXMC ILI9320 display driver"
+	default y
+	depends on DT_HAS_GD_GD32_ILI9320_ENABLED
+	depends on SOC_SERIES_GD32F50X
+	select USE_GD32_EXMC
+	select PINCTRL
+	help
+	  Enable driver for the ILI9320 16-bit parallel display connected to
+	  the GD32 EXMC. Currently supported on GD32F50x.
