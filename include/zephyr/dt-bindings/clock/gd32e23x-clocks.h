@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @file
+ * @brief GD32E23x clock controller dt-bindings.
+ */
+
 #ifndef ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32E23X_CLOCKS_H_
 #define ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32E23X_CLOCKS_H_
 
