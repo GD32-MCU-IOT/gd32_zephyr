@@ -8,6 +8,8 @@
 
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/barrier.h>
+#include <zephyr/sys/byteorder.h>
 #include <gd32_fmc.h>
 
 LOG_MODULE_DECLARE(flash_gd32);
@@ -78,10 +80,26 @@ LOG_MODULE_DECLARE(flash_gd32);
 
 #endif
 
-#define GD32_FMC_V2_BANK0_WRITE_ERR (FMC_STAT0_PGERR | FMC_STAT0_WPERR)
-#define GD32_FMC_V2_BANK0_ERASE_ERR FMC_STAT0_WPERR
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+#define GD32_FMC_V2_BANK0_WRITE_ERR \
+	(FMC_STAT_PGERR | FMC_STAT_WPERR | FMC_STAT_PGAERR | FMC_STAT_PGMERR | FMC_STAT_PGSERR)
+#define GD32_FMC_V2_BANK1_WRITE_ERR GD32_FMC_V2_BANK0_WRITE_ERR
 
+/* G5X3 programs one double word per PG cycle as two word writes, low word first. */
+static inline void gd32_fmc_v2_dword_write(flash_prg_t *dst, const flash_prg_t *src)
+{
+	volatile uint32_t *dst32 = (volatile uint32_t *)dst;
+
+	dst32[0] = sys_get_le32((const uint8_t *)src);
+	barrier_isync_fence_full();
+	dst32[1] = sys_get_le32((const uint8_t *)src + 4U);
+}
+#else
+#define GD32_FMC_V2_BANK0_WRITE_ERR (FMC_STAT0_PGERR | FMC_STAT0_WPERR)
 #define GD32_FMC_V2_BANK1_WRITE_ERR (FMC_STAT1_PGERR | FMC_STAT1_WPERR)
+#endif
+
+#define GD32_FMC_V2_BANK0_ERASE_ERR FMC_STAT0_WPERR
 #define GD32_FMC_V2_BANK1_ERASE_ERR FMC_STAT1_WPERR
 
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
@@ -138,7 +156,15 @@ static int gd32_fmc_v2_bank0_write(off_t offset, const void *data, size_t len)
 	FMC_CTL0 |= FMC_CTL0_PG;
 
 	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+		gd32_fmc_v2_dword_write(prg_flash++, prg_data++);
+		ret = gd32_fmc_v2_bank0_wait_idle();
+		if (ret < 0) {
+			goto expired_out;
+		}
+#else
 		*prg_flash++ = *prg_data++;
+#endif
 	}
 
 	ret = gd32_fmc_v2_bank0_wait_idle();
@@ -262,7 +288,15 @@ static int gd32_fmc_v2_bank1_write(off_t offset, const void *data, size_t len)
 	FMC_CTL1 |= FMC_CTL1_PG;
 
 	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
+#if defined(CONFIG_SOC_SERIES_GD32G5X3)
+		gd32_fmc_v2_dword_write(prg_flash++, prg_data++);
+		ret = gd32_fmc_v2_bank1_wait_idle();
+		if (ret < 0) {
+			goto expired_out;
+		}
+#else
 		*prg_flash++ = *prg_data++;
+#endif
 	}
 
 	ret = gd32_fmc_v2_bank1_wait_idle();
@@ -340,8 +374,8 @@ static int gd32_fmc_v2_bank1_erase_block(off_t offset, size_t size)
 			return ret;
 		}
 
-		size -= GD32_NV_FLASH_V2_BANK0_SIZE;
-		page_addr += GD32_NV_FLASH_V2_BANK0_SIZE;
+		size -= GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
+		page_addr += GD32_NV_FLASH_V2_BANK1_PAGE_SIZE;
 	}
 
 	return 0;
