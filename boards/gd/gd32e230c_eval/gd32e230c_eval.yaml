@@ -1,0 +1,16 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32e230c_eval
+name: GigaDevice GD32E230C-EVAL
+type: mcu
+arch: arm
+ram: 8
+flash: 64
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - gpio
+  - uart
+vendor: gd

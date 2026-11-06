@@ -173,7 +173,8 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 #if !defined(CONFIG_SOC_SERIES_GD32VF103) && !defined(CONFIG_SOC_SERIES_GD32A50X) && \
 	!defined(CONFIG_SOC_SERIES_GD32L23X) && !defined(CONFIG_SOC_SERIES_GD32C2X1) && \
 	!defined(CONFIG_SOC_SERIES_GD32H73X_75X) && \
-	!defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) && !defined(CONFIG_SOC_SERIES_GD32M53X)
+	!defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) && !defined(CONFIG_SOC_SERIES_GD32M53X) && \
+	!defined(CONFIG_SOC_SERIES_GD32E23X)
 	case RCU_ADDAPB1EN_OFFSET:
 #endif
 		psc = (cfg & RCU_CFG0_APB1PSC_MSK) >> RCU_CFG0_APB1PSC_POS;
