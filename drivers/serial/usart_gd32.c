@@ -406,17 +406,18 @@ static int usart_gd32_async_tx_abort(const struct device *dev)
 	/* Cancel TX timeout timer */
 	k_work_cancel_delayable(&data->async_tx_timeout_work);
 
-	/* Get actual sent bytes BEFORE stopping DMA.
+	/* Block DMA requests first so no byte moves between the count read and dma_stop.
 	 * In chain mode, async_tx_len is sizeof(struct dma_block_config),
 	 * not the actual transfer size. Use the active block size instead.
 	 */
+	usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
+
 	sent_len = dma->dma_blk_cfg.block_size;
 	if (dma_get_status(dma->dev, dma->channel, &stat) == 0) {
 		sent_len = dma->dma_blk_cfg.block_size - stat.pending_length;
 	}
 
 	dma_stop(dma->dev, dma->channel);
-	usart_dma_transmit_config(cfg->reg, USART_TRANSMIT_DMA_DISABLE);
 	if (data->async_tx_buf && data->async_cb) {
 		struct uart_event evt = {
 			.type = UART_TX_ABORTED,
