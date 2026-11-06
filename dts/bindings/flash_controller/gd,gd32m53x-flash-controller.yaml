@@ -1,0 +1,22 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32M53x flash controller.
+
+  The FMC drives two regions selected by FMC_CTL.BKSEL: the main flash
+  (BKSEL = 0) and a 64KB data flash at 0x08800000 (BKSEL = 1). Both are
+  programmed in 128-bit quad-words; main flash keeps a 9-bit ECC per
+  quad-word and data flash an 8-bit ECC per 64-bit double-word. A
+  quad-word can only be programmed once per erase cycle, and a partially
+  written quad-word is discarded by the hardware. Pages are 1KB in both
+  regions.
+
+  Both regions are "gd,gd32-nv-flash" child nodes and must use
+  write-block-size = <16> and page-size = <1024>; the driver checks both
+  at build time. The main flash node also carries "soc-nv-flash". The data
+  flash node does not, and the driver exposes it as its own flash device.
+
+compatible: "gd,gd32m53x-flash-controller"
+
+include: flash-controller.yaml
