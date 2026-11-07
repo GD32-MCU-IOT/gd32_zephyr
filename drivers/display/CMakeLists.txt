@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 
 zephyr_library()
 
@@ -19,6 +20,7 @@ zephyr_library_sources_ifdef(CONFIG_DISPLAY_RENESAS_LCDC display_renesas_lcdc.c)
 zephyr_library_sources_ifdef(CONFIG_DUMMY_DISPLAY display_dummy.c)
 zephyr_library_sources_ifdef(CONFIG_ED2208_GCA display_ed2208_gca.c)
 zephyr_library_sources_ifdef(CONFIG_GC9X01X display_gc9x01x.c)
+zephyr_library_sources_ifdef(CONFIG_GD32_ILI9320 display_gd32_ili9320.c)
 zephyr_library_sources_ifdef(CONFIG_GD32_TLI display_gd32_tli.c)
 zephyr_library_sources_ifdef(CONFIG_HUB12 display_hub12.c)
 zephyr_library_sources_ifdef(CONFIG_HX8379C display_hx8379c.c)
