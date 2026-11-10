@@ -5,7 +5,7 @@ config SOC_FLASH_GD32
 	bool "GigaDevice GD32 flash driver"
 	default y
 	depends on (GD32_NV_FLASH_V1 || GD32_NV_FLASH_V2 || GD32_NV_FLASH_V3 || \
-		GD32_NV_FLASH_V4 || GD32_NV_FLASH_M53X)
+		GD32_NV_FLASH_V4 || GD32_NV_FLASH_M53X || GD32_NV_FLASH_F527)
 	select FLASH_HAS_DRIVER_ENABLED
 	select FLASH_HAS_PAGE_LAYOUT
 	select FLASH_HAS_EXPLICIT_ERASE
@@ -50,3 +50,11 @@ config GD32_NV_FLASH_M53X
 	select USE_GD32_FMC
 	help
 	  Enable the backend for GD32 M53x FMC flash driver.
+
+config GD32_NV_FLASH_F527
+	bool
+	default y
+	depends on DT_HAS_GD_GD32F527_FLASH_CONTROLLER_ENABLED && \
+		   DT_HAS_GD_GD32_NV_FLASH_ENABLED
+	help
+	  Enable the backend for GD32 F527 FMC flash driver.

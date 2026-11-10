@@ -6,7 +6,8 @@ description: |
 
   This binding is for the flash memory itself, not the flash controller
   peripheral. For that, see the "gd,gd32-flash-controller" binding and the
-  series bindings such as "gd,gd32m53x-flash-controller".
+  series bindings such as "gd,gd32m53x-flash-controller" and
+  "gd,gd32f527-flash-controller".
 
 include: soc-nv-flash.yaml
 

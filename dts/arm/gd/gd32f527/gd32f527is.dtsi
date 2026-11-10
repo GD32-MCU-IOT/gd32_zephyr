@@ -13,5 +13,9 @@
 };
 
 &flash0 {
-	reg = <0x08000000 DT_SIZE_K(7680)>;
+	reg = <0x08000000 DT_SIZE_K(4096)>;
+};
+
+&flash1 {
+	status = "okay";
 };
