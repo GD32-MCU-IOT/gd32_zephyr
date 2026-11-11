@@ -279,10 +279,11 @@ static int spi_gd32_configure(const struct device *dev,
 	uint32_t cfg1 = SPI_CFG1(cfg->reg);
 
 	/* Master mode and full duplex */
+	cfg1 &= ~(SPI_CFG1_CKPL | SPI_CFG1_CKPH | SPI_ENDIAN_LSB | SPI_NSS_SOFT);
 	cfg1 |= SPI_MASTER;
 
 	/* Data size */
-	cfg0 &= ~SPI_CFG0_DZ;
+	cfg0 &= ~(SPI_CFG0_DZ | SPI_CFG0_BYTEN | SPI_CFG0_WORDEN);
 	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
 		cfg0 |= SPI_DATASIZE_8BIT;
 		cfg0 |= SPI_CFG0_BYTEN; /* Enable byte access */
@@ -410,8 +411,14 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 	/* Set transfer count and start transfer */
 	const size_t chunk_len = spi_context_max_continuous_chunk(ctx);
 
-	spi_current_data_num_config(cfg->reg, chunk_len);
-	spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
+
+	if ((SPI_CTL0(cfg->reg) & SPI_CTL0_MSTART) == 0U) {
+		spi_disable(cfg->reg);
+		spi_i2s_flag_clear(cfg->reg, SPI_STATC_ETC | SPI_STATC_TXFC);
+		spi_current_data_num_config(cfg->reg, chunk_len);
+		spi_enable(cfg->reg);
+		spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
+	}
 #else
 	uint16_t tx_frame = 0U, rx_frame = 0U;
 #endif
@@ -488,6 +495,14 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 		LOG_ERR("Unsupported frame size %d bits", frame_size);
 		return -ENOTSUP;
 	}
+
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+	/* Last frame of the session: let it end before the next one is started */
+	if (chunk_len == 1U) {
+		while (spi_i2s_flag_get(cfg->reg, SPI_FLAG_ET) == RESET) {
+		}
+	}
+#endif
 
 	return spi_gd32_get_err(cfg);
 }

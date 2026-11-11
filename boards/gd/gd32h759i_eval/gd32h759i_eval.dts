@@ -288,6 +288,15 @@
 	pinctrl-0 = <&spi3_default>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioe 4 GPIO_ACTIVE_LOW>;
+
+	nor_flash: gd25q16@0 {
+		compatible = "jedec,spi-nor";
+		size = <0x1000000>;
+		reg = <0>;
+		spi-max-frequency = <4000000>;
+		status = "okay";
+		jedec-id = [c8 40 15];
+	};
 };
 
 &spi4 {
@@ -298,15 +307,6 @@
 	dmas = <&dmamux 4 99 (GD32_DMA_PERIPH_RX | GD32_DMA_PRIORITY_HIGH)>,
 	       <&dmamux 5 100 (GD32_DMA_PERIPH_TX | GD32_DMA_PRIORITY_HIGH)>;
 	dma-names = "rx", "tx";
-
-	nor_flash: gd25q16@0 {
-		compatible = "jedec,spi-nor";
-		size = <0x1000000>;
-		reg = <0>;
-		spi-max-frequency = <4000000>;
-		status = "okay";
-		jedec-id = [c8 40 15];
-	};
 };
 
 &spi5 {
