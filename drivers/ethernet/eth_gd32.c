@@ -6,6 +6,8 @@
 
 #define DT_DRV_COMPAT gd_gd32_ethernet
 
+#include <string.h>
+
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/irq.h>
@@ -52,8 +54,8 @@ extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
  */
 #if defined(GD32_ENET_MULTI_INSTANCE)
 #define GD32_ENET_MAC_CFG(base)                     ENET_MAC_CFG(base)
+#define GD32_ENET_MAC_FRMF(base)                    ENET_MAC_FRMF(base)
 #define gd32_enet_software_reset(base)              enet_software_reset(base)
-#define gd32_enet_init(base, mode, chksum, filt)    enet_init((base), (mode), (chksum), (filt))
 #define gd32_enet_enable(base)                                                                     \
 	do {                                                                                       \
 		enet_tx_enable(base);                                                              \
@@ -64,17 +66,16 @@ extern enet_descriptors_struct txdesc_tab[ENET_TXBUF_NUM];
 		enet_tx_disable(base);                                                             \
 		enet_rx_disable(base);                                                             \
 	} while (0)
-#define gd32_enet_interrupt_enable(base, flag)      enet_interrupt_enable((base), (flag))
-#define gd32_enet_interrupt_flag_get(base, flag)    enet_interrupt_flag_get((base), (flag))
-#define gd32_enet_interrupt_flag_clear(base, flag)  enet_interrupt_flag_clear((base), (flag))
-#define gd32_enet_mac_address_set(base, addr, p)    enet_mac_address_set((base), (addr), (p))
-#define gd32_enet_dma_resume(base, dir)           enet_dmaprocess_resume((base), (dir))
-#define gd32_syscfg_enet_phy_cfg(base, mode)      syscfg_enet_phy_interface_config((base), (mode))
+#define gd32_enet_interrupt_enable(base, flag)     enet_interrupt_enable((base), (flag))
+#define gd32_enet_interrupt_flag_get(base, flag)   enet_interrupt_flag_get((base), (flag))
+#define gd32_enet_interrupt_flag_clear(base, flag) enet_interrupt_flag_clear((base), (flag))
+#define gd32_enet_mac_address_set(base, addr, p)   enet_mac_address_set((base), (addr), (p))
+#define gd32_enet_dma_resume(base, dir)            enet_dmaprocess_resume((base), (dir))
+#define gd32_syscfg_enet_phy_cfg(base, mode)       syscfg_enet_phy_interface_config((base), (mode))
 #else
-#define GD32_ENET_MAC_CFG(base)        ENET_MAC_CFG
-#define gd32_enet_software_reset(base) (ARG_UNUSED(base), enet_software_reset())
-#define gd32_enet_init(base, mode, chksum, filt)                                                   \
-	(ARG_UNUSED(base), enet_init((mode), (chksum), (filt)))
+#define GD32_ENET_MAC_CFG(base)                  ENET_MAC_CFG
+#define GD32_ENET_MAC_FRMF(base)                 ENET_MAC_FRMF
+#define gd32_enet_software_reset(base)           (ARG_UNUSED(base), enet_software_reset())
 #define gd32_enet_enable(base)                   (ARG_UNUSED(base), enet_enable())
 #define gd32_enet_disable(base)                  (ARG_UNUSED(base), enet_disable())
 #define gd32_enet_interrupt_enable(base, flag)   (ARG_UNUSED(base), enet_interrupt_enable(flag))
@@ -400,6 +401,7 @@ static void eth_gd32_rx(const struct device *dev)
 	uint32_t len;
 	uint8_t *buffer;
 	struct net_pkt *pkt = NULL;
+	int ret;
 
 	/* Process received frames while descriptor is owned by CPU. */
 	while ((eth_gd32_rx_status(dev) & ENET_RDES0_DAV) == 0U) {
@@ -432,8 +434,12 @@ static void eth_gd32_rx(const struct device *dev)
 		irq_unlock(key);
 
 		if (pkt != NULL) {
-			if (net_recv_data(data->iface, pkt) < 0) {
-				LOG_ERR("Failed to enqueue RX packet");
+			ret = net_recv_data(data->iface, pkt);
+			if (ret < 0) {
+				/* The MAC keeps receiving while the iface is admin down. */
+				if (ret != -ENETDOWN) {
+					LOG_ERR("Failed to enqueue RX packet (%d)", ret);
+				}
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 				eth_stats_update_errors_rx(data->iface);
 #endif
@@ -528,6 +534,9 @@ static enum ethernet_hw_caps eth_gd32_get_capabilities(const struct device *dev,
 #if defined(CONFIG_ETH_GD32_HW_CHECKSUM)
 	       | ETHERNET_HW_RX_CHKSUM_OFFLOAD | ETHERNET_HW_TX_CHKSUM_OFFLOAD
 #endif
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
+	       | ETHERNET_PROMISC_MODE
+#endif
 		;
 }
 
@@ -538,6 +547,39 @@ static const struct device *eth_gd32_get_phy(const struct device *dev, struct ne
 	ARG_UNUSED(iface);
 
 	return cfg->phy_dev;
+}
+
+static int eth_gd32_set_config(const struct device *dev, struct net_if *iface,
+			       enum ethernet_config_type type, const struct ethernet_config *config)
+{
+	const struct eth_gd32_config *cfg = dev->config;
+	struct eth_gd32_data *data = dev->data;
+
+	ARG_UNUSED(iface);
+
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
+		/* L2 rejects this while admin up and updates the link address itself. */
+		memcpy(data->mac_addr, config->mac_address.addr, sizeof(data->mac_addr));
+		gd32_enet_mac_address_set(cfg->base, ENET_MAC_ADDRESS0, data->mac_addr);
+		LOG_DBG("%s MAC set to %02x:%02x:%02x:%02x:%02x:%02x", dev->name, data->mac_addr[0],
+			data->mac_addr[1], data->mac_addr[2], data->mac_addr[3], data->mac_addr[4],
+			data->mac_addr[5]);
+		return 0;
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
+	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
+		if (config->promisc_mode) {
+			GD32_ENET_MAC_FRMF(cfg->base) |= ENET_MAC_FRMF_PM;
+		} else {
+			GD32_ENET_MAC_FRMF(cfg->base) &= ~ENET_MAC_FRMF_PM;
+		}
+		return 0;
+#endif
+	default:
+		break;
+	}
+
+	return -ENOTSUP;
 }
 
 static void eth_gd32_config_mac_link(uintptr_t base, struct phy_link_state *state)
@@ -610,11 +652,112 @@ static void eth_gd32_iface_init(struct net_if *iface)
 	k_thread_name_set(&data->rx_thread, "eth_gd32_rx");
 }
 
+#if !defined(GD32_ENET_MULTI_INSTANCE)
+#if defined(CONFIG_SOC_SERIES_GD32F527)
+#define ETH_GD32_MDC_HCLK_MAX 200000000U
+#else
+#define ETH_GD32_MDC_HCLK_MAX 240000000U
+#endif
+
+/* Same HCLK ranges as HAL enet_phy_config(), without touching the PHY. */
+static int eth_gd32_mdc_config(void)
+{
+	uint32_t hclk = rcu_clock_freq_get(CK_AHB);
+	uint32_t clr;
+
+	if (hclk < 20000000U) {
+		return -ENOTSUP;
+	} else if (hclk < 35000000U) {
+		clr = ENET_MDC_HCLK_DIV16;
+	} else if (hclk < 60000000U) {
+		clr = ENET_MDC_HCLK_DIV26;
+	} else if (hclk < 100000000U) {
+		clr = ENET_MDC_HCLK_DIV42;
+	} else if (hclk < 150000000U) {
+		clr = ENET_MDC_HCLK_DIV62;
+	} else if (hclk <= ETH_GD32_MDC_HCLK_MAX) {
+		clr = ENET_MDC_HCLK_DIV102;
+	} else {
+		return -ENOTSUP;
+	}
+
+	ENET_MAC_PHY_CTL = (ENET_MAC_PHY_CTL & ~ENET_MAC_PHY_CTL_CLR) | clr;
+
+	return 0;
+}
+
+/*
+ * HAL enet_init() resets a PHY at a fixed address, which breaks boards whose
+ * PHY uses another one. The PHY driver owns the PHY, so mirror HAL defaults here.
+ */
+static void eth_gd32_mac_dma_init(uint32_t chksum, uint32_t filt)
+{
+	uint32_t reg;
+
+	reg = ENET_MAC_CFG;
+	reg &= ~(ENET_MAC_CFG_WDD | ENET_MAC_CFG_JBD | ENET_MAC_CFG_IGBS | ENET_MAC_CFG_CSD |
+		 ENET_MAC_CFG_SPD | ENET_MAC_CFG_ROD | ENET_MAC_CFG_LBM | ENET_MAC_CFG_DPM |
+		 ENET_MAC_CFG_IPFCO | ENET_MAC_CFG_RTD | ENET_MAC_CFG_APCD | ENET_MAC_CFG_BOL |
+		 ENET_MAC_CFG_DFC | ENET_MAC_CFG_TFCD);
+	reg |= ENET_WATCHDOG_ENABLE | ENET_JABBER_ENABLE | ENET_INTERFRAMEGAP_96BIT |
+	       ENET_LOOPBACKMODE_DISABLE | ENET_RECEIVEOWN_ENABLE | ENET_RETRYTRANSMISSION_ENABLE |
+	       ENET_BACKOFFLIMIT_10 | ENET_DEFERRALCHECK_DISABLE | ENET_TYPEFRAME_CRC_DROP_DISABLE |
+	       ENET_AUTO_PADCRC_DROP_DISABLE | ENET_SPEEDMODE_100M | ENET_MODE_FULLDUPLEX |
+	       (chksum & ENET_MAC_CFG_IPFCO);
+#if defined(CONFIG_SOC_SERIES_GD32F527)
+	reg |= ENET_CARRIERSENSE_DISABLE;
+#endif
+	ENET_MAC_CFG = reg;
+
+	ENET_MAC_FRMF = ENET_SRC_FILTER_DISABLE | ENET_DEST_FILTER_INVERSE_DISABLE |
+			ENET_MULTICAST_FILTER_PERFECT | ENET_UNICAST_FILTER_PERFECT |
+			ENET_PCFRM_PREVENT_ALL | ENET_BROADCASTFRAMES_ENABLE |
+			ENET_PROMISCUOUS_DISABLE | ENET_RX_FILTER_ENABLE;
+	/* Same as HAL enet_init(): recept mode bits are OR-ed on top of defaults. */
+	ENET_MAC_FRMF |= filt;
+	ENET_MAC_HLH = 0U;
+	ENET_MAC_HLL = 0U;
+
+	reg = ENET_MAC_FCTL;
+	reg &= ~(ENET_MAC_FCTL_PTM | ENET_MAC_FCTL_DZQP | ENET_MAC_FCTL_PLTS | ENET_MAC_FCTL_UPFDT |
+		 ENET_MAC_FCTL_RFCEN | ENET_MAC_FCTL_TFCEN);
+	reg |= MAC_FCTL_PTM(0) | ENET_ZERO_QUANTA_PAUSE_DISABLE | ENET_PAUSETIME_MINUS4 |
+	       ENET_UNIQUE_PAUSEDETECT | ENET_RX_FLOWCONTROL_DISABLE | ENET_TX_FLOWCONTROL_DISABLE;
+	ENET_MAC_FCTL = reg;
+
+	ENET_MAC_VLT = ENET_VLANTAGCOMPARISON_16BIT | MAC_VLT_VLTI(0);
+
+	/* Timestamp, WUM and MSC interrupts are unused; mask them as default. */
+	ENET_MAC_INTMSK |= ENET_MAC_INTMSK_TMSTIM | ENET_MAC_INTMSK_WUMIM;
+	ENET_MSC_RINTMSK |=
+		ENET_MSC_RINTMSK_RFAEIM | ENET_MSC_RINTMSK_RFCEIM | ENET_MSC_RINTMSK_RGUFIM;
+	ENET_MSC_TINTMSK |=
+		ENET_MSC_TINTMSK_TGFIM | ENET_MSC_TINTMSK_TGFMSCIM | ENET_MSC_TINTMSK_TGFSCIM;
+
+	reg = ENET_DMA_CTL;
+	reg &= ~(ENET_DMA_CTL_DTCERFD | ENET_DMA_CTL_RSFD | ENET_DMA_CTL_DAFRF | ENET_DMA_CTL_TSFD |
+		 ENET_DMA_CTL_TTHC | ENET_DMA_CTL_FERF | ENET_DMA_CTL_FUF | ENET_DMA_CTL_RTHC |
+		 ENET_DMA_CTL_OSF);
+	reg |= ENET_TCPIP_CKSUMERROR_DROP | ENET_RX_MODE_STOREFORWARD | ENET_FLUSH_RXFRAME_ENABLE |
+	       ENET_TX_MODE_STOREFORWARD | ENET_TX_THRESHOLD_64BYTES | ENET_RX_THRESHOLD_64BYTES |
+	       ENET_SECONDFRAME_OPT_DISABLE | (chksum & ENET_DMA_CTL_DTCERFD);
+	ENET_DMA_CTL = reg;
+
+	ENET_DMA_BCTL = ENET_ADDRESS_ALIGN_ENABLE | ENET_ARBITRATION_RXTX_2_1 | ENET_RXDP_32BEAT |
+			ENET_PGBL_32BEAT | ENET_RXTX_DIFFERENT_PGBL | ENET_FIXED_BURST_ENABLE |
+			ENET_MIXED_BURST_DISABLE | ENET_NORMAL_DESCRIPTOR;
+}
+#endif /* !GD32_ENET_MULTI_INSTANCE */
+
 static int eth_gd32_init(const struct device *dev)
 {
 	const struct eth_gd32_config *cfg = dev->config;
 	struct eth_gd32_data *data = dev->data;
 	uint16_t syscfg_clkid = DT_CLOCKS_CELL(SYSCFG_NODE, id);
+	uint32_t chksum = IS_ENABLED(CONFIG_ETH_GD32_HW_CHECKSUM)
+				  ? ENET_AUTOCHECKSUM_DROP_FAILFRAMES
+				  : ENET_NO_AUTOCHECKSUM;
+	uint32_t filt = ENET_BROADCAST_FRAMES_PASS;
 	int ret;
 	size_t i;
 
@@ -653,18 +796,29 @@ static int eth_gd32_init(const struct device *dev)
 	}
 
 	/*
-	 * Initialize MAC/DMA with a fixed default mode. Link state and speed/duplex
-	 * are handled by Zephyr PHY: phy_link_state_changed() updates and enables
-	 * the MAC when link is up.
+	 * Only MAC/DMA are set up here with a fixed default mode; the PHY driver
+	 * owns the PHY and phy_link_state_changed() applies the real link mode.
 	 */
-	if (gd32_enet_init(cfg->base, ENET_100M_FULLDUPLEX,
-			   IS_ENABLED(CONFIG_ETH_GD32_HW_CHECKSUM)
-				   ? ENET_AUTOCHECKSUM_DROP_FAILFRAMES
-				   : ENET_NO_AUTOCHECKSUM,
-			   ENET_BROADCAST_FRAMES_PASS) == ERROR) {
-		LOG_ERR("ENET init failed (PHY not responding?)");
+#if defined(GD32_ENET_MULTI_INSTANCE)
+	if (enet_init(cfg->base, ENET_100M_FULLDUPLEX, chksum, filt) == ERROR) {
+		LOG_ERR("ENET MAC/DMA init failed");
 		return -EIO;
 	}
+
+	/* Software reset clears the MDC divider; restore it from HCLK. */
+	if (enet_phy_config(cfg->base) == ERROR) {
+		LOG_ERR("HCLK out of range for ENET MDC");
+		return -ENOTSUP;
+	}
+#else
+	eth_gd32_mac_dma_init(chksum, filt);
+
+	ret = eth_gd32_mdc_config();
+	if (ret < 0) {
+		LOG_ERR("HCLK out of range for ENET MDC");
+		return ret;
+	}
+#endif
 
 	if ((data->mac_addr[0] | data->mac_addr[1] | data->mac_addr[2] | data->mac_addr[3] |
 	     data->mac_addr[4] | data->mac_addr[5]) == 0U) {
@@ -694,6 +848,7 @@ static int eth_gd32_init(const struct device *dev)
 static const struct ethernet_api eth_gd32_api = {
 	.iface_api.init = eth_gd32_iface_init,
 	.get_capabilities = eth_gd32_get_capabilities,
+	.set_config = eth_gd32_set_config,
 	.get_phy = eth_gd32_get_phy,
 	.send = eth_gd32_send,
 };

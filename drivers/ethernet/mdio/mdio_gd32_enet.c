@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(mdio_gd32_enet, CONFIG_MDIO_LOG_LEVEL);
  * MDIO is embedded in the MAC's own registers, accessed via
  * enet_phy_write_read().
  */
-#if defined(CONFIG_SOC_GD32H759)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 #define gd32_enet_phy_write_read(base, direction, addr, reg, pval)                                 \
 	enet_phy_write_read((base), (direction), (addr), (reg), (pval))
 #else
@@ -30,6 +30,7 @@ LOG_MODULE_REGISTER(mdio_gd32_enet, CONFIG_MDIO_LOG_LEVEL);
 
 struct mdio_gd32_enet_config {
 	const struct pinctrl_dev_config *pcfg;
+	const struct device *eth_dev;
 	uintptr_t base;
 };
 
@@ -44,6 +45,11 @@ static int mdio_gd32_enet_read(const struct device *dev, uint8_t prtad, uint8_t 
 	struct mdio_gd32_enet_data *dev_data = dev->data;
 	uint16_t value = 0U;
 	ErrStatus ret;
+
+	/* MAC owns the ENET clocks and MDC divider, so it must be ready first */
+	if (!device_is_ready(cfg->eth_dev)) {
+		return -ENODEV;
+	}
 
 	k_mutex_lock(&dev_data->mutex, K_FOREVER);
 	ret = gd32_enet_phy_write_read(cfg->base, ENET_PHY_READ, prtad, regad, &value);
@@ -65,6 +71,11 @@ static int mdio_gd32_enet_write(const struct device *dev, uint8_t prtad, uint8_t
 	struct mdio_gd32_enet_data *dev_data = dev->data;
 	uint16_t value = data;
 	ErrStatus ret;
+
+	/* MAC owns the ENET clocks and MDC divider, so it must be ready first */
+	if (!device_is_ready(cfg->eth_dev)) {
+		return -ENODEV;
+	}
 
 	k_mutex_lock(&dev_data->mutex, K_FOREVER);
 	ret = gd32_enet_phy_write_read(cfg->base, ENET_PHY_WRITE, prtad, regad, &value);
@@ -95,9 +106,12 @@ static DEVICE_API(mdio, mdio_gd32_enet_api) = {
 };
 
 #define MDIO_GD32_ENET_DEVICE(inst)                                                                \
+	BUILD_ASSERT(DT_NODE_HAS_STATUS_OKAY(DT_INST_PARENT(inst)),                                \
+		     "gd,gd32-enet-mdio is enabled but its parent ethernet node is disabled");     \
 	PINCTRL_DT_INST_DEFINE(inst);                                                              \
 	static const struct mdio_gd32_enet_config mdio_gd32_enet_config_##inst = {                 \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                      \
+		.eth_dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),                                    \
 		.base = DT_REG_ADDR(DT_INST_PARENT(inst)),                                         \
 	};                                                                                         \
 	static struct mdio_gd32_enet_data mdio_gd32_enet_data_##inst;                              \
