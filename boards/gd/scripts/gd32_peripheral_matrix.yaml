@@ -23,6 +23,7 @@ test_groups:
       - gd32c231c_eval
       - gd32c231k_start
       - gd32e103v_eval
+      - gd32e230c_eval
       - gd32e507v_start
       - gd32e507z_eval
       - gd32f303b_start

@@ -1,0 +1,88 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <gd/gd32e23x/gd32e230c8.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include "gd32e230c_eval-pinctrl.dtsi"
+
+/ {
+	model = "GigaDevice GD32E230C-EVAL";
+	compatible = "gd,gd32e230c-eval";
+
+	chosen {
+		zephyr,flash = &flash0;
+		zephyr,sram = &sram0;
+		zephyr,console = &usart0;
+		zephyr,shell-uart = &usart0;
+		zephyr,flash-controller = &fmc;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led1: led1 {
+			gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;
+			label = "LED1";
+		};
+
+		led2: led2 {
+			gpios = <&gpioa 11 GPIO_ACTIVE_HIGH>;
+			label = "LED2";
+		};
+
+		led3: led3 {
+			gpios = <&gpioa 12 GPIO_ACTIVE_HIGH>;
+			label = "LED3";
+		};
+
+		led4: led4 {
+			gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
+			label = "LED4";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		wakeup_key: wakeup_key {
+			label = "WAKEUP_KEY";
+			gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+			zephyr,code = <INPUT_KEY_WAKEUP>;
+		};
+
+		tamper_key: tamper_key {
+			label = "TAMPER_KEY";
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	aliases {
+		led0 = &led1;
+		led1 = &led2;
+		led2 = &led3;
+		led3 = &led4;
+		sw0 = &wakeup_key;
+		sw1 = &tamper_key;
+	};
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+};
