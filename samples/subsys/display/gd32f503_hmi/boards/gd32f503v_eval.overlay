@@ -1,0 +1,114 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		zephyr,display = &lcd;
+	};
+
+	lcd: display@60000000 {
+		compatible = "gd,gd32-ili9320";
+		reg = <0x60000000 0x2>, <0x61000000 0x2>;
+		clocks = <&cctl GD32_CLOCK_EXMC>;
+		pinctrl-0 = <&lcd_default>;
+		pinctrl-names = "default";
+		width = <240>;
+		height = <320>;
+		address-setup-cycles = <8>;
+		address-hold-cycles = <2>;
+		data-setup-cycles = <15>;
+		bus-latency-cycles = <2>;
+	};
+
+	touch_spi: touch-spi {
+		compatible = "zephyr,spi-bitbang";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clk-gpios = <&gpioc 10 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&gpioc 12 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpioc 11 GPIO_ACTIVE_HIGH>;
+		cs-gpios = <&gpioe 4 GPIO_ACTIVE_LOW>;
+		status = "okay";
+
+		touch: touchscreen@0 {
+			compatible = "xptek,xpt2046";
+			reg = <0>;
+			spi-max-frequency = <125000>;
+			int-gpios = <&gpioe 5 GPIO_ACTIVE_LOW>;
+			touchscreen-size-x = <240>;
+			touchscreen-size-y = <320>;
+			min-x = <300>;
+			max-x = <3850>;
+			min-y = <220>;
+			max-y = <3850>;
+			reads = <5>;
+		};
+	};
+
+	lvgl_pointer {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&touch>;
+		display = <&lcd>;
+		invert-x;
+		invert-y;
+	};
+
+	zephyr,user {
+		io-channels = <&adc0 10>;
+	};
+};
+
+&pinctrl {
+	lcd_default: lcd_default {
+		group1 {
+			pinmux = <EXMC_D0_PD14>, <EXMC_D1_PD15>, <EXMC_D2_PD0>,
+				 <EXMC_D3_PD1>, <EXMC_D4_PE7>, <EXMC_D5_PE8>,
+				 <EXMC_D6_PE9>, <EXMC_D7_PE10>, <EXMC_D8_PE11>,
+				 <EXMC_D9_PE12>, <EXMC_D10_PE13>, <EXMC_D11_PE14>,
+				 <EXMC_D12_PE15>, <EXMC_D13_PD8>, <EXMC_D14_PD9>,
+				 <EXMC_D15_PD10>, <EXMC_A23_PE2>, <EXMC_NOE_PD4>,
+				 <EXMC_NWE_PD5>, <EXMC_NE0_PC4>;
+		};
+	};
+
+	adc0_hmi: adc0_hmi {
+		group1 {
+			pinmux = <ADC012_IN10_PC0>;
+		};
+	};
+};
+
+&gpioe {
+	status = "okay";
+};
+
+&key_a {
+	gpios = <&gpioa 0 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+};
+
+&key_b {
+	gpios = <&gpioa 1 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+};
+
+&key_c {
+	gpios = <&gpioc 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+};
+
+&adc0 {
+	pinctrl-0 = <&adc0_hmi>;
+
+	channel@a {
+		reg = <10>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+&adc1 {
+	status = "disabled";
+};
