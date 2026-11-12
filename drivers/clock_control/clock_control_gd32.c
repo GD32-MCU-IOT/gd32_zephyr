@@ -46,9 +46,11 @@ static const uint8_t apb2_exp[8] = {
 };
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32G5X3)
 /** APB3 prescaler exponents */
 static const uint8_t apb3_exp[8] = {0, 0, 0, 0, 1, 2, 3, 4};
+#endif
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 /** APB4 prescaler exponents */
 static const uint8_t apb4_exp[8] = {0, 0, 0, 0, 1, 2, 3, 4};
 #endif
@@ -185,11 +187,13 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 		*rate = ahb_freq >> apb2_exp[psc];
 		break;
 #endif
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32G5X3)
 	case RCU_APB3EN_OFFSET:
 		psc = (cfg & RCU_CFG0_APB3PSC_MSK) >> RCU_CFG0_APB3PSC_POS;
 		*rate = ahb_freq >> apb3_exp[psc];
 		break;
+#endif
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
 	case RCU_APB4EN_OFFSET:
 		psc = (cfg & RCU_CFG0_APB4PSC_MSK) >> RCU_CFG0_APB4PSC_POS;
 		*rate = ahb_freq >> apb4_exp[psc];
