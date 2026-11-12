@@ -11,6 +11,8 @@
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/dma/gd32_dma.h>
 #include <zephyr/dt-bindings/flash_controller/ospi.h>
+/* 熊二编写 引用gd32-exmc-sdram.h头文件 */
+#include <zephyr/dt-bindings/memory-controller/gd32-exmc-sdram.h>
 
 / {
 	model = "GigaDevice GD32H759I-EVAL";
@@ -73,6 +75,63 @@
 	zephyr,user {
 		/* idx 0: ADC0 ch12 (PC2), idx 1: ADC1 ch2 (PF13), idx 2: ADC2 ch5 (PF3) */
 		io-channels = <&adc0 12>, <&adc1 2>, <&adc2 5>;
+	};
+
+	/* 熊二编写 gd32h759i_eval板载 SDRAM设备树节点 */
+	sdram: sdram@c0000000 {
+		compatible = "mmio-sram";
+		reg = <0xc0000000 0x2000000>;	/* 启始地址 大小 */
+		status = "okay";
+	};
+
+	/* 熊二编写 gd32h759i_eval板载 EXMC设备树节点 */
+	soc {
+		exmc: exmc@52004000 {
+			compatible = "gd,gd32-exmc-sdram";
+			reg = <0x52004000 0x1000>;
+			status = "okay";
+
+			/* 控制参数 */
+			/* 数组类型属性 */
+			exmc-sdram-control = <GD32_EXMC_CAW_9
+								GD32_EXMC_RAW_13
+								GD32_EXMC_SDW_16
+								GD32_EXMC_NBK_4
+								GD32_EXMC_CL_3
+								0					/* 写保护WPEN bit9 注意这个槽位直接写0/1 库函数内部会自己移位 */
+								GD32_EXMC_SDCLK_DIV3	/* CK_EXMC的300MHz经过三分频 得到100MHz时钟频率供给SDRAM芯片 */
+								1					/* 突发读BRSTRD bit12 同样直接写0/1 库函数内部会自己移位 */
+								GD32_EXMC_RPIPE_0>;
+
+			/* 时序参数 */
+			exmc-sdram-timing = <2 7 5 6 2 2 2>;   /* lmrd xsrd rasd arfd wrd rpd rcd */
+
+			/* 初始化参数 */
+			power-up-delay-us = <1000>;
+			num-auto-refresh = <8>;
+			/* 模式寄存器 是加载到SDRAM芯片的
+				* 0x30就是0b000000110000
+				* 表示：
+				* 突发长度BL(一次连续读写几个格子)为1
+				* 突发类型为顺序
+				* CAS延迟（发读命令后等几个时钟数据才出来	）为3
+				* 工作模式为标准模式
+				* 写突发模式使能 允许一条写命令连续写多个格子
+				*/
+			mode-register = <0x30>;
+
+			/*
+				* 刷新周期 = 64ms
+				* 行数 = 8192
+
+				* 每行的时间 = 64ms / 8192 = 7.8125us
+				* 换算为(1/100M)s 大约需要761个周期
+				*/
+			refresh-rate = <761>;
+
+			/* 刷新错误中断 不使能 */
+			reie = <0>;
+		};
 	};
 };
 
