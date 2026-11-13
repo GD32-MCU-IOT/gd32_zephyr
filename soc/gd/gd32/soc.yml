@@ -52,6 +52,7 @@ family:
   - name: gd32l23x
     socs:
     - name: gd32l233
+    - name: gd32l235
   - name: gd32m53x
     socs:
     - name: gd32m531

@@ -14,5 +14,10 @@ config SOC_GD32L233
 	bool
 	select SOC_SERIES_GD32L23X
 
+config SOC_GD32L235
+	bool
+	select SOC_SERIES_GD32L23X
+
 config SOC
 	default "gd32l233" if SOC_GD32L233
+	default "gd32l235" if SOC_GD32L235
