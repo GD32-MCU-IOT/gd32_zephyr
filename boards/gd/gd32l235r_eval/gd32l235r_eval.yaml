@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright The Zephyr Project Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: gd32l235r_eval
+name: GigaDevice GD32L235R Evaluation Kit
+type: mcu
+arch: arm
+ram: 24
+flash: 128
+toolchain:
+  - zephyr
+  - gnuarmemb
+vendor: gd
+supported:
+  - gpio
+  - uart

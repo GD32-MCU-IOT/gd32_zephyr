@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright The Zephyr Project Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+board:
+  name: gd32l235r_eval
+  full_name: GD32L235R-EVA
+  vendor: gd
+  socs:
+    - name: gd32l235
