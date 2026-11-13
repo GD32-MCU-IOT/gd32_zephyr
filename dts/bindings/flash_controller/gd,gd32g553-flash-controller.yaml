@@ -1,0 +1,20 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32G5x3 flash controller.
+
+  The FMC is a single-register-set controller (there is no FMC_ADDR):
+  page erase selects the target by page number (PNSEL) plus bank number
+  (BKSEL) in FMC_CTL, and the main flash is programmed in 64-bit double
+  words protected by an 8-bit ECC. In dual-bank mode (OBCTL.DBS = 1) the
+  main flash is Bank0 plus Bank1, up to 2 x 256KB, with 1KB pages; a
+  double word can only be programmed once per erase cycle.
+
+  The main flash is a "gd,gd32-nv-flash" child node that also carries
+  "soc-nv-flash" and must use write-block-size = <8>; the driver checks
+  it at build time.
+
+compatible: "gd,gd32g553-flash-controller"
+
+include: flash-controller.yaml

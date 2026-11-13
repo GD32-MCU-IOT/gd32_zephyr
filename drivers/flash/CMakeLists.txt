@@ -165,6 +165,7 @@ if(CONFIG_SOC_FLASH_GD32)
 
 # zephyr-keep-sorted-start
   zephyr_library_sources_ifdef(CONFIG_GD32_NV_FLASH_F527 flash_gd32_f527.c)
+  zephyr_library_sources_ifdef(CONFIG_GD32_NV_FLASH_G5X3 flash_gd32_g5x3.c)
   zephyr_library_sources_ifdef(CONFIG_GD32_NV_FLASH_M53X flash_gd32_m53x.c)
   zephyr_library_sources_ifdef(CONFIG_GD32_NV_FLASH_V1 flash_gd32_v1.c)
   zephyr_library_sources_ifdef(CONFIG_GD32_NV_FLASH_V2 flash_gd32_v2.c)
