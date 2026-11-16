@@ -13,4 +13,7 @@ supported:
   - uart
   - pinctrl
   - can
+  - spi
+  - i2c
+  - dma
 vendor: gd
