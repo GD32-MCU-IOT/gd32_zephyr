@@ -1,0 +1,47 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: GD32 timer quadrature decoder
+
+compatible: "gd,gd32-qdec"
+
+include:
+  - name: base.yaml
+  - name: pinctrl-device.yaml
+  - name: sensor-device.yaml
+  - name: reset-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  resets:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  gd,encoder-mode:
+    type: int
+    default: 3
+    enum: [1, 2, 3]
+    description: GD32 TIMER encoder mode (TIMER_ENCODER_MODE0..2).
+
+  gd,input-filter:
+    type: int
+    default: 0
+    enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    description: Digital input filter value for both encoder channels.
+
+  gd,invert-direction:
+    type: boolean
+    description: Invert the logical count direction without swapping the encoder inputs.

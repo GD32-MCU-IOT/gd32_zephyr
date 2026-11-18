@@ -1,0 +1,21 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config QDEC_GD32
+	bool "GD32 timer quadrature decoder"
+	default y
+	depends on DT_HAS_GD_GD32_QDEC_ENABLED
+	select PINCTRL
+	select USE_GD32_TIMER
+	help
+	  Enable the GD32 timer quadrature decoder sensor driver.
+
+	  The timer reports wraps through a single sticky update flag, which does
+	  not latch the number of wraps or their direction. The driver samples
+	  TIMER_CNT before clearing the flag; a wrap arriving after the clear
+	  re-asserts the flag and is handled separately. A wrap arriving in the
+	  short window between the counter sample and the flag clear coalesces
+	  with the pending one and cannot be reconstructed in software. Opposite
+	  wraps that coalesce before servicing cannot be reconstructed either, so
+	  the update interrupt must be serviced at least once per half of the
+	  16-bit counter range.
