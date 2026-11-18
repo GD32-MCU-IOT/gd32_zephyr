@@ -1,0 +1,254 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H77X_78X_CLOCKS_H_
+#define ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H77X_78X_CLOCKS_H_
+
+#include "gd32-clocks-common.h"
+
+/**
+ * @file
+ * @brief GD32H77x_78x clock controller register offsets and peripheral
+ * clock enable/disable definitions.
+ *
+ * Device Tree Bindings for GD32H77x_78x clock configurations.
+ * These definitions refer to RCU register offsets and bit positions
+ * from the corresponding RCU HAL.
+ */
+
+/**
+ * @name Register offsets
+ * @{
+ */
+
+#define GD32_AHB1EN_OFFSET      0x30U /**< AHB1EN register offset */
+#define GD32_AHB2EN_OFFSET      0x34U /**< AHB2EN register offset */
+#define GD32_AHB3EN_OFFSET      0x38U /**< AHB3EN register offset */
+#define GD32_AHB4EN_OFFSET      0x3CU /**< AHB4EN register offset */
+#define GD32_APB1EN_OFFSET      0x40U /**< APB1EN register offset */
+#define GD32_APB2EN_OFFSET      0x44U /**< APB2EN register offset */
+#define GD32_APB3EN_OFFSET      0x48U /**< APB3EN register offset */
+#define GD32_APB4EN_OFFSET      0x4CU /**< APB4EN register offset */
+#define GD32_AHB1SPEN_OFFSET    0x50U /**< AHB1SPEN register offset */
+#define GD32_AHB2SPEN_OFFSET    0x54U /**< AHB2SPEN register offset */
+#define GD32_AHB3SPEN_OFFSET    0x58U /**< AHB3SPEN register offset */
+#define GD32_AHB4SPEN_OFFSET    0x5CU /**< AHB4SPEN register offset */
+#define GD32_APB1SPEN_OFFSET    0x60U /**< APB1SPEN register offset */
+#define GD32_APB2SPEN_OFFSET    0x64U /**< APB2SPEN register offset */
+#define GD32_APB3SPEN_OFFSET    0x68U /**< APB3SPEN register offset */
+#define GD32_APB4SPEN_OFFSET    0x6CU /**< APB4SPEN register offset */
+#define GD32_ADDAPB2EN_OFFSET   0xE4U /**< ADDAPB2EN register offset */
+#define GD32_ADDAPB2SPEN_OFFSET 0xE8U /**< ADDAPB2SPEN register offset */
+/** @} */
+
+/**
+ * @name Clock enable/disable definitions for peripherals
+ * @{
+ */
+
+/* AHB peripherals */
+#define GD32_CLOCK_ENET1      GD32_CLOCK_CONFIG(AHB1EN, 0U)  /**< ENET1 clock */
+#define GD32_CLOCK_ENET1TX    GD32_CLOCK_CONFIG(AHB1EN, 1U)  /**< ENET1TX clock */
+#define GD32_CLOCK_ENET1RX    GD32_CLOCK_CONFIG(AHB1EN, 2U)  /**< ENET1RX clock */
+#define GD32_CLOCK_ENET1PTP   GD32_CLOCK_CONFIG(AHB1EN, 3U)  /**< ENET1PTP clock */
+#define GD32_CLOCK_USBHS0     GD32_CLOCK_CONFIG(AHB1EN, 14U) /**< USBHS0 clock */
+#define GD32_CLOCK_USBHS0ULPI GD32_CLOCK_CONFIG(AHB1EN, 15U) /**< USBHS0ULPI clock */
+#define GD32_CLOCK_DMA0       GD32_CLOCK_CONFIG(AHB1EN, 21U) /**< DMA0 clock */
+#define GD32_CLOCK_DMA1       GD32_CLOCK_CONFIG(AHB1EN, 22U) /**< DMA1 clock */
+#define GD32_CLOCK_DMAMUX     GD32_CLOCK_CONFIG(AHB1EN, 23U) /**< DMAMUX clock */
+#define GD32_CLOCK_ENET0      GD32_CLOCK_CONFIG(AHB1EN, 25U) /**< ENET0 clock */
+#define GD32_CLOCK_ENET0TX    GD32_CLOCK_CONFIG(AHB1EN, 26U) /**< ENET0TX clock */
+#define GD32_CLOCK_ENET0RX    GD32_CLOCK_CONFIG(AHB1EN, 27U) /**< ENET0RX clock */
+#define GD32_CLOCK_ENET0PTP   GD32_CLOCK_CONFIG(AHB1EN, 28U) /**< ENET0PTP clock */
+#define GD32_CLOCK_USBHS1     GD32_CLOCK_CONFIG(AHB1EN, 29U) /**< USBHS1 clock */
+#define GD32_CLOCK_USBHS1ULPI GD32_CLOCK_CONFIG(AHB1EN, 30U) /**< USBHS1ULPI clock */
+
+/* AHB2 peripherals */
+#define GD32_CLOCK_DCI       GD32_CLOCK_CONFIG(AHB2EN, 0U) /**< DCI clock */
+#define GD32_CLOCK_FAC       GD32_CLOCK_CONFIG(AHB2EN, 1U) /**< FAC clock */
+#define GD32_CLOCK_SDIO1     GD32_CLOCK_CONFIG(AHB2EN, 2U) /**< SDIO1 clock */
+#define GD32_CLOCK_CAU       GD32_CLOCK_CONFIG(AHB2EN, 3U) /**< CAU clock */
+#define GD32_CLOCK_HAU       GD32_CLOCK_CONFIG(AHB2EN, 4U) /**< HAU clock */
+#define GD32_CLOCK_GPSI      GD32_CLOCK_CONFIG(AHB2EN, 5U) /**< GPSI clock */
+#define GD32_CLOCK_TRNG      GD32_CLOCK_CONFIG(AHB2EN, 6U) /**< TRNG clock */
+#define GD32_CLOCK_TMU       GD32_CLOCK_CONFIG(AHB2EN, 7U) /**< TMU clock */
+#define GD32_CLOCK_RAMECCMU1 GD32_CLOCK_CONFIG(AHB2EN, 8U) /**< RAMECCMU1 clock */
+#define GD32_CLOCK_PKCAU     GD32_CLOCK_CONFIG(AHB2EN, 9U) /**< PKCAU clock */
+#define GD32_CLOCK_FFT       GD32_CLOCK_CONFIG(AHB2EN, 10U) /**< FFT clock */
+#define GD32_CLOCK_ESC       GD32_CLOCK_CONFIG(AHB2EN, 12U) /**< ESC clock */
+
+/* AHB3 peripherals */
+#define GD32_CLOCK_EXMC      GD32_CLOCK_CONFIG(AHB3EN, 0U)  /**< EXMC clock */
+#define GD32_CLOCK_IPA       GD32_CLOCK_CONFIG(AHB3EN, 1U)  /**< IPA clock */
+#define GD32_CLOCK_SDIO0     GD32_CLOCK_CONFIG(AHB3EN, 2U)  /**< SDIO0 clock */
+#define GD32_CLOCK_MDMA      GD32_CLOCK_CONFIG(AHB3EN, 3U)  /**< MDMA clock */
+#define GD32_CLOCK_OSPIM     GD32_CLOCK_CONFIG(AHB3EN, 4U)  /**< OSPIM clock */
+#define GD32_CLOCK_OSPI0     GD32_CLOCK_CONFIG(AHB3EN, 5U)  /**< OSPI0 clock */
+#define GD32_CLOCK_OSPI1     GD32_CLOCK_CONFIG(AHB3EN, 6U)  /**< OSPI1 clock */
+#define GD32_CLOCK_DSI       GD32_CLOCK_CONFIG(AHB3EN, 7U)  /**< DSI clock */
+#define GD32_CLOCK_RTDEC0    GD32_CLOCK_CONFIG(AHB3EN, 8U)  /**< RTDEC0 clock */
+#define GD32_CLOCK_RTDEC1    GD32_CLOCK_CONFIG(AHB3EN, 9U)  /**< RTDEC1 clock */
+#define GD32_CLOCK_RAMECCMU0 GD32_CLOCK_CONFIG(AHB3EN, 10U) /**< RAMECCMU0 clock */
+#define GD32_CLOCK_CPU       GD32_CLOCK_CONFIG(AHB3EN, 15U) /**< CPU clock */
+
+/* AHB4 peripherals */
+#define GD32_CLOCK_GPIOA   GD32_CLOCK_CONFIG(AHB4EN, 0U)  /**< GPIOA clock */
+#define GD32_CLOCK_GPIOB   GD32_CLOCK_CONFIG(AHB4EN, 1U)  /**< GPIOB clock */
+#define GD32_CLOCK_GPIOC   GD32_CLOCK_CONFIG(AHB4EN, 2U)  /**< GPIOC clock */
+#define GD32_CLOCK_GPIOD   GD32_CLOCK_CONFIG(AHB4EN, 3U)  /**< GPIOD clock */
+#define GD32_CLOCK_GPIOE   GD32_CLOCK_CONFIG(AHB4EN, 4U)  /**< GPIOE clock */
+#define GD32_CLOCK_GPIOF   GD32_CLOCK_CONFIG(AHB4EN, 5U)  /**< GPIOF clock */
+#define GD32_CLOCK_GPIOG   GD32_CLOCK_CONFIG(AHB4EN, 6U)  /**< GPIOG clock */
+#define GD32_CLOCK_GPIOH   GD32_CLOCK_CONFIG(AHB4EN, 7U)  /**< GPIOH clock */
+#define GD32_CLOCK_GPIOJ   GD32_CLOCK_CONFIG(AHB4EN, 8U)  /**< GPIOJ clock */
+#define GD32_CLOCK_GPIOK   GD32_CLOCK_CONFIG(AHB4EN, 9U)  /**< GPIOK clock */
+#define GD32_CLOCK_BKPSRAM GD32_CLOCK_CONFIG(AHB4EN, 13U) /**< BKPSRAM clock */
+#define GD32_CLOCK_CRC     GD32_CLOCK_CONFIG(AHB4EN, 14U) /**< CRC clock */
+#define GD32_CLOCK_HWSEM   GD32_CLOCK_CONFIG(AHB4EN, 15U) /**< HWSEM clock */
+
+/* APB1 peripherals */
+#define GD32_CLOCK_TIMER1  GD32_CLOCK_CONFIG(APB1EN, 0U)  /**< TIMER1 clock */
+#define GD32_CLOCK_TIMER2  GD32_CLOCK_CONFIG(APB1EN, 1U)  /**< TIMER2 clock */
+#define GD32_CLOCK_TIMER3  GD32_CLOCK_CONFIG(APB1EN, 2U)  /**< TIMER3 clock */
+#define GD32_CLOCK_TIMER4  GD32_CLOCK_CONFIG(APB1EN, 3U)  /**< TIMER4 clock */
+#define GD32_CLOCK_TIMER5  GD32_CLOCK_CONFIG(APB1EN, 4U)  /**< TIMER5 clock */
+#define GD32_CLOCK_TIMER6  GD32_CLOCK_CONFIG(APB1EN, 5U)  /**< TIMER6 clock */
+#define GD32_CLOCK_TIMER22 GD32_CLOCK_CONFIG(APB1EN, 6U)  /**< TIMER22 clock */
+#define GD32_CLOCK_TIMER23 GD32_CLOCK_CONFIG(APB1EN, 7U)  /**< TIMER23 clock */
+#define GD32_CLOCK_TIMER30 GD32_CLOCK_CONFIG(APB1EN, 8U)  /**< TIMER30 clock */
+#define GD32_CLOCK_TIMER31 GD32_CLOCK_CONFIG(APB1EN, 9U)  /**< TIMER31 clock */
+#define GD32_CLOCK_TIMER50 GD32_CLOCK_CONFIG(APB1EN, 10U) /**< TIMER50 clock */
+#define GD32_CLOCK_TIMER51 GD32_CLOCK_CONFIG(APB1EN, 11U) /**< TIMER51 clock */
+#define GD32_CLOCK_RSPDIF  GD32_CLOCK_CONFIG(APB1EN, 13U) /**< RSPDIF clock */
+#define GD32_CLOCK_SPI1    GD32_CLOCK_CONFIG(APB1EN, 14U) /**< SPI1 clock */
+#define GD32_CLOCK_SPI2    GD32_CLOCK_CONFIG(APB1EN, 15U) /**< SPI2 clock */
+#define GD32_CLOCK_MDIO    GD32_CLOCK_CONFIG(APB1EN, 16U) /**< MDIO clock */
+#define GD32_CLOCK_USART1  GD32_CLOCK_CONFIG(APB1EN, 17U) /**< USART1 clock */
+#define GD32_CLOCK_USART2  GD32_CLOCK_CONFIG(APB1EN, 18U) /**< USART2 clock */
+#define GD32_CLOCK_UART3   GD32_CLOCK_CONFIG(APB1EN, 19U) /**< UART3 clock */
+#define GD32_CLOCK_UART4   GD32_CLOCK_CONFIG(APB1EN, 20U) /**< UART4 clock */
+#define GD32_CLOCK_I2C0    GD32_CLOCK_CONFIG(APB1EN, 21U) /**< I2C0 clock */
+#define GD32_CLOCK_I2C1    GD32_CLOCK_CONFIG(APB1EN, 22U) /**< I2C1 clock */
+#define GD32_CLOCK_I2C2    GD32_CLOCK_CONFIG(APB1EN, 23U) /**< I2C2 clock */
+#define GD32_CLOCK_I2C3    GD32_CLOCK_CONFIG(APB1EN, 24U) /**< I2C3 clock */
+#define GD32_CLOCK_CTC     GD32_CLOCK_CONFIG(APB1EN, 27U) /**< CTC clock */
+#define GD32_CLOCK_DACHOLD GD32_CLOCK_CONFIG(APB1EN, 28U) /**< DACHOLD clock */
+#define GD32_CLOCK_DAC     GD32_CLOCK_CONFIG(APB1EN, 29U) /**< DAC clock */
+#define GD32_CLOCK_UART6   GD32_CLOCK_CONFIG(APB1EN, 30U) /**< UART6 clock */
+#define GD32_CLOCK_UART7   GD32_CLOCK_CONFIG(APB1EN, 31U) /**< UART7 clock */
+
+/* APB2 peripherals */
+#define GD32_CLOCK_TIMER0  GD32_CLOCK_CONFIG(APB2EN, 0U)  /**< TIMER0 clock */
+#define GD32_CLOCK_TIMER7  GD32_CLOCK_CONFIG(APB2EN, 1U)  /**< TIMER7 clock */
+#define GD32_CLOCK_USART0  GD32_CLOCK_CONFIG(APB2EN, 4U)  /**< USART0 clock */
+#define GD32_CLOCK_USART5  GD32_CLOCK_CONFIG(APB2EN, 5U)  /**< USART5 clock */
+#define GD32_CLOCK_ADC0    GD32_CLOCK_CONFIG(APB2EN, 8U)  /**< ADC0 clock */
+#define GD32_CLOCK_ADC1    GD32_CLOCK_CONFIG(APB2EN, 9U)  /**< ADC1 clock */
+#define GD32_CLOCK_ADC2    GD32_CLOCK_CONFIG(APB2EN, 10U) /**< ADC2 clock */
+#define GD32_CLOCK_SPI0    GD32_CLOCK_CONFIG(APB2EN, 12U) /**< SPI0 clock */
+#define GD32_CLOCK_SPI3    GD32_CLOCK_CONFIG(APB2EN, 13U) /**< SPI3 clock */
+#define GD32_CLOCK_SAI3    GD32_CLOCK_CONFIG(APB2EN, 15U) /**< SAI3 clock */
+#define GD32_CLOCK_TIMER14 GD32_CLOCK_CONFIG(APB2EN, 16U) /**< TIMER14 clock */
+#define GD32_CLOCK_TIMER15 GD32_CLOCK_CONFIG(APB2EN, 17U) /**< TIMER15 clock */
+#define GD32_CLOCK_TIMER16 GD32_CLOCK_CONFIG(APB2EN, 18U) /**< TIMER16 clock */
+#define GD32_CLOCK_HPDF    GD32_CLOCK_CONFIG(APB2EN, 19U) /**< HPDF clock */
+#define GD32_CLOCK_SPI4    GD32_CLOCK_CONFIG(APB2EN, 20U) /**< SPI4 clock */
+#define GD32_CLOCK_SPI5    GD32_CLOCK_CONFIG(APB2EN, 21U) /**< SPI5 clock */
+#define GD32_CLOCK_SAI0    GD32_CLOCK_CONFIG(APB2EN, 22U) /**< SAI0 clock */
+#define GD32_CLOCK_SAI1    GD32_CLOCK_CONFIG(APB2EN, 23U) /**< SAI1 clock */
+#define GD32_CLOCK_SAI2    GD32_CLOCK_CONFIG(APB2EN, 24U) /**< SAI2 clock */
+#define GD32_CLOCK_TIMER40 GD32_CLOCK_CONFIG(APB2EN, 25U) /**< TIMER40 clock */
+#define GD32_CLOCK_TIMER41 GD32_CLOCK_CONFIG(APB2EN, 26U) /**< TIMER41 clock */
+#define GD32_CLOCK_TIMER42 GD32_CLOCK_CONFIG(APB2EN, 27U) /**< TIMER42 clock */
+#define GD32_CLOCK_TIMER43 GD32_CLOCK_CONFIG(APB2EN, 28U) /**< TIMER43 clock */
+#define GD32_CLOCK_TIMER44 GD32_CLOCK_CONFIG(APB2EN, 29U) /**< TIMER44 clock */
+#define GD32_CLOCK_EDOUT   GD32_CLOCK_CONFIG(APB2EN, 30U) /**< EDOUT clock */
+#define GD32_CLOCK_TRIGSEL GD32_CLOCK_CONFIG(APB2EN, 31U) /**< TRIGSEL clock */
+
+/* APB3 peripherals */
+#define GD32_CLOCK_TLI   GD32_CLOCK_CONFIG(APB3EN, 0U) /**< TLI clock */
+#define GD32_CLOCK_WWDGT GD32_CLOCK_CONFIG(APB3EN, 1U) /**< WWDGT clock */
+
+/* APB4 peripherals */
+#define GD32_CLOCK_SYSCFG GD32_CLOCK_CONFIG(APB4EN, 0U) /**< SYSCFG clock */
+#define GD32_CLOCK_CMP    GD32_CLOCK_CONFIG(APB4EN, 1U) /**< CMP clock */
+#define GD32_CLOCK_VREF   GD32_CLOCK_CONFIG(APB4EN, 2U) /**< VREF clock */
+#define GD32_CLOCK_LPDTS  GD32_CLOCK_CONFIG(APB4EN, 3U) /**< LPDTS clock */
+#define GD32_CLOCK_PMU    GD32_CLOCK_CONFIG(APB4EN, 4U) /**< PMU clock */
+
+/* APB2 additional peripherals */
+#define GD32_CLOCK_CAN0  GD32_CLOCK_CONFIG(ADDAPB2EN, 0U)  /**< CAN0 clock */
+#define GD32_CLOCK_CAN1  GD32_CLOCK_CONFIG(ADDAPB2EN, 1U)  /**< CAN1 clock */
+#define GD32_CLOCK_CAN2  GD32_CLOCK_CONFIG(ADDAPB2EN, 2U)  /**< CAN2 clock */
+#define GD32_CLOCK_AFMT  GD32_CLOCK_CONFIG(ADDAPB2EN, 16U) /**< EDIM AFMT clock */
+#define GD32_CLOCK_TFMT  GD32_CLOCK_CONFIG(ADDAPB2EN, 17U) /**< EDIM TFMT clock */
+#define GD32_CLOCK_ENDAT GD32_CLOCK_CONFIG(ADDAPB2EN, 18U) /**< EDIM ENDAT clock */
+#define GD32_CLOCK_BISS  GD32_CLOCK_CONFIG(ADDAPB2EN, 19U) /**< EDIM BISS clock */
+#define GD32_CLOCK_HDSL  GD32_CLOCK_CONFIG(ADDAPB2EN, 20U) /**< EDIM HDSL clock */
+#define GD32_CLOCK_RDCM  GD32_CLOCK_CONFIG(ADDAPB2EN, 21U) /**< RDCM clock */
+
+/** @} */
+
+/**
+ * @name CKOUT0 clock output definitions
+ * @{
+ */
+
+/** CKOUT0 source selection field encoder (RCU_CFG2_CKOUT0SEL, bits 4-6) */
+#define GD32_CKOUT0_SEL(val) (((val) & 0x7U) << 4U)
+
+/** CKOUT0 source: IRC64MDIV */
+#define GD32_CKOUT0SRC_IRC64MDIV GD32_CKOUT0_SEL(0U)
+/** CKOUT0 source: LXTAL */
+#define GD32_CKOUT0SRC_LXTAL     GD32_CKOUT0_SEL(1U)
+/** CKOUT0 source: HXTAL */
+#define GD32_CKOUT0SRC_HXTAL     GD32_CKOUT0_SEL(2U)
+/** CKOUT0 source: PLL0P */
+#define GD32_CKOUT0SRC_PLL0P     GD32_CKOUT0_SEL(3U)
+/** CKOUT0 source: IRC48M */
+#define GD32_CKOUT0SRC_IRC48M    GD32_CKOUT0_SEL(4U)
+/** CKOUT0 source: PER */
+#define GD32_CKOUT0SRC_PER       GD32_CKOUT0_SEL(5U)
+/** CKOUT0 source: USBHS0 60M */
+#define GD32_CKOUT0SRC_USBHS060M GD32_CKOUT0_SEL(6U)
+
+/** CKOUT0 divider field encoder (RCU_CFG2_CKOUT0DIV, bits 0-3) */
+#define GD32_CKOUT0_DIVCFG(val) (((val) & 0xFU) << 0U)
+
+/** CKOUT0 divider: 1 */
+#define GD32_CKOUT0_DIV1  GD32_CKOUT0_DIVCFG(1U)
+/** CKOUT0 divider: 2 */
+#define GD32_CKOUT0_DIV2  GD32_CKOUT0_DIVCFG(2U)
+/** CKOUT0 divider: 3 */
+#define GD32_CKOUT0_DIV3  GD32_CKOUT0_DIVCFG(3U)
+/** CKOUT0 divider: 4 */
+#define GD32_CKOUT0_DIV4  GD32_CKOUT0_DIVCFG(4U)
+/** CKOUT0 divider: 5 */
+#define GD32_CKOUT0_DIV5  GD32_CKOUT0_DIVCFG(5U)
+/** CKOUT0 divider: 6 */
+#define GD32_CKOUT0_DIV6  GD32_CKOUT0_DIVCFG(6U)
+/** CKOUT0 divider: 7 */
+#define GD32_CKOUT0_DIV7  GD32_CKOUT0_DIVCFG(7U)
+/** CKOUT0 divider: 8 */
+#define GD32_CKOUT0_DIV8  GD32_CKOUT0_DIVCFG(8U)
+/** CKOUT0 divider: 9 */
+#define GD32_CKOUT0_DIV9  GD32_CKOUT0_DIVCFG(9U)
+/** CKOUT0 divider: 10 */
+#define GD32_CKOUT0_DIV10 GD32_CKOUT0_DIVCFG(10U)
+/** CKOUT0 divider: 11 */
+#define GD32_CKOUT0_DIV11 GD32_CKOUT0_DIVCFG(11U)
+/** CKOUT0 divider: 12 */
+#define GD32_CKOUT0_DIV12 GD32_CKOUT0_DIVCFG(12U)
+/** CKOUT0 divider: 13 */
+#define GD32_CKOUT0_DIV13 GD32_CKOUT0_DIVCFG(13U)
+/** CKOUT0 divider: 14 */
+#define GD32_CKOUT0_DIV14 GD32_CKOUT0_DIVCFG(14U)
+/** CKOUT0 divider: 15 */
+#define GD32_CKOUT0_DIV15 GD32_CKOUT0_DIVCFG(15U)
+
+/** @} */
+
+#endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H77X_78X_CLOCKS_H_ */

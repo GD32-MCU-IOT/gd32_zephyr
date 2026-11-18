@@ -84,6 +84,13 @@ if(${CONFIG_SOC_SERIES_GD32H73X_75X})
   endif()
 endif()
 
+# GD32H77X_78X HAL headers select NVMC type by device; GD32H77D is the W (7680KB ECNVM) variant
+if(${CONFIG_SOC_SERIES_GD32H77X_78X})
+  if(${CONFIG_SOC_GD32H77D})
+    zephyr_compile_definitions(GD32H77DXW)
+  endif()
+endif()
+
 # GD32F30X series HAL public headers require extra definitions
 if(${CONFIG_SOC_SERIES_GD32F30X})
   if(${CONFIG_SOC_GD32F307})

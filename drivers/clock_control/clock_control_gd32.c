@@ -46,7 +46,7 @@ static const uint8_t apb2_exp[8] = {
 };
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 /** APB3 prescaler exponents */
 static const uint8_t apb3_exp[8] = {0, 0, 0, 0, 1, 2, 3, 4};
 /** APB4 prescaler exponents */
@@ -96,7 +96,7 @@ static const uint16_t timer_ids[] = {
 	TIMER_ID_OR_NONE(timer14) /* */
 	TIMER_ID_OR_NONE(timer15) /* */
 	TIMER_ID_OR_NONE(timer16) /* */
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	TIMER_ID_OR_NONE(timer22) /* */
 	TIMER_ID_OR_NONE(timer23) /* */
 	TIMER_ID_OR_NONE(timer30) /* */
@@ -153,15 +153,17 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 	switch (GD32_CLOCK_ID_OFFSET(id)) {
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
 	defined(CONFIG_SOC_SERIES_GD32C2X1) || defined(CONFIG_SOC_SERIES_GD32H73X_75X) || \
-	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) || \
+	defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	case RCU_AHB1EN_OFFSET:
 	case RCU_AHB2EN_OFFSET:
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
 	defined(CONFIG_SOC_SERIES_GD32H73X_75X) || \
-	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) || \
+	defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	case RCU_AHB3EN_OFFSET:
 #endif
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	case RCU_AHB4EN_OFFSET:
 #endif
 #else
@@ -172,7 +174,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 	case RCU_APB1EN_OFFSET:
 #if !defined(CONFIG_SOC_SERIES_GD32VF103) && !defined(CONFIG_SOC_SERIES_GD32A50X) && \
 	!defined(CONFIG_SOC_SERIES_GD32L23X) && !defined(CONFIG_SOC_SERIES_GD32C2X1) && \
-	!defined(CONFIG_SOC_SERIES_GD32H73X_75X) && \
+	!defined(CONFIG_SOC_SERIES_GD32H73X_75X) && !defined(CONFIG_SOC_SERIES_GD32H77X_78X) && \
 	!defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) && !defined(CONFIG_SOC_SERIES_GD32M53X)
 	case RCU_ADDAPB1EN_OFFSET:
 #endif
@@ -185,7 +187,7 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 		*rate = ahb_freq >> apb2_exp[psc];
 		break;
 #endif
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	case RCU_APB3EN_OFFSET:
 		psc = (cfg & RCU_CFG0_APB3PSC_MSK) >> RCU_CFG0_APB3PSC_POS;
 		*rate = ahb_freq >> apb3_exp[psc];
@@ -207,7 +209,8 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 		}
 
 #if defined(CONFIG_SOC_SERIES_GD32F4XX) || defined(CONFIG_SOC_SERIES_GD32F527) || \
-	defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) || defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+	defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) || defined(CONFIG_SOC_SERIES_GD32H73X_75X) || \
+	defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 		uint32_t cfg1 = sys_read32(config->base + RCU_CFG1_OFFSET);
 
 		/*
@@ -249,7 +252,8 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 			*rate *= 2U;
 		}
 #endif /* CONFIG_SOC_SERIES_GD32F4XX || CONFIG_SOC_SERIES_GD32F527 ||
-	* CONFIG_SOC_SERIES_GD32W51X_F5HC || CONFIG_SOC_SERIES_GD32H73X_75X
+	* CONFIG_SOC_SERIES_GD32W51X_F5HC || CONFIG_SOC_SERIES_GD32H73X_75X ||
+	* CONFIG_SOC_SERIES_GD32H77X_78X
 	*/
 	}
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(gd_gd32_timer) */

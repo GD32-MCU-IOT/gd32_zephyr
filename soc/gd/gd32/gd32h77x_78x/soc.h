@@ -1,0 +1,16 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef _SOC_ARM_GIGADEVICE_GD32H77X_78X_SOC_H_
+#define _SOC_ARM_GIGADEVICE_GD32H77X_78X_SOC_H_
+
+#ifndef _ASMLANGUAGE
+
+#include <gd32h77x_78x.h>
+
+#endif /* _ASMLANGUAGE */
+
+#endif /* _SOC_ARM_GIGADEVICE_GD32H77X_78X_SOC_H_ */

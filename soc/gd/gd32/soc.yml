@@ -49,6 +49,9 @@ family:
     socs:
     - name: gd32h759
     - name: gd32h75e
+  - name: gd32h77x_78x
+    socs:
+    - name: gd32h77d
   - name: gd32l23x
     socs:
     - name: gd32l233
