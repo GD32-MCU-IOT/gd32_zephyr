@@ -1,11 +1,13 @@
 /*
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef ZEPHYR_SOC_GD_GD32_GD32F527_GD32_REGS_H_
 #define ZEPHYR_SOC_GD_GD32_GD32F527_GD32_REGS_H_
+
+#include <zephyr/sys/util_macro.h>
 
 /* RCU register offsets */
 #define RCU_CFG0_OFFSET      0x08U

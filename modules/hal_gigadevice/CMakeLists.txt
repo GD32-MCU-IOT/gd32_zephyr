@@ -33,6 +33,11 @@ elseif(${CONFIG_GD32_HXTAL_25MHZ})
   zephyr_compile_definitions(HXTAL_VALUE=25000000 HXTAL_VALUE_8M=25000000)
 endif()
 
+  # Series with a DTS-configured clock tree take HXTAL_VALUE from devicetree
+  if(CONFIG_GD32_HXTAL_DT_FREQ)
+    zephyr_compile_definitions(HXTAL_VALUE=${CONFIG_GD32_HXTAL_DT_FREQ})
+  endif()
+
 if(CONFIG_GD32_HAS_IRC_32K)
   zephyr_compile_definitions(IRC32K_VALUE=${CONFIG_GD32_LOW_SPEED_IRC_FREQUENCY})
 endif()

@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @file
+ * @brief GD32F527 clock definitions for device tree bindings
+ */
+
 #ifndef ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32F527_CLOCKS_H_
 #define ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32F527_CLOCKS_H_
 
@@ -50,7 +55,8 @@
 
 /* AHB2 peripherals */
 #define GD32_CLOCK_DCI   GD32_CLOCK_CONFIG(AHB2EN, 0U) /**< DCI clock */
-#define GD32_CLOCK_PKCAU GD32_CLOCK_CONFIG(AHB2EN, 4U) /**< PKCAU clock */
+#define GD32_CLOCK_PKCAU GD32_CLOCK_CONFIG(AHB2EN, 3U) /**< PKCAU clock */
+#define GD32_CLOCK_CAU   GD32_CLOCK_CONFIG(AHB2EN, 4U) /**< CAU clock */
 #define GD32_CLOCK_HAU   GD32_CLOCK_CONFIG(AHB2EN, 5U) /**< HAU clock */
 #define GD32_CLOCK_TRNG  GD32_CLOCK_CONFIG(AHB2EN, 6U) /**< TRNG clock */
 #define GD32_CLOCK_USBFS GD32_CLOCK_CONFIG(AHB2EN, 7U) /**< USBFS clock */
@@ -103,7 +109,7 @@
 #define GD32_CLOCK_SPI4    GD32_CLOCK_CONFIG(APB2EN, 20U) /**< SPI4 clock */
 #define GD32_CLOCK_SPI5    GD32_CLOCK_CONFIG(APB2EN, 21U) /**< SPI5 clock */
 #define GD32_CLOCK_SAI0    GD32_CLOCK_CONFIG(APB2EN, 22U) /**< SAI0 clock */
-#define GD32_CLOCK_TLI	   GD32_CLOCK_CONFIG(APB2EN, 26U) /**< TLI clock */
+#define GD32_CLOCK_TLI     GD32_CLOCK_CONFIG(APB2EN, 26U) /**< TLI clock */
 
 /** @} */
 
@@ -139,13 +145,13 @@
 #define GD32_CKOUT0_DIV5 GD32_CKOUT0_DIVCFG(7U)
 
 /** PLLSAIR divide by 2 */
-#define GD32_RCU_PLLSAIR_DIV2		0x00000000
+#define GD32_RCU_PLLSAIR_DIV2  0x00000000
 /** PLLSAIR divide by 4 */
-#define GD32_RCU_PLLSAIR_DIV4		0x00010000
+#define GD32_RCU_PLLSAIR_DIV4  0x00010000
 /** PLLSAIR divide by 8 */
-#define GD32_RCU_PLLSAIR_DIV8		0x00020000
+#define GD32_RCU_PLLSAIR_DIV8  0x00020000
 /** PLLSAIR divide by 16 */
-#define GD32_RCU_PLLSAIR_DIV16		0x00030000
+#define GD32_RCU_PLLSAIR_DIV16 0x00030000
 /** @} */
 
 /**

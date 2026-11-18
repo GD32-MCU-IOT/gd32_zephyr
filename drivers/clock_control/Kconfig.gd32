@@ -1,5 +1,5 @@
 # Copyright (c) 2022 Teslabs Engineering S.L.
-# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 config CLOCK_CONTROL_GD32
@@ -18,9 +18,19 @@ config CLOCK_CONTROL_GD32_CKOUT
 
 config CLOCK_CONTROL_GD32_PLL
 	bool "GD32 PLL/system clock DTS configuration"
+	default y
 	depends on DT_HAS_GD_GD32F527_RCU_ENABLED
-	depends on SOC_SERIES_GD32F527
 	help
 	  Enable DTS-driven PLL and system clock tree configuration for the
-	  GD32F527. When enabled, the main PLL, AHB/APB prescalers and system
-	  clock source are configured from the devicetree during PRE_KERNEL_1.
+	  GD32F527. When enabled, the HXTAL, main PLL, AHB/APB prescalers and
+	  system clock source are configured from the devicetree during
+	  PRE_KERNEL_1. When disabled, the fixed HAL SystemInit() setup is used.
+
+config GD32_HXTAL_DT_FREQ
+	int
+	default $(dt_nodelabel_int_prop,hxtal,clock-frequency)
+	depends on CLOCK_CONTROL_GD32_PLL
+	depends on $(dt_nodelabel_enabled,hxtal)
+	help
+	  HXTAL frequency in Hz, taken from the clock-frequency property of
+	  the hxtal devicetree node. It is passed to the HAL as HXTAL_VALUE.

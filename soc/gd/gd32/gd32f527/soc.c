@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,7 +9,11 @@
 #include <zephyr/kernel.h>
 #include <soc.h>
 
-/* initial ecc memory */
+/*
+ * Clear the whole SRAM so that the ECC check bits are initialized.
+ * The loop bounds stay in registers because the stack lives in the
+ * SRAM that is being cleared.
+ */
 void soc_reset_hook(void)
 {
 #if defined(__ICCARM__)
@@ -29,7 +33,8 @@ void soc_reset_hook(void)
 
 #if defined(CONFIG_CLOCK_CONTROL_GD32_PLL)
 
-/* Software delay copied from the HAL SystemInit to guard Vcore
+/*
+ * Software delay copied from the HAL SystemInit to guard Vcore
  * during the AHB prescaler walk-down.
  */
 static void gd32f527_soft_delay(uint32_t time)
@@ -38,7 +43,8 @@ static void gd32f527_soft_delay(uint32_t time)
 	}
 }
 
-/* Walk the AHB prescaler down to 1/16 before switching off PLL, so
+/*
+ * Walk the AHB prescaler down to 1/16 before switching off PLL, so
  * the core is not running at full speed while Vcore settles.
  */
 static void gd32f527_ahb_walk_down(void)
@@ -66,7 +72,8 @@ static void gd32f527_ahb_walk_down(void)
 	gd32f527_soft_delay(20U);
 }
 
-/* Reset the RCU to the default reset state (IRC16M as system clock),
+/*
+ * Reset the RCU to the default reset state (IRC16M as system clock),
  * mirroring the non-clock part of SystemInit. The PLL driver then brings
  * up the target clock tree from this state.
  */
@@ -75,7 +82,7 @@ static void gd32f527_rcu_reset(void)
 	uint32_t timeout = 0U;
 	uint32_t stab_flag = 0U;
 
-	/* FPU settings */
+	/* Grant full access to CP10 and CP11 so the FPU is usable */
 #if (__FPU_PRESENT == 1) && (__FPU_USED == 1U)
 	SCB->CPACR |= (3UL << 10 * 2) | (3UL << 11 * 2);
 #endif
@@ -104,7 +111,7 @@ static void gd32f527_rcu_reset(void)
 	RCU_CTL &= ~(RCU_CTL_PLLEN | RCU_CTL_CKMEN | RCU_CTL_HXTALEN);
 	RCU_CTL &= ~RCU_CTL_HXTALBPS;
 
-	/* Reset CFG0 and PLL registers. */
+	/* Reset CFG0 to its default value */
 	RCU_CFG0 = 0x00000000U;
 
 	/* Wait until IRC16M is selected as the system clock. */
@@ -117,6 +124,7 @@ static void gd32f527_rcu_reset(void)
 		}
 	}
 
+	/* Restore the RCU_PLL reset value */
 	RCU_PLL = 0x24003010U;
 
 	/* Disable all clock interrupts. */
@@ -125,16 +133,31 @@ static void gd32f527_rcu_reset(void)
 
 #endif /* CONFIG_CLOCK_CONTROL_GD32_PLL */
 
+#if !defined(CONFIG_CLOCK_CONTROL_GD32_PLL)
+/* HAL SystemInit() always sets up a 200 MHz HCLK, so DTS must match */
+BUILD_ASSERT(DT_PROP(DT_NODELABEL(rcu), clock_frequency) == MHZ(200),
+	     "rcu clock-frequency must be 200 MHz when SystemInit() sets the clocks");
+
+/* SystemInit() PLL settings assume the HAL default HXTAL_VALUE */
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(hxtal))
+BUILD_ASSERT(DT_PROP(DT_NODELABEL(hxtal), clock_frequency) == HXTAL_VALUE,
+	     "hxtal clock-frequency must match HXTAL_VALUE when SystemInit() sets the clocks");
+#endif
+#endif
+
 void soc_early_init_hook(void)
 {
 #if defined(CONFIG_CLOCK_CONTROL_GD32_PLL)
-	/* Reset the clock tree to its default state; the PLL driver performs
+	/*
+	 * Reset the clock tree to its default state; the PLL driver performs
 	 * the actual system clock configuration from the devicetree.
 	 */
 	gd32f527_rcu_reset();
 
-	SystemCoreClock = 16000000;
+	/* IRC16M is the system clock until the PLL driver reconfigures it */
+	SystemCoreClock = IRC16M_VALUE;
 #else
+	/* Without the PLL driver the HAL default clock setup is used */
 	SystemInit();
 #endif
 }
