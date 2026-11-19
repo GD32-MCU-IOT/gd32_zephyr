@@ -1,0 +1,8 @@
+sample:
+  name: GD32F503 HMI
+tests:
+  sample.display.gd32f503_hmi:
+    platform_allow: gd32f503v_eval
+    tags:
+      - display
+      - lvgl

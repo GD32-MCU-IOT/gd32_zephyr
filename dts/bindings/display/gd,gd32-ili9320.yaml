@@ -1,0 +1,36 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: GD32 EXMC ILI9320 display controller
+
+compatible: "gd,gd32-ili9320"
+
+include: [display-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+    description: Command and data register memory addresses.
+
+  clocks:
+    required: true
+
+  address-setup-cycles:
+    type: int
+    required: true
+    description: EXMC asynchronous address setup in clock cycles.
+
+  address-hold-cycles:
+    type: int
+    required: true
+    description: EXMC asynchronous address hold in clock cycles.
+
+  data-setup-cycles:
+    type: int
+    required: true
+    description: EXMC asynchronous data setup in clock cycles.
+
+  bus-latency-cycles:
+    type: int
+    required: true
+    description: EXMC bus latency in clock cycles.

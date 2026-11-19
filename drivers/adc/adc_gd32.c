@@ -462,6 +462,7 @@ static int adc_gd32_channel_setup(const struct device *dev,
 				  const struct adc_channel_cfg *chan_cfg)
 {
 	const struct adc_gd32_config *cfg = dev->config;
+	int ret;
 
 	if (chan_cfg->gain != ADC_GAIN_1) {
 		LOG_ERR("Gain is not valid");
@@ -483,8 +484,21 @@ static int adc_gd32_channel_setup(const struct device *dev,
 		return -EINVAL;
 	}
 
-	return adc_gd32_configure_sampt(cfg, chan_cfg->channel_id,
-					chan_cfg->acquisition_time);
+	ret = adc_gd32_configure_sampt(cfg, chan_cfg->channel_id,
+				       chan_cfg->acquisition_time);
+	if (ret < 0) {
+		return ret;
+	}
+
+#if defined(CONFIG_SOC_SERIES_GD32F50X)
+	if (cfg->reg == ADC0 && chan_cfg->channel_id == 16U) {
+		adc_internal_channel_config(ADC_CHANNEL_INTERNAL_TEMPSENSOR, ENABLE);
+	} else if (cfg->reg == ADC0 && chan_cfg->channel_id == 17U) {
+		adc_internal_channel_config(ADC_CHANNEL_INTERNAL_VREFINT, ENABLE);
+	}
+#endif
+
+	return 0;
 }
 
 #if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
