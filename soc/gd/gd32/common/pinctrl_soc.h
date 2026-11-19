@@ -112,7 +112,7 @@ typedef uint32_t pinctrl_soc_pin_t;
 #endif
 
 #if defined(CONFIG_SOC_SERIES_GD32F3X0) || defined(CONFIG_SOC_SERIES_GD32A50X) || \
-	defined(CONFIG_SOC_SERIES_GD32L23X)
+	defined(CONFIG_SOC_SERIES_GD32L23X) || defined(CONFIG_SOC_SERIES_GD32E23X)
 
 /** Maximum 10MHz */
 #define GD32_OSPEED_10MHZ 1U
