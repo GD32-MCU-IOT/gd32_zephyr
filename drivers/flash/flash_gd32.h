@@ -16,6 +16,11 @@
 #define SOC_NV_FLASH_ADDR	DT_REG_ADDR(SOC_NV_FLASH_NODE)
 #define SOC_NV_FLASH_PRG_SIZE	DT_PROP(SOC_NV_FLASH_NODE, write_block_size)
 
+typedef struct {
+	uint32_t low;
+	uint32_t high;
+} flash_prg_double_word_t;
+
 #if (4 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint32_t flash_prg_t;
 #elif (2 == SOC_NV_FLASH_PRG_SIZE)
@@ -23,7 +28,7 @@ typedef uint16_t flash_prg_t;
 #elif (1 == SOC_NV_FLASH_PRG_SIZE)
 typedef uint8_t flash_prg_t;
 #elif (8 == SOC_NV_FLASH_PRG_SIZE)
-/* Double-word FMC programs through two 32-bit writes, so flash_prg_t is not defined. */
+typedef flash_prg_double_word_t flash_prg_t;
 #elif (16 == SOC_NV_FLASH_PRG_SIZE)
 /* Quad-word FMC has no scalar programming unit, so flash_prg_t is not defined. */
 #else
