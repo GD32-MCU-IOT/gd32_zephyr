@@ -6,6 +6,8 @@
 
 #include "flash_gd32.h"
 
+#include <string.h>
+
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
 #include <gd32_fmc.h>
@@ -123,7 +125,6 @@ bool flash_gd32_valid_range(off_t offset, uint32_t len, bool write)
 int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 {
 	flash_prg_t *prg_flash = (flash_prg_t *)((uint8_t *)SOC_NV_FLASH_ADDR + offset);
-	flash_prg_t *prg_data = (flash_prg_t *)data;
 	int ret = 0;
 
 	gd32_fmc_v1_unlock();
@@ -134,9 +135,23 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 
 	FMC_CTL |= FMC_CTL_PG;
 
+#if (8 == SOC_NV_FLASH_PRG_SIZE)
+	const uint8_t *prg_data = (const uint8_t *)data;
+
+	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
+		flash_prg_double_word_t prg_unit;
+
+		memcpy(&prg_unit, prg_data + (i * sizeof(flash_prg_t)), sizeof(prg_unit));
+		prg_flash[i].low = prg_unit.low;
+		prg_flash[i].high = prg_unit.high;
+	}
+#else
+	flash_prg_t *prg_data = (flash_prg_t *)data;
+
 	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
 		*prg_flash++ = *prg_data++;
 	}
+#endif
 
 	ret = gd32_fmc_v1_wait_idle();
 	if (ret < 0) {

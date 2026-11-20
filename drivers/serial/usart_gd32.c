@@ -1233,6 +1233,9 @@ static int usart_gd32_configure(const struct device *dev,
 	}
 
 	/* Validate parameters */
+	if (cfg_new->parity > UART_CFG_PARITY_SPACE) {
+		return -EINVAL;
+	}
 	if ((cfg_new->parity == UART_CFG_PARITY_MARK) ||
 	    (cfg_new->parity == UART_CFG_PARITY_SPACE)) {
 		return -ENOTSUP;

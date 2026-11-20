@@ -1,0 +1,43 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The Zephyr Project Contributors
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <gd/gd32l23x/gd32l23x.dtsi>
+
+/ {
+	soc {
+		sram1: memory@20002000 {
+			compatible = "mmio-sram";
+			reg = <0x20002000 DT_SIZE_K(16)>;
+		};
+
+		/* SRAM0 region */
+		sram0: sram: memory@20000000 {
+			compatible = "mmio-sram";
+			reg = <0x20000000 DT_SIZE_K(8)>;
+		};
+
+		uart4: usart@40005000 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40005000 0x400>;
+			interrupts = <30 0>;
+			clocks = <&cctl GD32_CLOCK_UART4>;
+			resets = <&rctl GD32_RESET_UART4>;
+			status = "disabled";
+		};
+	};
+};
+
+&flash0 {
+	reg = <0x08000000 DT_SIZE_K(128)>;
+	write-block-size = <8>;
+	max-erase-time-ms = <20>;
+	page-size = <DT_SIZE_K(1)>;
+};
+
+&uart3 {
+	interrupts = <29 0>;
+};
