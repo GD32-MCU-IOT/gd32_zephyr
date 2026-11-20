@@ -25,23 +25,19 @@ BUILD_ASSERT(SOC_NV_FLASH_PRG_SIZE == GD32_FMC_F527_DWORD_SIZE,
 	     "GD32 F527 FMC requires write-block-size = <8>");
 
 /* Bank1_Ex is a separate flash node, the main flash spans at most Bank0 and Bank1. */
-BUILD_ASSERT(SOC_NV_FLASH_SIZE <= KB(4096),
-	     "GD32 F527 main flash must not include Bank1_Ex");
+BUILD_ASSERT(SOC_NV_FLASH_SIZE <= KB(4096), "GD32 F527 main flash must not include Bank1_Ex");
 
-#define GD32_FMC_F527_WRITE_ERR	(FMC_STAT_OPERR | FMC_STAT_PGSERR | FMC_STAT_PGMERR | \
-				 FMC_STAT_PGAERR | FMC_STAT_WPERR)
-#define GD32_FMC_F527_ERASE_ERR	(FMC_STAT_OPERR | FMC_STAT_WPERR)
+#define GD32_FMC_F527_WRITE_ERR                                                                    \
+	(FMC_STAT_OPERR | FMC_STAT_PGSERR | FMC_STAT_PGMERR | FMC_STAT_PGAERR | FMC_STAT_WPERR)
+#define GD32_FMC_F527_ERASE_ERR (FMC_STAT_OPERR | FMC_STAT_WPERR)
 
 /* The main flash and Bank1_Ex share one FMC and cannot be operated concurrently. */
 static K_SEM_DEFINE(gd32_fmc_f527_sem, 1, 1);
 
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
 static const struct flash_pages_layout gd32_fmc_f527_layout[] = {
-	{
-		.pages_size = GD32_NV_FLASH_F527_PAGE_SIZE,
-		.pages_count = SOC_NV_FLASH_SIZE / GD32_NV_FLASH_F527_PAGE_SIZE
-	}
-};
+	{.pages_size = GD32_NV_FLASH_F527_PAGE_SIZE,
+	 .pages_count = SOC_NV_FLASH_SIZE / GD32_NV_FLASH_F527_PAGE_SIZE}};
 #endif
 
 static inline void gd32_fmc_f527_unlock(void)
@@ -70,11 +66,9 @@ static int gd32_fmc_f527_wait_idle(uint32_t timeout_ms)
 	return 0;
 }
 
-static bool gd32_fmc_f527_range_ok(off_t offset, size_t len, uint32_t size,
-				   uint32_t align)
+static bool gd32_fmc_f527_range_ok(off_t offset, size_t len, uint32_t size, uint32_t align)
 {
-	if ((offset < 0) || ((uint32_t)offset > size) ||
-	    (len > (size - (uint32_t)offset))) {
+	if ((offset < 0) || ((uint32_t)offset > size) || (len > (size - (uint32_t)offset))) {
 		return false;
 	}
 
@@ -84,12 +78,11 @@ static bool gd32_fmc_f527_range_ok(off_t offset, size_t len, uint32_t size,
 bool flash_gd32_valid_range(off_t offset, uint32_t len, bool write)
 {
 	return gd32_fmc_f527_range_ok(offset, len, SOC_NV_FLASH_SIZE,
-				      write ? GD32_FMC_F527_DWORD_SIZE :
-					      GD32_NV_FLASH_F527_PAGE_SIZE);
+				      write ? GD32_FMC_F527_DWORD_SIZE
+					    : GD32_NV_FLASH_F527_PAGE_SIZE);
 }
 
-static int gd32_fmc_f527_dword_program(uint32_t addr, const uint8_t *data,
-				       uint32_t timeout_ms)
+static int gd32_fmc_f527_dword_program(uint32_t addr, const uint8_t *data, uint32_t timeout_ms)
 {
 	volatile uint32_t *dst = (volatile uint32_t *)addr;
 	uint32_t word[GD32_FMC_F527_DWORD_WORDS];
@@ -120,8 +113,7 @@ static int gd32_fmc_f527_dword_program(uint32_t addr, const uint8_t *data,
 	return 0;
 }
 
-static int gd32_fmc_f527_program(uint32_t addr, const uint8_t *src, size_t len,
-				 uint32_t timeout_ms)
+static int gd32_fmc_f527_program(uint32_t addr, const uint8_t *src, size_t len, uint32_t timeout_ms)
 {
 	int ret;
 
@@ -229,13 +221,12 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 
 int flash_gd32_erase_block(off_t offset, size_t size)
 {
-	return gd32_fmc_f527_erase(SOC_NV_FLASH_ADDR + offset, size,
-				   GD32_NV_FLASH_F527_PAGE_SIZE, GD32_NV_FLASH_F527_TIMEOUT);
+	return gd32_fmc_f527_erase(SOC_NV_FLASH_ADDR + offset, size, GD32_NV_FLASH_F527_PAGE_SIZE,
+				   GD32_NV_FLASH_F527_TIMEOUT);
 }
 
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
-void flash_gd32_pages_layout(const struct device *dev,
-			     const struct flash_pages_layout **layout,
+void flash_gd32_pages_layout(const struct device *dev, const struct flash_pages_layout **layout,
 			     size_t *layout_size)
 {
 	ARG_UNUSED(dev);
@@ -257,8 +248,7 @@ struct gd32_fmc_f527_ex_config {
 #endif
 };
 
-static int gd32_fmc_f527_ex_read(const struct device *dev, off_t offset,
-				 void *data, size_t len)
+static int gd32_fmc_f527_ex_read(const struct device *dev, off_t offset, void *data, size_t len)
 {
 	const struct gd32_fmc_f527_ex_config *cfg = dev->config;
 
@@ -278,8 +268,8 @@ static int gd32_fmc_f527_ex_read(const struct device *dev, off_t offset,
 	return 0;
 }
 
-static int gd32_fmc_f527_ex_write(const struct device *dev, off_t offset,
-				  const void *data, size_t len)
+static int gd32_fmc_f527_ex_write(const struct device *dev, off_t offset, const void *data,
+				  size_t len)
 {
 	const struct gd32_fmc_f527_ex_config *cfg = dev->config;
 
@@ -306,12 +296,10 @@ static int gd32_fmc_f527_ex_erase(const struct device *dev, off_t offset, size_t
 		return -EINVAL;
 	}
 
-	return gd32_fmc_f527_erase(cfg->addr + offset, size, cfg->page_size,
-				   cfg->timeout_ms);
+	return gd32_fmc_f527_erase(cfg->addr + offset, size, cfg->page_size, cfg->timeout_ms);
 }
 
-static const struct flash_parameters *
-gd32_fmc_f527_ex_get_parameters(const struct device *dev)
+static const struct flash_parameters *gd32_fmc_f527_ex_get_parameters(const struct device *dev)
 {
 	const struct gd32_fmc_f527_ex_config *cfg = dev->config;
 
@@ -350,29 +338,29 @@ static DEVICE_API(flash, gd32_fmc_f527_ex_api) = {
 #endif
 };
 
-#define GD32_FMC_F527_EX_DEFINE(node_id)						\
-	BUILD_ASSERT(DT_PROP(node_id, write_block_size) == GD32_FMC_F527_DWORD_SIZE,	\
-		     "GD32 F527 Bank1_Ex requires write-block-size = <8>");		\
-	static const struct gd32_fmc_f527_ex_config gd32_fmc_f527_ex_config_##node_id = { \
-		.addr = DT_REG_ADDR(node_id),						\
-		.size = DT_REG_SIZE(node_id),						\
-		.page_size = DT_PROP(node_id, page_size),				\
-		.timeout_ms = DT_PROP(node_id, max_erase_time_ms),			\
-		.parameters = {								\
-			.write_block_size = DT_PROP(node_id, write_block_size),	\
-			.erase_value = 0xff,						\
-		},									\
+#define GD32_FMC_F527_EX_DEFINE(node_id)                                                           \
+	BUILD_ASSERT(DT_PROP(node_id, write_block_size) == GD32_FMC_F527_DWORD_SIZE,               \
+		     "GD32 F527 Bank1_Ex requires write-block-size = <8>");                        \
+	static const struct gd32_fmc_f527_ex_config gd32_fmc_f527_ex_config_##node_id = {          \
+		.addr = DT_REG_ADDR(node_id),                                                      \
+		.size = DT_REG_SIZE(node_id),                                                      \
+		.page_size = DT_PROP(node_id, page_size),                                          \
+		.timeout_ms = DT_PROP(node_id, max_erase_time_ms),                                 \
+		.parameters =                                                                      \
+			{                                                                          \
+				.write_block_size = DT_PROP(node_id, write_block_size),            \
+				.erase_value = 0xff,                                               \
+			},                                                                         \
 		IF_ENABLED(CONFIG_FLASH_PAGE_LAYOUT, (					\
 		.layout = {								\
 			.pages_size = DT_PROP(node_id, page_size),			\
 			.pages_count = DT_REG_SIZE(node_id) / DT_PROP(node_id, page_size), \
-		},))									\
-	};										\
-	DEVICE_DT_DEFINE(node_id, NULL, NULL, NULL, &gd32_fmc_f527_ex_config_##node_id,	\
+		},)) };   \
+	DEVICE_DT_DEFINE(node_id, NULL, NULL, NULL, &gd32_fmc_f527_ex_config_##node_id,            \
 			 POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY, &gd32_fmc_f527_ex_api);
 
 /* Bank1_Ex is the flash child that does not carry "soc-nv-flash". */
-#define GD32_FMC_F527_EX_DEFINE_IF_EX(node_id)						\
+#define GD32_FMC_F527_EX_DEFINE_IF_EX(node_id)                                                     \
 	COND_CODE_1(DT_NODE_HAS_COMPAT(node_id, soc_nv_flash), (),			\
 		    (GD32_FMC_F527_EX_DEFINE(node_id)))
 

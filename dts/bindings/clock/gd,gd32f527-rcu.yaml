@@ -1,4 +1,4 @@
-# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 title: GigaDevice GD32F527 RCU Clock Tree Configuration
@@ -35,16 +35,20 @@ include: gd,gd32-rcu.yaml
 properties:
   clocks:
     description: |
-      System clock source. Reference a gd,gd32-pll-clock node (PLL), a
-      gd,gd32-hxtal-clock node (HXTAL), or a fixed-clock node (IRC16M).
+      System clock source. Reference the pll, hxtal or irc16m node.
+      IRC16M is used when absent.
 
   clock-frequency:
     type: int
+    required: true
     description: |
-      Core clock frequency (Hz) = SYSCLK / AHB prescaler.
+      HCLK frequency (Hz) = SYSCLK / AHB prescaler. It is the single
+      source for SYS_CLOCK_HW_CYCLES_PER_SEC and bus clock rates, and is
+      checked at build time against the configured clock tree.
 
   ahb-prescaler:
     type: int
+    default: 1
     enum:
       - 1
       - 2
@@ -55,24 +59,28 @@ properties:
       - 128
       - 256
       - 512
-    description: AHB prescaler. Defines actual core clock frequency (HCLK).
+    description: |
+      AHB prescaler. Defines actual core clock frequency (HCLK).
+      SYSCLK must not exceed 200 MHz.
 
   apb1-prescaler:
     type: int
+    default: 4
     enum:
       - 1
       - 2
       - 4
       - 8
       - 16
-    description: APB1 prescaler.
+    description: APB1 prescaler. APB1 clock (HCLK / prescaler) must not exceed 50 MHz.
 
   apb2-prescaler:
     type: int
+    default: 2
     enum:
       - 1
       - 2
       - 4
       - 8
       - 16
-    description: APB2 prescaler.
+    description: APB2 prescaler. APB2 clock (HCLK / prescaler) must not exceed 100 MHz.
