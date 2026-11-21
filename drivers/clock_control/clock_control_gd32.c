@@ -21,7 +21,8 @@
 /** RCU configuration bit (from id cell) */
 #define GD32_CLOCK_ID_BIT(id)	 ((id) & 0x1FU)
 
-#if defined(CONFIG_SOC_SERIES_GD32F527) && DT_NODE_HAS_PROP(DT_NODELABEL(rcu), clock_frequency) && \
+#if (defined(CONFIG_SOC_SERIES_GD32F527) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)) &&           \
+	DT_NODE_HAS_PROP(DT_NODELABEL(rcu), clock_frequency) &&                                    \
 	DT_NODE_HAS_PROP(DT_NODELABEL(rcu), ahb_prescaler)
 #define CPU_FREQ                                                                                   \
 	(DT_PROP(DT_NODELABEL(rcu), clock_frequency) * DT_PROP(DT_NODELABEL(rcu), ahb_prescaler))

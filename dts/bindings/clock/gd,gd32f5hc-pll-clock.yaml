@@ -1,0 +1,64 @@
+# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+title: GigaDevice GD32F5HC Main PLL Clock
+
+description: |
+  GigaDevice GD32F5HC main PLL clock node.
+
+  Reuses the gd,gd32-pll-clock properties except pll-q, as the GD32F5HC
+  RCU_PLL register has no PLLQ field. The PLL input can additionally be the
+  fixed-clock node labeled irc48m (IRC48M).
+
+  Hardware constraints (user manual 6.7.2, datasheet table 4-24):
+    f(VCO source clock) must be within 1 MHz .. 2 MHz
+    f(VCO clock)        must be within 64 MHz .. 500 MHz
+
+  Spread spectrum modulation is optional and only applies to the main PLL.
+  When enabled, the valid PLLN range narrows to 69..504 (center spread) or
+  71..508 (down spread).
+
+compatible: "gd,gd32f5hc-pll-clock"
+
+include:
+  - name: gd,gd32-pll-clock.yaml
+    property-blocklist:
+      - pll-q
+
+properties:
+  clocks:
+    description: |
+      PLL input clock source. Reference a gd,gd32-hxtal-clock node (HXTAL),
+      the fixed-clock node labeled irc48m (IRC48M) or another fixed-clock
+      node (IRC16M).
+
+  pll-n:
+    description: |
+      PLL VCO clock multiplication factor.
+      Valid range: 64 - 511
+
+  spread-spectrum:
+    type: boolean
+    description: |
+      Enable spread spectrum modulation on the main PLL clock. Requires
+      ss-modulation-freq and ss-modulation-depth to be set.
+
+  ss-type:
+    type: string
+    default: "center"
+    enum:
+      - "center"
+      - "down"
+    description: Spread spectrum modulation type.
+
+  ss-modulation-freq:
+    type: int
+    description: |
+      Spread spectrum modulation frequency in Hz. Used to compute MODCNT as
+      round(f(VCO source clock) / 4 / ss-modulation-freq).
+
+  ss-modulation-depth:
+    type: int
+    description: |
+      Spread spectrum modulation amplitude in units of 0.1 %. For example 20
+      selects a 2.0 % modulation depth.
