@@ -1,0 +1,6 @@
+board:
+  name: gd32l235r_eval
+  full_name: GD32L235R-EVAL
+  vendor: gd
+  socs:
+    - name: gd32l235

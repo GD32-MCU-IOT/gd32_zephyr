@@ -6,6 +6,8 @@
 
 #include "flash_gd32.h"
 
+#include <string.h>
+
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
 #include <gd32_fmc.h>
@@ -96,9 +98,9 @@ bool flash_gd32_valid_range(off_t offset, uint32_t len, bool write)
 	}
 
 	if (write) {
-		/* Check offset and len is flash_prg_t aligned. */
-		if ((offset % sizeof(flash_prg_t)) ||
-		    (len % sizeof(flash_prg_t))) {
+		/* Check offset and len is write-block-size aligned. */
+		if ((offset % SOC_NV_FLASH_PRG_SIZE) ||
+		    (len % SOC_NV_FLASH_PRG_SIZE)) {
 			return false;
 		}
 
@@ -122,8 +124,6 @@ bool flash_gd32_valid_range(off_t offset, uint32_t len, bool write)
 
 int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 {
-	flash_prg_t *prg_flash = (flash_prg_t *)((uint8_t *)SOC_NV_FLASH_ADDR + offset);
-	flash_prg_t *prg_data = (flash_prg_t *)data;
 	int ret = 0;
 
 	gd32_fmc_v1_unlock();
@@ -134,9 +134,26 @@ int flash_gd32_write_range(off_t offset, const void *data, size_t len)
 
 	FMC_CTL |= FMC_CTL_PG;
 
+#if (8 == SOC_NV_FLASH_PRG_SIZE)
+	volatile uint32_t *dst = (volatile uint32_t *)(SOC_NV_FLASH_ADDR + offset);
+	const uint8_t *src = data;
+
+	for (size_t i = 0U; i < len; i += SOC_NV_FLASH_PRG_SIZE) {
+		uint32_t word[2];
+
+		/* The caller buffer carries no alignment guarantee. */
+		memcpy(word, src + i, sizeof(word));
+		*dst++ = word[0];
+		*dst++ = word[1];
+	}
+#else
+	flash_prg_t *prg_flash = (flash_prg_t *)((uint8_t *)SOC_NV_FLASH_ADDR + offset);
+	flash_prg_t *prg_data = (flash_prg_t *)data;
+
 	for (size_t i = 0U; i < (len / sizeof(flash_prg_t)); i++) {
 		*prg_flash++ = *prg_data++;
 	}
+#endif
 
 	ret = gd32_fmc_v1_wait_idle();
 	if (ret < 0) {
