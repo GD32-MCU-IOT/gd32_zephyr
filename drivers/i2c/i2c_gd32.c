@@ -1,22 +1,109 @@
 /*
  * Copyright (c) 2021 BrainCo Inc.
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/irq.h>
-#include <zephyr/logging/log.h>
+#define DT_DRV_COMPAT gd_gd32_i2c
 
 #include <errno.h>
+
+#include <zephyr/kernel.h>
+#include <zephyr/irq.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/clock_control/gd32.h>
+#include <zephyr/drivers/pinctrl.h>
+#include <zephyr/drivers/reset.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/logging/log.h>
+
+#ifdef CONFIG_I2C_GD32_DMA
+#include <zephyr/drivers/dma.h>
+#include <zephyr/drivers/dma/dma_gd32.h>
+#endif
+
+#include <gd32_i2c.h>
+
 LOG_MODULE_REGISTER(i2c_gd32, CONFIG_I2C_LOG_LEVEL);
 
 #include "i2c-priv.h"
-#include "i2c_gd32_common.h"
+
+/* Bus error */
+#define I2C_GD32_ERR_BERR BIT(0)
+/* Arbitration lost */
+#define I2C_GD32_ERR_LARB BIT(1)
+/* No ACK received */
+#define I2C_GD32_ERR_AERR BIT(2)
+/* I2C bus busy */
+#define I2C_GD32_ERR_BUSY BIT(4)
+
+#ifdef CONFIG_I2C_GD32_DMA
+enum i2c_gd32_dma_direction {
+	RX = 0,
+	TX,
+	NUM_OF_DIRECTION
+};
+
+struct i2c_gd32_dma_config {
+	const struct device *dev;
+	uint32_t channel;
+	uint32_t config;
+	uint32_t slot;
+	uint32_t fifo_threshold;
+};
+
+struct i2c_gd32_dma_data {
+	struct dma_config config;
+	struct dma_block_config block;
+	uint32_t count;
+};
+#endif
+
+struct i2c_gd32_config {
+	uint32_t reg;
+	uint32_t bitrate;
+	uint16_t clkid;
+	struct reset_dt_spec reset;
+	const struct pinctrl_dev_config *pcfg;
+	void (*irq_cfg_func)(void);
+#ifdef CONFIG_I2C_GD32_DMA
+	const struct i2c_gd32_dma_config dma[NUM_OF_DIRECTION];
+#endif
+};
+
+struct i2c_gd32_data {
+	struct k_sem bus_mutex;
+	struct k_sem sync_sem;
+	uint32_t dev_config;
+	uint16_t addr1;
+	uint16_t addr2;
+	uint32_t xfer_len;
+	struct i2c_msg *current;
+	uint8_t errs;
+	bool is_restart;
+#ifdef CONFIG_I2C_TARGET
+	struct i2c_target_config *target_cfg;
+	/* Keeps the target-mode ISR path away from an active controller transfer */
+	bool master_active;
+#endif
+#ifdef CONFIG_I2C_GD32_DMA
+	struct i2c_gd32_dma_data dma[NUM_OF_DIRECTION];
+	bool dma_enabled;
+	/* Mode chosen for the current transfer; current->len changes as PIO walks grouped msgs */
+	bool dma_active;
+	uint32_t msg_count;
+#endif
+};
 
 #ifdef CONFIG_I2C_GD32_DMA
 static uint32_t dummy_tx;
 static uint32_t dummy_rx;
+
+static void i2c_gd32_dma_callback(const struct device *dma_dev, void *arg, uint32_t channel,
+				  int status);
+
 static inline void i2c_gd32_enable_dma_interrupts(const struct i2c_gd32_config *cfg)
 {
 	/* Legacy IP: Enable error and event interrupts only */
@@ -48,7 +135,7 @@ static bool i2c_gd32_dma_enabled(const struct device *dev)
 	return false;
 }
 
-size_t i2c_gd32_dma_enabled_num(const struct device *dev)
+static size_t i2c_gd32_dma_enabled_num(const struct device *dev)
 {
 	return i2c_gd32_dma_enabled(dev) ? 2 : 0;
 }
@@ -200,7 +287,9 @@ static bool i2c_gd32_chunk_transfer_finished(const struct device *dev)
 	/* For write operations, only check TX DMA count */
 	return (dma[TX].count >= chunk_len);
 }
-void i2c_gd32_dma_callback_gd(const struct device *dma_dev, void *arg, uint32_t channel, int status)
+
+static void i2c_gd32_dma_callback(const struct device *dma_dev, void *arg, uint32_t channel,
+				  int status)
 {
 	const struct device *dev = (const struct device *)arg;
 	const struct i2c_gd32_config *cfg = dev->config;
@@ -345,8 +434,7 @@ static void i2c_gd32_handle_rbne(const struct device *dev)
 
 #ifdef CONFIG_I2C_GD32_DMA
 	/* This function should not be called in DMA mode */
-	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
-	    i2c_gd32_dma_enabled(dev)) {
+	if (data->dma_active) {
 		i2c_interrupt_disable(cfg->reg, I2C_INT_BUF);
 		return;
 	}
@@ -383,8 +471,7 @@ static void i2c_gd32_handle_tbe(const struct device *dev)
 
 #ifdef CONFIG_I2C_GD32_DMA
 	/* This function should not be called in DMA mode */
-	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
-	    i2c_gd32_dma_enabled(dev)) {
+	if (data->dma_active) {
 		i2c_interrupt_disable(cfg->reg, I2C_INT_BUF);
 		return;
 	}
@@ -465,8 +552,7 @@ static void i2c_gd32_handle_addsend(const struct device *dev)
 
 #ifdef CONFIG_I2C_GD32_DMA
 	/* Set DMAON bit after clearing ADDSEND in DMA mode per manual */
-	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
-	    i2c_gd32_dma_enabled(dev)) {
+	if (data->dma_active) {
 		/* DMAON bit must be set after ADDSEND is cleared per manual */
 		i2c_dma_config(cfg->reg, I2C_DMA_ON);
 
@@ -496,7 +582,7 @@ static void i2c_gd32_handle_addsend(const struct device *dev)
 	}
 }
 
-void i2c_gd32_event_isr_gd(const struct device *dev)
+static void i2c_gd32_event_isr(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
@@ -505,9 +591,8 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 	stat = I2C_STAT0(cfg->reg);
 
 #ifdef CONFIG_I2C_TARGET
-	/* Legacy target mode handling (only if no active master transfer) */
-	if (GD32_I2C_IS_LEGACY(cfg->reg) && data->target_cfg && !data->master_active &&
-	    data->target_cfg->callbacks) {
+	/* Target mode handling (only if no active master transfer) */
+	if (data->target_cfg && !data->master_active && data->target_cfg->callbacks) {
 		/* Check addressing */
 		if (stat & I2C_STAT0_ADDSEND) {
 			/* Clear ADDSEND by reading STAT0 then STAT1 */
@@ -565,7 +650,11 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 		/* Start bit sent: send address + direction via HAL */
 		if (data->current->flags & I2C_MSG_READ) {
 			i2c_master_addressing(cfg->reg, (data->addr1 << 1U), I2C_RECEIVER);
-#ifndef CONFIG_I2C_GD32_DMA
+#ifdef CONFIG_I2C_GD32_DMA
+			if (!data->dma_active) {
+				i2c_interrupt_enable(cfg->reg, I2C_INT_BUF);
+			}
+#else
 			i2c_interrupt_enable(cfg->reg, I2C_INT_BUF);
 #endif
 		} else {
@@ -580,8 +669,7 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 		i2c_gd32_handle_addsend(dev);
 #ifdef CONFIG_I2C_GD32_DMA
 		/* Skip data transfer interrupts (TBE/RBNE) in DMA mode */
-		if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
-		    i2c_gd32_dma_enabled(dev)) {
+		if (data->dma_active) {
 			/* Handle only BTC interrupt for transfer control */
 			i2c_interrupt_disable(cfg->reg, I2C_INT_EV); /* Event interrupt */
 			return; /* Skip other data interrupts in DMA mode */
@@ -599,7 +687,7 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 	}
 }
 
-void i2c_gd32_error_isr_gd(const struct device *dev)
+static void i2c_gd32_error_isr(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
@@ -623,8 +711,7 @@ void i2c_gd32_error_isr_gd(const struct device *dev)
 		data->errs |= I2C_GD32_ERR_AERR;
 #ifdef CONFIG_I2C_GD32_DMA
 		/* Stop DMA on NACK error */
-		if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
-		    i2c_gd32_dma_enabled(dev)) {
+		if (data->dma_active) {
 			i2c_dma_config(cfg->reg, I2C_DMA_OFF);
 			for (size_t i = 0; i < i2c_gd32_dma_enabled_num(dev); i++) {
 				dma_stop(cfg->dma[i].dev, cfg->dma[i].channel);
@@ -656,10 +743,6 @@ static void i2c_gd32_log_err(struct i2c_gd32_data *data)
 
 	if (data->errs & I2C_GD32_ERR_BUSY) {
 		LOG_ERR("I2C bus busy");
-	}
-
-	if (data->errs & I2C_GD32_ERR_OVFL) {
-		LOG_ERR("Transfer length overflow / unsupported sequence");
 	}
 }
 
@@ -708,7 +791,6 @@ static int i2c_gd32_target_register(const struct device *dev, struct i2c_target_
 static int i2c_gd32_target_unregister(const struct device *dev, struct i2c_target_config *target)
 {
 	struct i2c_gd32_data *data = dev->data;
-	const struct i2c_gd32_config *cfg = dev->config;
 	int ret = 0;
 
 	k_sem_take(&data->bus_mutex, K_FOREVER);
@@ -722,7 +804,7 @@ static int i2c_gd32_target_unregister(const struct device *dev, struct i2c_targe
 }
 #endif /* CONFIG_I2C_TARGET */
 
-int i2c_gd32_bus_recovery_gd(const struct device *dev)
+static int i2c_gd32_bus_recovery(const struct device *dev)
 {
 	const struct i2c_gd32_config *cfg = dev->config;
 	struct i2c_gd32_data *data = dev->data;
@@ -792,7 +874,7 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 		if (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
 			LOG_WRN("I2C bus stuck, attempting recovery");
 			/* Try bus recovery */
-			if (i2c_gd32_bus_recovery_gd(dev) < 0) {
+			if (i2c_gd32_bus_recovery(dev) < 0) {
 				data->errs |= I2C_GD32_ERR_BUSY;
 				k_sem_give(&data->sync_sem);
 				return;
@@ -806,6 +888,10 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 
 	i2c_ack_config(cfg->reg, I2C_ACK_ENABLE);
 	if (data->current->flags & I2C_MSG_READ) {
+		/* Flush any leftover RXNE/RBNE so stale data does not
+		 * leak into or corrupt the next transfer.
+		 */
+		i2c_data_receive(cfg->reg);
 		if (data->xfer_len == 2U) {
 			/* Configure ACK position for 2-byte read */
 			i2c_ackpos_config(cfg->reg, I2C_ACKPOS_NEXT);
@@ -817,8 +903,7 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 	}
 	/* Use DMA-specific interrupt configuration if DMA is active */
 #ifdef CONFIG_I2C_GD32_DMA
-	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
-	    i2c_gd32_dma_enabled(dev)) {
+	if (data->dma_active) {
 		i2c_gd32_enable_dma_interrupts(cfg);
 		i2c_start_on_bus(cfg->reg);
 		return;
@@ -842,8 +927,6 @@ static int i2c_gd32_xfer_end(const struct device *dev)
 		while (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
 			/* NOP */
 		}
-	} else {
-		(void)i2c_data_receive(cfg->reg);
 	}
 	/* Restore target mode if target is registered */
 #ifdef CONFIG_I2C_TARGET
@@ -872,6 +955,8 @@ static int i2c_gd32_msg_read(const struct device *dev)
 #ifdef CONFIG_I2C_GD32_DMA
 	int ret;
 
+	data->dma_active = false;
+
 	/* Use DMA for transfers larger than threshold and if DMA is enabled */
 	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
 	    i2c_gd32_dma_enabled(dev)) {
@@ -897,6 +982,7 @@ static int i2c_gd32_msg_read(const struct device *dev)
 		/* Start DMA transfer */
 		ret = i2c_gd32_start_dma_transceive(dev);
 		if (ret == 0) {
+			data->dma_active = true;
 			/* Begin I2C transfer setup */
 			i2c_gd32_xfer_begin(dev);
 			/* Wait for DMA completion */
@@ -918,6 +1004,7 @@ static int i2c_gd32_msg_read(const struct device *dev)
 		}
 		/* If DMA start failed, fall back to PIO mode */
 		LOG_WRN("DMA RX start failed, falling back to PIO mode");
+		data->dma_active = false;
 	}
 #endif
 
@@ -934,6 +1021,8 @@ static int i2c_gd32_msg_write(const struct device *dev)
 	struct i2c_gd32_data *data = dev->data;
 #ifdef CONFIG_I2C_GD32_DMA
 	int ret = 0;
+
+	data->dma_active = false;
 
 	/* Use DMA for transfers larger than threshold and if DMA is enabled */
 	if (data->dma_enabled && data->current->len >= CONFIG_I2C_GD32_DMA_THRESHOLD &&
@@ -962,6 +1051,7 @@ static int i2c_gd32_msg_write(const struct device *dev)
 		/* Start DMA transfer */
 		ret = i2c_gd32_start_dma_transceive(dev);
 		if (ret == 0) {
+			data->dma_active = true;
 			/* Begin I2C transfer setup */
 			i2c_gd32_xfer_begin(dev);
 			/* Wait for DMA completion */
@@ -980,6 +1070,7 @@ static int i2c_gd32_msg_write(const struct device *dev)
 		}
 		/* If DMA start failed, fall back to PIO mode */
 		LOG_WRN("DMA TX start failed, falling back to PIO mode");
+		data->dma_active = false;
 	}
 #endif
 
@@ -991,8 +1082,8 @@ static int i2c_gd32_msg_write(const struct device *dev)
 	return i2c_gd32_xfer_end(dev);
 }
 
-int i2c_gd32_transfer_gd(const struct device *dev, struct i2c_msg *msgs, uint8_t num_msgs,
-			 uint16_t addr)
+static int i2c_gd32_transfer(const struct device *dev, struct i2c_msg *msgs, uint8_t num_msgs,
+			     uint16_t addr)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
@@ -1091,7 +1182,7 @@ int i2c_gd32_transfer_gd(const struct device *dev, struct i2c_msg *msgs, uint8_t
 	return err;
 }
 
-int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
+static int i2c_gd32_configure(const struct device *dev, uint32_t dev_config)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
@@ -1172,47 +1263,145 @@ error:
 	return err;
 }
 
-#ifdef CONFIG_I2C_GD32_DMA
-/* Debug helper functions for runtime DMA control */
-
-/**
- * @brief Disable DMA for a specific I2C device (for debugging)
- * @param dev I2C device
- */
-void i2c_gd32_disable_dma(const struct device *dev)
+static int i2c_gd32_recover_bus(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
+	int ret;
 
-	data->dma_enabled = false;
-	LOG_INF("DMA disabled for I2C device %s", dev->name);
+	k_sem_take(&data->bus_mutex, K_FOREVER);
+	ret = i2c_gd32_bus_recovery(dev);
+	k_sem_give(&data->bus_mutex);
+
+	return ret;
 }
 
-/**
- * @brief Enable DMA for a specific I2C device
- * @param dev I2C device
- */
-void i2c_gd32_enable_dma(const struct device *dev)
+static DEVICE_API(i2c, i2c_gd32_driver_api) = {
+	.configure = i2c_gd32_configure,
+	.transfer = i2c_gd32_transfer,
+	.recover_bus = i2c_gd32_recover_bus,
+#ifdef CONFIG_I2C_RTIO
+	.iodev_submit = i2c_iodev_submit_fallback,
+#endif
+#ifdef CONFIG_I2C_TARGET
+	.target_register = i2c_gd32_target_register,
+	.target_unregister = i2c_gd32_target_unregister,
+#endif
+};
+
+static int i2c_gd32_init(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
+	int err;
 
-	if (cfg->dma[TX].dev || cfg->dma[RX].dev) {
-		data->dma_enabled = true;
-		LOG_INF("DMA enabled for I2C device %s", dev->name);
-	} else {
-		LOG_WRN("DMA not available for I2C device %s", dev->name);
+	err = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
+	if (err < 0) {
+		return err;
 	}
+
+	k_sem_init(&data->bus_mutex, 1, 1);
+	k_sem_init(&data->sync_sem, 0, K_SEM_MAX_LIMIT);
+
+	(void)clock_control_on(GD32_CLOCK_CONTROLLER, (clock_control_subsys_t)&cfg->clkid);
+
+	(void)reset_line_toggle_dt(&cfg->reset);
+
+	cfg->irq_cfg_func();
+
+	(void)i2c_gd32_configure(dev, I2C_MODE_CONTROLLER | i2c_map_dt_bitrate(cfg->bitrate));
+
+#ifdef CONFIG_I2C_GD32_DMA
+	if ((cfg->dma[RX].dev && !cfg->dma[TX].dev) || (cfg->dma[TX].dev && !cfg->dma[RX].dev)) {
+		LOG_ERR("DMA must be enabled for both TX and RX channels");
+		return -ENODEV;
+	}
+
+	for (size_t i = 0; i < i2c_gd32_dma_enabled_num(dev); i++) {
+		uint32_t ch_filter;
+
+		if (!device_is_ready(cfg->dma[i].dev)) {
+			LOG_ERR("DMA %s not ready", cfg->dma[i].dev->name);
+			return -ENODEV;
+		}
+
+		ch_filter = BIT(cfg->dma[i].channel);
+		err = dma_request_channel(cfg->dma[i].dev, &ch_filter);
+		if (err < 0) {
+			LOG_ERR("dma_request_channel failed %d", err);
+			return err;
+		}
+	}
+
+	data->dma_enabled = true;
+#endif
+
+	return 0;
 }
 
-/**
- * @brief Get DMA status for a specific I2C device
- * @param dev I2C device
- * @return true if DMA is enabled, false otherwise
+#ifdef CONFIG_I2C_GD32_DMA
+/*
+ * DMA cells per controller binding:
+ * gd,gd32-dma: channel, config
+ * gd,gd32-dma-v1: channel, slot, config, fifo_threshold
+ * gd,gd32-dmamux: channel, slot, config
  */
-bool i2c_gd32_is_dma_enabled(const struct device *dev)
-{
-	struct i2c_gd32_data *data = dev->data;
+#define I2C_GD32_DMA_IS_V1(idx, dir)                                                               \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dma_v1)
 
-	return data->dma_enabled;
-}
+#define I2C_GD32_DMA_IS_DMAMUX(idx, dir)                                                           \
+	DT_NODE_HAS_COMPAT(DT_INST_DMAS_CTLR_BY_NAME(idx, dir), gd_gd32_dmamux)
+
+#define I2C_GD32_DMA_GET_SLOT(idx, dir)                                                            \
+	COND_CODE_1(I2C_GD32_DMA_IS_V1(idx, dir),                                                  \
+		    (DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)),                                   \
+		    (COND_CODE_1(I2C_GD32_DMA_IS_DMAMUX(idx, dir),                                 \
+				 (DT_INST_DMAS_CELL_BY_NAME(idx, dir, slot)), (0))))
+
+#define I2C_GD32_DMA_INITIALIZER(idx, dir)                                                         \
+	{                                                                                          \
+		.dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(idx, dir)),                         \
+		.channel = DT_INST_DMAS_CELL_BY_NAME(idx, dir, channel),                           \
+		.slot = I2C_GD32_DMA_GET_SLOT(idx, dir),                                           \
+		.config = DT_INST_DMAS_CELL_BY_NAME(idx, dir, config),                             \
+		.fifo_threshold =                                                                  \
+			COND_CODE_1(I2C_GD32_DMA_IS_V1(idx, dir),                                  \
+				    (DT_INST_DMAS_CELL_BY_NAME(idx, dir, fifo_threshold)), (0)),   \
+	}
+
+#define I2C_GD32_DMAS_DECL(idx)                                                                    \
+	{                                                                                          \
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, rx), (I2C_GD32_DMA_INITIALIZER(idx, rx)),   \
+			    ({0})),                                                                \
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(idx, tx), (I2C_GD32_DMA_INITIALIZER(idx, tx)),   \
+			    ({0})),                                                                \
+	}
 #endif /* CONFIG_I2C_GD32_DMA */
+
+#define I2C_GD32_INIT(inst)                                                                        \
+	PINCTRL_DT_INST_DEFINE(inst);                                                              \
+	static void i2c_gd32_irq_cfg_func_##inst(void)                                             \
+	{                                                                                          \
+		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(inst, event, irq),                                 \
+			    DT_INST_IRQ_BY_NAME(inst, event, priority), i2c_gd32_event_isr,        \
+			    DEVICE_DT_INST_GET(inst), 0);                                          \
+		irq_enable(DT_INST_IRQ_BY_NAME(inst, event, irq));                                 \
+                                                                                                   \
+		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(inst, error, irq),                                 \
+			    DT_INST_IRQ_BY_NAME(inst, error, priority), i2c_gd32_error_isr,        \
+			    DEVICE_DT_INST_GET(inst), 0);                                          \
+		irq_enable(DT_INST_IRQ_BY_NAME(inst, error, irq));                                 \
+	}                                                                                          \
+	static struct i2c_gd32_data i2c_gd32_data_##inst;                                          \
+	static const struct i2c_gd32_config i2c_gd32_cfg_##inst = {                                \
+		.reg = DT_INST_REG_ADDR(inst),                                                     \
+		.bitrate = DT_INST_PROP(inst, clock_frequency),                                    \
+		.clkid = DT_INST_CLOCKS_CELL(inst, id),                                            \
+		.reset = RESET_DT_SPEC_INST_GET(inst),                                             \
+		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                      \
+		.irq_cfg_func = i2c_gd32_irq_cfg_func_##inst,                                      \
+		IF_ENABLED(CONFIG_I2C_GD32_DMA, (.dma = I2C_GD32_DMAS_DECL(inst),))};             \
+	I2C_DEVICE_DT_INST_DEFINE(inst, i2c_gd32_init, NULL, &i2c_gd32_data_##inst,                \
+				  &i2c_gd32_cfg_##inst, POST_KERNEL, CONFIG_I2C_INIT_PRIORITY,     \
+				  &i2c_gd32_driver_api);
+
+DT_INST_FOREACH_STATUS_OKAY(I2C_GD32_INIT)
