@@ -18,6 +18,10 @@
 #include <gd32_tli.h>
 #include <gd32_rcu.h>
 
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#include <zephyr/cache.h>
+#endif
+
 LOG_MODULE_REGISTER(display_gd32_tli, CONFIG_DISPLAY_LOG_LEVEL);
 
 /*
@@ -49,6 +53,13 @@ LOG_MODULE_REGISTER(display_gd32_tli, CONFIG_DISPLAY_LOG_LEVEL);
 #error "Invalid GD32 TLI pixel format chosen"
 #endif
 
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+/* GD32H73x/75x HAL spells the signal polarity macros as "ACTIVE" */
+#define TLI_HSYN_ACTLIVE_LOW TLI_HSYN_ACTIVE_LOW
+#define TLI_VSYN_ACTLIVE_LOW TLI_VSYN_ACTIVE_LOW
+#define TLI_DE_ACTLIVE_LOW   TLI_DE_ACTIVE_LOW
+#endif
+
 struct display_gd32_tli_config {
 	uint32_t reg;
 	uint16_t clkid;
@@ -63,9 +74,16 @@ struct display_gd32_tli_config {
 	uint16_t vfp;
 	uint16_t width;
 	uint16_t height;
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+	uint16_t pll2_psc;
+	uint16_t pll2_n;
+	uint16_t pll2_r;
+	uint32_t pll2r_div;
+#else
 	uint16_t pllsai_n;
 	uint16_t pllsai_r;
 	uint32_t pllsair_div;
+#endif
 };
 
 struct display_gd32_tli_data {
@@ -99,6 +117,9 @@ static int display_gd32_tli_write(const struct device *dev, const uint16_t x, co
 		uint32_t src_offset = row * pitch * data->current_pixel_size;
 
 		memcpy(dst + dst_offset, src + src_offset, width * data->current_pixel_size);
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+		sys_cache_data_flush_range(dst + dst_offset, width * data->current_pixel_size);
+#endif
 	}
 
 	/* Trigger TLI reload in vertical blanking period to update display */
@@ -244,7 +265,12 @@ static int display_gd32_tli_set_pixel_format(const struct device *dev,
 	tli_layer_init_struct.layer_acf1 = LAYER_ACF1_PASA;
 	tli_layer_init_struct.layer_acf2 = LAYER_ACF2_PASA;
 	tli_layer_init_struct.layer_frame_bufaddr = (uint32_t)data->frame_buffer;
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+	/* TLI_LxFLLEN.FLL is the line length in bytes plus 7 on GD32H73x/75x */
+	tli_layer_init_struct.layer_frame_line_length = (config->width * pixel_size) + 7;
+#else
 	tli_layer_init_struct.layer_frame_line_length = (config->width * pixel_size) + 3;
+#endif
 	tli_layer_init_struct.layer_frame_buf_stride_offset = config->width * pixel_size;
 	tli_layer_init_struct.layer_frame_total_line_number = config->height;
 
@@ -286,6 +312,79 @@ static DEVICE_API(display, display_gd32_tli_api) = {
 	.set_orientation = display_gd32_tli_set_orientation,
 };
 
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+/* GD32H73x/75x has no PLLSAI, the TLI pixel clock comes from PLL2R */
+static int display_gd32_tli_pll2_config(const struct display_gd32_tli_config *config)
+{
+	uint32_t pll2_in;
+	uint64_t pll2_vco;
+	uint32_t in_range;
+	uint32_t vco_range;
+	bool vco_ok;
+
+	/* SystemInit() selects HXTAL as the clock source shared by all PLLs */
+	if ((RCU_PLLALL & RCU_PLLALL_PLLSEL) != RCU_PLLSRC_HXTAL) {
+		LOG_ERR("PLL2 requires HXTAL as PLL source");
+		return -ENOTSUP;
+	}
+
+	if (config->pll2_psc == 0U) {
+		LOG_ERR("PLL2 prescaler must not be zero");
+		return -EINVAL;
+	}
+
+	pll2_in = HXTAL_VALUE / config->pll2_psc;
+	pll2_vco = (uint64_t)HXTAL_VALUE * config->pll2_n / config->pll2_psc;
+
+	if (pll2_in < MHZ(2)) {
+		in_range = RCU_PLL2RNG_1M_2M;
+	} else if (pll2_in < MHZ(4)) {
+		in_range = RCU_PLL2RNG_2M_4M;
+	} else if (pll2_in < MHZ(8)) {
+		in_range = RCU_PLL2RNG_4M_8M;
+	} else {
+		in_range = RCU_PLL2RNG_8M_16M;
+	}
+
+	/*
+	 * The wide VCO range (192-836 MHz) requires a 2-16 MHz PLL2 input, the
+	 * narrow VCO range (150-420 MHz) a 1-2 MHz PLL2 input.
+	 */
+	if (pll2_in < MHZ(2)) {
+		vco_range = RCU_PLL2VCO_150M_420M;
+		vco_ok = (pll2_vco >= MHZ(150)) && (pll2_vco <= MHZ(420));
+	} else {
+		vco_range = RCU_PLL2VCO_192M_836M;
+		vco_ok = (pll2_vco >= MHZ(192)) && (pll2_vco <= MHZ(836));
+	}
+
+	if ((pll2_in < MHZ(1)) || (pll2_in > MHZ(16)) || !vco_ok) {
+		LOG_ERR("PLL2 psc %u and n %u give an out of range input or VCO",
+			config->pll2_psc, config->pll2_n);
+		return -EINVAL;
+	}
+
+	rcu_pll_input_output_clock_range_config(IDX_PLL2, in_range, vco_range);
+
+	/* Only the R output is used, P and Q are programmed with the same divider */
+	if (rcu_pll2_config(config->pll2_psc, config->pll2_n, config->pll2_r, config->pll2_r,
+			    config->pll2_r) == ERROR) {
+		LOG_ERR("PLL2 configuration failed");
+		return -EIO;
+	}
+
+	rcu_pll_clock_output_enable(RCU_PLL2R);
+	rcu_tli_clock_div_config(config->pll2r_div);
+	rcu_osci_on(RCU_PLL2_CK);
+	if (rcu_osci_stab_wait(RCU_PLL2_CK) == ERROR) {
+		LOG_ERR("PLL2 stabilization timeout");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+#endif
+
 static int display_gd32_tli_init(const struct device *dev)
 {
 	const struct display_gd32_tli_config *config = dev->config;
@@ -326,6 +425,12 @@ static int display_gd32_tli_init(const struct device *dev)
 		return ret;
 	}
 
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+	ret = display_gd32_tli_pll2_config(config);
+	if (ret < 0) {
+		return ret;
+	}
+#else
 	/* Configure PLLSAI for LCD pixel clock */
 	if (rcu_pllsai_r_config(config->pllsai_n, config->pllsai_r) == ERROR) {
 		LOG_ERR("PLLSAI configuration failed");
@@ -338,6 +443,7 @@ static int display_gd32_tli_init(const struct device *dev)
 		LOG_ERR("PLLSAI stabilization timeout");
 		return -ETIMEDOUT;
 	}
+#endif
 
 	tli_init_struct.signalpolarity_hs = TLI_HSYN_ACTLIVE_LOW;
 	tli_init_struct.signalpolarity_vs = TLI_VSYN_ACTLIVE_LOW;
@@ -377,8 +483,14 @@ static int display_gd32_tli_init(const struct device *dev)
 	tli_layer_init_struct.layer_acf1 = LAYER_ACF1_PASA;
 	tli_layer_init_struct.layer_acf2 = LAYER_ACF2_PASA;
 	tli_layer_init_struct.layer_frame_bufaddr = (uint32_t)data->frame_buffer;
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+	/* TLI_LxFLLEN.FLL is the line length in bytes plus 7 on GD32H73x/75x */
+	tli_layer_init_struct.layer_frame_line_length =
+		(config->width * GD32_TLI_INIT_PIXEL_SIZE) + 7;
+#else
 	tli_layer_init_struct.layer_frame_line_length =
 		(config->width * GD32_TLI_INIT_PIXEL_SIZE) + 3;
+#endif
 	tli_layer_init_struct.layer_frame_buf_stride_offset =
 		config->width * GD32_TLI_INIT_PIXEL_SIZE;
 	tli_layer_init_struct.layer_frame_total_line_number = config->height;
@@ -408,6 +520,19 @@ static int display_gd32_tli_init(const struct device *dev)
 #define GD32_TLI_PINCTRL_INIT(inst) NULL
 #endif
 
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#define GD32_TLI_PIXEL_CLOCK_CONFIG(inst)                                                          \
+	.pll2_psc = DT_INST_PROP(inst, pll2_psc),                                                  \
+	.pll2_n = DT_INST_PROP(inst, pll2_n),                                                      \
+	.pll2_r = DT_INST_PROP(inst, pll2_r),                                                      \
+	.pll2r_div = DT_INST_PROP(inst, pll2r_div),
+#else
+#define GD32_TLI_PIXEL_CLOCK_CONFIG(inst)                                                          \
+	.pllsai_n = DT_INST_PROP(inst, pllsai_n),                                                  \
+	.pllsai_r = DT_INST_PROP(inst, pllsai_r),                                                  \
+	.pllsair_div = DT_INST_PROP(inst, pllsair_div),
+#endif
+
 #define DISPLAY_GD32_TLI_DEVICE(inst)                                                              \
                                                                                                    \
 	GD32_TLI_PINCTRL_DEFINE(inst);                                                             \
@@ -430,9 +555,7 @@ static int display_gd32_tli_init(const struct device *dev)
 		.vfp = DT_INST_PROP(inst, vfp),                                                    \
 		.width = DT_INST_PROP(inst, width),                                                \
 		.height = DT_INST_PROP(inst, height),                                              \
-		.pllsai_n = DT_INST_PROP(inst, pllsai_n),                                          \
-		.pllsai_r = DT_INST_PROP(inst, pllsai_r),                                          \
-		.pllsair_div = DT_INST_PROP(inst, pllsair_div),                                    \
+		GD32_TLI_PIXEL_CLOCK_CONFIG(inst)                                                  \
 	};                                                                                         \
                                                                                                    \
 	static struct display_gd32_tli_data display_gd32_tli_data_##inst = {                       \

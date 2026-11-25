@@ -346,6 +346,17 @@
 			maximum-speed = "full-speed";
 			status = "disabled";
 		};
+
+		tli: tli@50001000 {
+			compatible = "gd,gd32-tli";
+			reg = <0x50001000 0x1000>;
+			clocks = <&cctl GD32_CLOCK_TLI>;
+			pll2-psc = <25>;
+			pll2-n = <192>;
+			pll2-r = <3>;
+			pll2r-div = <GD32_RCU_PLL2R_DIV8>;
+			status = "disabled";
+		};
 	};
 
 	/* AXI SRAM: 512 KB dedicated + 320 KB from shared RAM (factory option bytes) */
