@@ -8,6 +8,7 @@
 
 #include <gd/gd32f527/gd32f527is.dtsi>
 #include "gd32f527i_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/dma/gd32_dma.h>
 
 / {
@@ -26,14 +27,57 @@
 	leds {
 		compatible = "gpio-leds";
 
-		led0: led0 {
+		led1: led1 {
 			gpios = <&gpiof 7 GPIO_ACTIVE_HIGH>;
-			label = "LED0";
+			label = "LED1";
+		};
+
+		led2: led2 {
+			gpios = <&gpiof 8 GPIO_ACTIVE_HIGH>;
+			label = "LED2";
+		};
+
+		led3: led3 {
+			gpios = <&gpioe 3 GPIO_ACTIVE_HIGH>;
+			label = "LED3";
+		};
+
+		led4: led4 {
+			gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>;
+			label = "LED4";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		wakeup_key: wakeup_key {
+			label = "WAKEUP_KEY";
+			gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+			zephyr,code = <INPUT_KEY_WAKEUP>;
+		};
+
+		tamper_key: tamper_key {
+			label = "TAMPER_KEY";
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+
+		user_key: user_key {
+			label = "USER_KEY";
+			gpios = <&gpiob 14 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
 		};
 	};
 
 	aliases {
-		led0 = &led0;
+		led0 = &led1;
+		led1 = &led2;
+		led2 = &led3;
+		led3 = &led4;
+		sw0 = &user_key;
+		sw1 = &tamper_key;
+		sw2 = &wakeup_key;
 		eeprom-0 = &eeprom0;
 	};
 };

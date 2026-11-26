@@ -1,4 +1,4 @@
-# Copyright (c) 2025 GigaDevice Semiconductor Inc.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 identifier: gd32f527i_eval
@@ -8,15 +8,11 @@ arch: arm
 toolchain:
   - zephyr
   - gnuarmemb
-  - xtools
 ram: 512
-flash: 2048
+flash: 7680
 supported:
   - gpio
   - uart
-  - usart
-  - pinctrl
-  - clock_control
   - spi
   - dma
   - i2c

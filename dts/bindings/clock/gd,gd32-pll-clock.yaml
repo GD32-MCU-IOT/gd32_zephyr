@@ -1,4 +1,4 @@
-# Copyright (c) 2026, GigaDevice Semiconductor Inc.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 title: GigaDevice GD32 Main PLL Clock
@@ -7,11 +7,11 @@ description: |
   GigaDevice GD32 main PLL clock node.
 
   This node models the main PLL used to generate the system clock. It takes
-  one of gd,gd32-hxtal-clock or gd,gd32-cctl (IRC16M) as input clock, and
-  produces a single output clock (PLL_P).
+  the hxtal (gd,gd32-hxtal-clock) or irc16m (fixed-clock) node as input
+  clock, and produces a single output clock (PLL_P).
 
   This binding applies to GD32 series that expose a dedicated RCU_PLL
-  register with PSC/N/P/Q fields, such as GD32F527 and GD32F4xx.
+  register with PSC/N/P/Q fields, such as GD32F527.
 
   The output frequency is computed as:
 
@@ -19,8 +19,8 @@ description: |
 
       with f(VCO clock) = f(PLL input clock) / PLLPSC * PLLN
 
-  The PLL input clock source is selected by the "clocks" property: a
-  gd,gd32-hxtal-clock node selects HXTAL, a fixed-clock node selects IRC16M.
+  The PLL input clock source is selected by the "clocks" property: the
+  hxtal node selects HXTAL, the irc16m node selects IRC16M.
   This maps to the RCU_PLLSRC_* bit in RCU_PLL.
 
   Property mapping to rcu_pll_config() arguments:
@@ -40,8 +40,8 @@ properties:
   clocks:
     required: true
     description: |
-      PLL input clock source. Reference either a gd,gd32-hxtal-clock node
-      (HXTAL) or a fixed-clock node (IRC16M).
+      PLL input clock source. Reference the hxtal node (HXTAL) or the
+      irc16m node (IRC16M).
 
   pll-psc:
     type: int

@@ -16,7 +16,11 @@ The following hardware is described by the current Zephyr board files:
 
 - GD32F527IS MCU
 - 512 KiB SRAM
-- LED0 connected to PF7
+- 25 MHz HXTAL and PLL, with a 200 MHz system clock
+- LED1 to LED4 connected to PF7, PF8, PE3, and PE2
+- WAKEUP key on PA0, TAMPER key on PC13, and USER key on PB14
+- USART0 console with TX on PA9 and RX on PA10
+- CKOUT0 output on PA8, sourced from PLLP and divided by 4
 - USART0 console with TX on PA9 and RX on PA10
 - AT24-compatible EEPROM on I2C0 at address 0x50
 - GD25Q16-compatible SPI NOR flash on SPI5

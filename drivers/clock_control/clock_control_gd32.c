@@ -21,10 +21,10 @@
 /** RCU configuration bit (from id cell) */
 #define GD32_CLOCK_ID_BIT(id)	 ((id) & 0x1FU)
 
-#if defined(CONFIG_SOC_SERIES_GD32F527) && DT_NODE_HAS_PROP(DT_NODELABEL(rcu), clock_frequency) && \
-	DT_NODE_HAS_PROP(DT_NODELABEL(rcu), ahb_prescaler)
-#define CPU_FREQ                                                                                   \
-	(DT_PROP(DT_NODELABEL(rcu), clock_frequency) * DT_PROP(DT_NODELABEL(rcu), ahb_prescaler))
+/* Series with a DTS-configured clock tree describe HCLK on the rcu node */
+#if DT_NODE_HAS_PROP(DT_NODELABEL(rcu), clock_frequency)
+#define CPU_FREQ         DT_PROP(DT_NODELABEL(rcu), clock_frequency)
+#define CPU_FREQ_IS_HCLK 1
 #else
 #define CPU_FREQ DT_PROP(DT_PATH(cpus, cpu_0), clock_frequency)
 #endif
@@ -167,7 +167,12 @@ static int clock_control_gd32_get_rate(const struct device *dev,
 #else
 	case RCU_AHBEN_OFFSET:
 #endif
+#if defined(CPU_FREQ_IS_HCLK)
+		/* CPU_FREQ already is HCLK, so the AHB prescaler must not be applied again */
+		*rate = CPU_FREQ;
+#else
 		*rate = ahb_freq;
+#endif
 		break;
 	case RCU_APB1EN_OFFSET:
 #if !defined(CONFIG_SOC_SERIES_GD32VF103) && !defined(CONFIG_SOC_SERIES_GD32A50X) && \
