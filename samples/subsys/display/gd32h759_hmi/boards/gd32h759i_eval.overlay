@@ -1,0 +1,149 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * JP41, JP43-JP59 and JP67 must be set to 1-2 (TLI function), JP42 must be
+ * set to 2-3 (USER key).
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+/ {
+	chosen {
+		zephyr,display = &tli;
+	};
+
+	i2c_gpio: i2c-gpio {
+		compatible = "gpio-i2c";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clock-frequency = <I2C_BITRATE_STANDARD>;
+		scl-gpios = <&gpioh 7 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpiof 9 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		status = "okay";
+
+		touch: gt911@5d {
+			compatible = "goodix,gt911";
+			reg = <0x5d>;
+			irq-gpios = <&gpioh 6 GPIO_ACTIVE_HIGH>;
+			reset-gpios = <&gpiof 6 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+
+	lvgl_pointer {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&touch>;
+		display = <&tli>;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		/* WAKEUP has an external pull-down */
+		key_a: key_a {
+			label = "WAKEUP";
+			gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+		};
+
+		key_b: key_b {
+			label = "USER";
+			gpios = <&gpiof 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		};
+
+		key_c: key_c {
+			label = "TAMPER";
+			gpios = <&gpioc 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		};
+	};
+
+	zephyr,user {
+		/* VR1 potentiometer on PC2_C (ADC2_IN0) */
+		io-channels = <&adc2 0>;
+	};
+};
+
+&pinctrl {
+	tli_default: tli_default {
+		group1 {
+			pinmux = <TLI_R0_PH2>, <TLI_R1_PH3>, <TLI_R2_PH8>,
+				 <TLI_R3_PH9>, <TLI_R4_PA5>, <TLI_R5_PH11>,
+				 <TLI_R6_PH12>, <TLI_R7_PG6>, <TLI_G0_PB1>,
+				 <TLI_G1_PB0>, <TLI_G2_PH13>, <TLI_G3_PH14>,
+				 <TLI_G4_PH15>, <TLI_G5_PC1>, <TLI_G6_PC7>,
+				 <TLI_G7_PD3>, <TLI_B0_PG14>, <TLI_B1_PG12>,
+				 <TLI_B2_PG10>, <TLI_B3_PG11>, <TLI_B4_PC11>,
+				 <TLI_B5_PB5>, <TLI_B6_PB8>, <TLI_B7_PB9>,
+				 <TLI_PIXCLK_PG7>, <TLI_HSYNC_PE15>, <TLI_VSYNC_PA7>,
+				 <TLI_DE_PF10>;
+			slew-rate = "max-speed-50mhz";
+		};
+	};
+};
+
+&tli {
+	status = "okay";
+
+	pinctrl-0 = <&tli_default>;
+	pinctrl-names = "default";
+
+	bl-ctrl-gpios = <&gpiog 13 GPIO_ACTIVE_HIGH>;
+
+	hsync = <41>;
+	vsync = <10>;
+	hbp = <2>;
+	vbp = <2>;
+	hfp = <2>;
+	vfp = <2>;
+	width = <480>;
+	height = <272>;
+};
+
+/* PC2_C is a dedicated analog pin, no pinmux is needed */
+&adc2 {
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 5)>;
+		zephyr,resolution = <12>;
+		zephyr,vref-mv = <3300>;
+	};
+};
+
+/* PA5/PA7 are TLI_R4/TLI_VSYNC */
+&spi0 {
+	status = "disabled";
+};
+
+/* PB5 is TLI_B5 */
+&spi2 {
+	status = "disabled";
+};
+
+/* PH6/PH7/PF9 are used by the touch panel, PH8/PH9 are TLI_R2/TLI_R3 */
+&spi4 {
+	status = "disabled";
+};
+
+/* PA5/PA7 are TLI_R4/TLI_VSYNC, PA0 (CS) is the WAKEUP key */
+&spi5 {
+	status = "disabled";
+};
+
+/* PA7/PB0 are TLI_VSYNC/TLI_G1 */
+&pwm0 {
+	status = "disabled";
+};
+
+/* PB5 is TLI_B5 */
+&can1 {
+	status = "disabled";
+};
+
+/* PF6 is the touch panel reset */
+&can2 {
+	status = "disabled";
+};

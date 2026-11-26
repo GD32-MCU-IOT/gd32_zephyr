@@ -241,6 +241,14 @@
 /** CKOUT0 divider: 15 */
 #define GD32_CKOUT0_DIV15 GD32_CKOUT0_DIVCFG(15U)
 
+/** PLL2R divide by 2 */
+#define GD32_RCU_PLL2R_DIV2		0x00000000
+/** PLL2R divide by 4 */
+#define GD32_RCU_PLL2R_DIV4		0x00010000
+/** PLL2R divide by 8 */
+#define GD32_RCU_PLL2R_DIV8		0x00020000
+/** PLL2R divide by 16 */
+#define GD32_RCU_PLL2R_DIV16		0x00030000
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_GD32H73X_75X_CLOCKS_H_ */

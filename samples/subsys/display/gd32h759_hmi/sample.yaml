@@ -1,0 +1,9 @@
+sample:
+  name: GD32H759 HMI
+tests:
+  sample.display.gd32h759_hmi:
+    platform_allow: gd32h759i_eval
+    harness: none
+    tags:
+      - display
+      - lvgl

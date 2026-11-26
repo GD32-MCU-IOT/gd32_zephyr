@@ -68,20 +68,38 @@ properties:
 
   pllsai-n:
     type: int
-    required: true
-    description: PLLSAI N multiplication factor
+    description: PLLSAI N multiplication factor (GD32F4xx/GD32F527 only)
 
   pllsai-r:
     type: int
-    required: true
-    description: PLLSAI R division factor
+    description: PLLSAI R division factor (GD32F4xx/GD32F527 only)
 
   pllsair-div:
     type: int
-    required: true
     description: |
-      PLLSAI R clock divider for TLI clock
+      PLLSAI R clock divider for TLI clock (GD32F4xx/GD32F527 only)
       Valid values: 2, 4, 8, 16 (RCU_PLLSAIR_DIVx)
+
+  pll2-psc:
+    type: int
+    description: |
+      PLL2 input prescaler (GD32H73x/75x only). The PLL2 input clock is the
+      PLL source clock divided by this value and must be within 1-16 MHz.
+
+  pll2-n:
+    type: int
+    description: PLL2 N multiplication factor (GD32H73x/75x only)
+
+  pll2-r:
+    type: int
+    description: PLL2 R division factor (GD32H73x/75x only)
+
+  pll2r-div:
+    type: int
+    description: |
+      PLL2 R clock divider for TLI clock (GD32H73x/75x only). Use one of the
+      GD32_RCU_PLL2R_DIV2/4/8/16 constants from gd32h73x_75x-clocks.h, the
+      value is the RCU_CFG1 PLL2RDIV field encoding, not the divide factor.
 
   pixel-format:
     type: int
