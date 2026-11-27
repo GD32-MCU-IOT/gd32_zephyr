@@ -35,7 +35,7 @@
 LOG_MODULE_REGISTER(eth_gd32, CONFIG_ETHERNET_LOG_LEVEL);
 
 /* gd32h73x_75x HAL is per-instance and has no descriptor rings; driver owns them. */
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 #define GD32_ENET_MULTI_INSTANCE 1
 #define GD32_ENET_DRV_DESC       1
 #endif

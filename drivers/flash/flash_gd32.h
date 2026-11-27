@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022 BrainCo Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,8 +27,17 @@ typedef uint8_t flash_prg_t;
 /* Double-word FMC programs through two 32-bit writes, so flash_prg_t is not defined. */
 #elif (16 == SOC_NV_FLASH_PRG_SIZE)
 /* Quad-word FMC has no scalar programming unit, so flash_prg_t is not defined. */
+#elif (32 == SOC_NV_FLASH_PRG_SIZE)
+/* 256-bit NVMC has no scalar programming unit, so flash_prg_t is not defined. */
 #else
 #error "Invalid write-block-size value in FMC DTS"
+#endif
+
+/* The GD32H77x/78x CNVM reads 0x00 after erase (UM NVMC CNVM sector erase). */
+#if defined(CONFIG_GD32_NV_FLASH_H77X_78X)
+#define SOC_NV_FLASH_ERASE_VALUE 0x00
+#else
+#define SOC_NV_FLASH_ERASE_VALUE 0xff
 #endif
 
 /* Helper for conditional compilation directives, KB cannot be used because it has type casting. */

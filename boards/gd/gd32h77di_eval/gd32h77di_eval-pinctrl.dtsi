@@ -1,0 +1,58 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32h77di(w-p-i)xx-pinctrl.h>
+
+&pinctrl {
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PB6>, <USART0_RX_PB7>;
+		};
+	};
+
+	usart2_default: usart2_default {
+		group1 {
+			pinmux = <USART2_TX_PB10>, <USART2_RX_PB11>;
+		};
+	};
+
+	adc0_default: adc0_default {
+		group1 {
+			pinmux = <ADC0_IN2_PF11>;
+		};
+	};
+
+	pwm1_default: pwm1_default {
+		group1 {
+			pinmux = <TIMER1_CH0_PA5>;
+		};
+	};
+
+	i2c1_default: i2c1_default {
+		group1 {
+			pinmux = <I2C1_SCL_PH4>, <I2C1_SDA_PH5>;
+			drive-open-drain;
+		};
+	};
+
+	spi2_default: spi2_default {
+		group1 {
+			pinmux = <SPI2_SCK_PC10>, <SPI2_MISO_PC11>, <SPI2_MOSI_PC12>;
+		};
+	};
+
+	spi3_default: spi3_default {
+		group1 {
+			pinmux = <SPI3_SCK_PE3>, <SPI3_MISO_PE5>, <SPI3_MOSI_PE6>;
+		};
+	};
+
+	can2_default: can2_default {
+		group1 {
+			pinmux = <CAN2_RX_PD12>, <CAN2_TX_PD13>;
+		};
+	};
+};

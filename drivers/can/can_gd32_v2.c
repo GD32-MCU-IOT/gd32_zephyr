@@ -187,7 +187,7 @@ static void can_gd32_rx_mailbox_isr(const struct device *dev)
 
 		memset(&frame, 0, sizeof(frame));
 		memset(&rx_msg, 0, sizeof(rx_msg));
-#if !defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if !defined(CONFIG_SOC_SERIES_GD32H73X_75X) && !defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 		rx_msg.data = frame.data_32;
 #endif
 
@@ -196,7 +196,7 @@ static void can_gd32_rx_mailbox_isr(const struct device *dev)
 			continue;
 		}
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 		memcpy(frame.data, rx_msg.data, MIN(rx_msg.data_bytes, sizeof(frame.data)));
 #endif
 
@@ -717,7 +717,7 @@ static int can_gd32_send(const struct device *dev, const struct can_frame *frame
 	tx_msg.fdf = (frame->flags & CAN_FRAME_FDF) != 0 ? 1U : 0U;
 	tx_msg.brs = (frame->flags & CAN_FRAME_BRS) != 0 ? 1U : 0U;
 #endif
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	/* GD32H73x_75x HAL: mailbox descriptor `data` is an inline uint8_t[64] array */
 	memcpy(tx_msg.data, frame->data, data_length);
 #else

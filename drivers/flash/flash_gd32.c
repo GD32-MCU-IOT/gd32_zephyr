@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022 BrainCo Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,7 +26,7 @@ static struct flash_gd32_data flash_data;
 
 static const struct flash_parameters flash_gd32_parameters = {
 	.write_block_size = SOC_NV_FLASH_PRG_SIZE,
-	.erase_value = 0xff,
+	.erase_value = SOC_NV_FLASH_ERASE_VALUE,
 };
 
 static int flash_gd32_read(const struct device *dev, off_t offset,

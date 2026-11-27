@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 TOKITA Hiroshi <tokita.hiroshi@gmail.com>
- * Copyright (c) 2025 GigaDevice Semiconductor Inc.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -49,7 +49,7 @@
 #define DMA_CHMADDR(dma, ch) REG32((dma + 0x14UL) + 0x14UL * (uint32_t)(ch))
 #endif
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 #define GD32_DMA_V1_NO_SUBPERIPHERAL
 #endif
 

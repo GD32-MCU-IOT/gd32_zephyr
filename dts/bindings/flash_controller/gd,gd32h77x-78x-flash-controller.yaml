@@ -1,0 +1,20 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  GD32H77x/78x non-volatile memory controller (NVMC).
+
+  The code NVM (CNVM) starts at 0x08000000. It is erased by 64KB sector
+  and programmed in 256-bit words. It is a "gd,gd32-nv-flash" child node
+  that also carries "soc-nv-flash".
+
+  The extended code NVM (ECNVM), when present, starts at the fixed address
+  0x08200000. It is erased by 4KB page and programmed in 256-bit words by
+  this driver. It is a "gd,gd32-nv-flash" child node without
+  "soc-nv-flash", and the driver exposes it as its own flash device.
+
+  Both child nodes must use write-block-size = <32>.
+
+compatible: "gd,gd32h77x-78x-flash-controller"
+
+include: gd,gd32-flash-controller.yaml

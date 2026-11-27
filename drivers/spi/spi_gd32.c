@@ -50,7 +50,7 @@ LOG_MODULE_REGISTER(spi_gd32);
  * Some GD32 series uses different register layout like as GD32H7 series.
  * Define compatibility macros to minimize code changes.
  */
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 
 #define SPI_DATA_TX(spix) SPI_TDATA(spix)
 #define SPI_DATA_RX(spix) SPI_RDATA(spix)
@@ -274,15 +274,16 @@ static int spi_gd32_configure(const struct device *dev,
 	}
 #endif /* SPI_GD32_QUAD_ENABLED */
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	uint32_t cfg0 = SPI_CFG0(cfg->reg);
 	uint32_t cfg1 = SPI_CFG1(cfg->reg);
 
 	/* Master mode and full duplex */
+	cfg1 &= ~(SPI_CFG1_CKPL | SPI_CFG1_CKPH | SPI_ENDIAN_LSB | SPI_NSS_SOFT);
 	cfg1 |= SPI_MASTER;
 
 	/* Data size */
-	cfg0 &= ~SPI_CFG0_DZ;
+	cfg0 &= ~(SPI_CFG0_DZ | SPI_CFG0_BYTEN | SPI_CFG0_WORDEN);
 	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
 		cfg0 |= SPI_DATASIZE_8BIT;
 		cfg0 |= SPI_CFG0_BYTEN; /* Enable byte access */
@@ -404,14 +405,20 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 	const struct spi_gd32_config *cfg = dev->config;
 	struct spi_context *ctx = &data->ctx;
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	uint32_t tx_frame = 0U, rx_frame = 0U;
 
 	/* Set transfer count and start transfer */
 	const size_t chunk_len = spi_context_max_continuous_chunk(ctx);
 
-	spi_current_data_num_config(cfg->reg, chunk_len);
-	spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
+
+	if ((SPI_CTL0(cfg->reg) & SPI_CTL0_MSTART) == 0U) {
+		spi_disable(cfg->reg);
+		spi_i2s_flag_clear(cfg->reg, SPI_STATC_ETC | SPI_STATC_TXFC);
+		spi_current_data_num_config(cfg->reg, chunk_len);
+		spi_enable(cfg->reg);
+		spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
+	}
 #else
 	uint16_t tx_frame = 0U, rx_frame = 0U;
 #endif
@@ -436,7 +443,7 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 
 		spi_context_update_tx(ctx, 2, 1);
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	else if (SPI_WORD_SIZE_GET(ctx->config->operation) == 32) {
 		if (spi_context_tx_buf_on(ctx)) {
 			tx_frame = UNALIGNED_GET((uint32_t *)(data->ctx.tx_buf));
@@ -472,7 +479,7 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 
 		spi_context_update_rx(ctx, 2, 1);
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
 		rx_frame = SPI_DATA_RX(cfg->reg);
 		if (spi_context_rx_buf_on(ctx)) {
@@ -488,6 +495,14 @@ static int spi_gd32_frame_exchange(const struct device *dev)
 		LOG_ERR("Unsupported frame size %d bits", frame_size);
 		return -ENOTSUP;
 	}
+
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
+	/* Last frame of the session: let it end before the next one is started */
+	if (chunk_len == 1U) {
+		while (spi_i2s_flag_get(cfg->reg, SPI_FLAG_ET) == RESET) {
+		}
+	}
+#endif
 
 	return spi_gd32_get_err(cfg);
 }
@@ -527,7 +542,7 @@ static uint32_t spi_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 		dma_cfg->source_data_size = 2;
 		dma_cfg->dest_data_size = 2;
 	}
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
 		dma_cfg->source_data_size = 4;
 		dma_cfg->dest_data_size = 4;
@@ -612,7 +627,7 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 		return 0;
 	}
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	/* Disable SPI before configuring transfer count */
 	spi_disable(cfg->reg);
 	/* Configure SPI transfer count for GD32H7 */
@@ -636,7 +651,7 @@ static int spi_gd32_start_dma_transceive(const struct device *dev)
 	/* Enable SPI DMA requests AFTER DMA channels are started */
 	SPI_DMA_ENABLE(cfg->reg);
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	/* Start SPI master transfer for GD32H7 */
 	spi_master_transfer_start(cfg->reg, SPI_TRANS_START);
 #endif
@@ -716,7 +731,7 @@ static int spi_gd32_transceive_impl(const struct device *dev,
 	} else
 #endif
 	{
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 		SPI_STATC(cfg->reg) &= ~(SPI_STAT_RP | SPI_STAT_TP | SPI_GD32_ERR_MASK);
 		SPI_INT(cfg->reg) |= (SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_FEIE);
 #else
@@ -787,7 +802,7 @@ static void spi_gd32_complete(const struct device *dev, int status)
 	struct spi_gd32_data *data = dev->data;
 	const struct spi_gd32_config *cfg = dev->config;
 
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 	SPI_INT(cfg->reg) &= ~(SPI_INT_RPIE | SPI_INT_TPIE | SPI_INT_FEIE);
 #else
 	SPI_CTL1(cfg->reg) &= ~(SPI_CTL1_RBNEIE | SPI_CTL1_TBEIE | SPI_CTL1_ERRIE);
@@ -890,7 +905,7 @@ static void spi_gd32_dma_callback(const struct device *dma_dev, void *arg,
 			spi_context_update_tx(&data->ctx, 2, chunk_len);
 			spi_context_update_rx(&data->ctx, 2, chunk_len);
 		}
-#if defined(CONFIG_SOC_SERIES_GD32H73X_75X)
+#if defined(CONFIG_SOC_SERIES_GD32H73X_75X) || defined(CONFIG_SOC_SERIES_GD32H77X_78X)
 		else if (SPI_WORD_SIZE_GET(data->ctx.config->operation) == 32) {
 			spi_context_update_tx(&data->ctx, 4, chunk_len);
 			spi_context_update_rx(&data->ctx, 4, chunk_len);

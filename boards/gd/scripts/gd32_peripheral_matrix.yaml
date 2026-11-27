@@ -41,6 +41,7 @@ test_groups:
       - gd32e517z_eval
       - gd32h759i_eval
       - gd32h75ey_eval
+      - gd32h77di_eval
       - gd32g553q_eval
       - gd32c113v_eval
       - gd32h759i_start
@@ -64,6 +65,7 @@ test_groups:
       - gd32e517z_eval
       - gd32h759i_eval
       - gd32h75ey_eval
+      - gd32h77di_eval
       - gd32g553q_eval
       - gd32c113v_eval
       - gd32f5hcr_eval
@@ -84,6 +86,7 @@ test_groups:
       - gd32e517z_eval
       - gd32h759i_eval
       - gd32h75ey_eval
+      - gd32h77di_eval
       - gd32g553q_eval
       - gd32c113v_eval
       - gd32f5hcr_eval
@@ -103,6 +106,7 @@ test_groups:
       - gd32f503v_eval
       - gd32h759i_eval
       - gd32h75ey_eval
+      - gd32h77di_eval
       - gd32g553q_eval
       - gd32c113v_eval
       - gd32f5hcr_eval
@@ -130,6 +134,7 @@ test_groups:
       - gd32e517z_eval
       - gd32h759i_eval
       - gd32h75ey_eval
+      - gd32h77di_eval
       - gd32g553q_eval
       - gd32c113v_eval
       - gd32h759i_start

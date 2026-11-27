@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
  * Copyright (c) 2022 TOKITA Hiroshi <tokita.hiroshi@gmail.com>
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,6 +18,17 @@
 #include <zephyr/sys/atomic.h>
 
 #include <gd32_timer.h>
+
+#if defined(CONFIG_SOC_SERIES_GD32H77X_78X)
+/*
+ * GD32H77x/78x HAL encodes TIMER_INT_x/TIMER_FLAG_x as register-index enums,
+ * so use the plain DMAINTEN/INTF register bits instead.
+ */
+#define TIMER_INT_UP      TIMER_DMAINTEN_UPIE
+#define TIMER_INT_CH0     TIMER_DMAINTEN_CH0IE
+#define TIMER_INT_FLAG_UP TIMER_INTF_UPIF
+#define TIMER_FLAG_CH0    TIMER_INTF_CH0IF
+#endif
 
 LOG_MODULE_REGISTER(counter_gd32_timer);
 
