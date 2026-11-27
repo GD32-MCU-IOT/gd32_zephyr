@@ -53,12 +53,37 @@
 #define GD32_DMA_V1_NO_SUBPERIPHERAL
 #endif
 
-#define GD32_DMA_INTF(dma)	  DMA_INTF(dma)
-#define GD32_DMA_INTC(dma)	  DMA_INTC(dma)
-#define GD32_DMA_CHCTL(dma, ch)	  DMA_CHCTL((dma), (ch))
-#define GD32_DMA_CHCNT(dma, ch)	  DMA_CHCNT((dma), (ch))
+#ifdef CONFIG_SOC_SERIES_GD32L23X
+#define GD32_DMA_INTF(dma)        DMA_INTF
+#define GD32_DMA_INTC(dma)        DMA_INTC
+#define GD32_DMA_CHCTL(dma, ch)   DMA_CHCTL(ch)
+#define GD32_DMA_CHCNT(dma, ch)   DMA_CHCNT(ch)
+#define GD32_DMA_CHPADDR(dma, ch) DMA_CHPADDR(ch)
+#define GD32_DMA_CHMADDR(dma, ch) DMA_CHMADDR(ch)
+#else
+#define GD32_DMA_INTF(dma)        DMA_INTF(dma)
+#define GD32_DMA_INTC(dma)        DMA_INTC(dma)
+#define GD32_DMA_CHCTL(dma, ch)   DMA_CHCTL((dma), (ch))
+#define GD32_DMA_CHCNT(dma, ch)   DMA_CHCNT((dma), (ch))
 #define GD32_DMA_CHPADDR(dma, ch) DMA_CHPADDR((dma), (ch))
 #define GD32_DMA_CHMADDR(dma, ch) DMA_CHMADDR((dma), (ch))
+#endif
+
+#ifdef CONFIG_SOC_SERIES_GD32L23X
+#undef GD32_DMA_INTF
+#undef GD32_DMA_INTC
+#undef GD32_DMA_CHCTL
+#undef GD32_DMA_CHCNT
+#undef GD32_DMA_CHPADDR
+#undef GD32_DMA_CHMADDR
+
+#define GD32_DMA_INTF(dma)	  DMA_INTF
+#define GD32_DMA_INTC(dma)	  DMA_INTC
+#define GD32_DMA_CHCTL(dma, ch)	  DMA_CHCTL(ch)
+#define GD32_DMA_CHCNT(dma, ch)	  DMA_CHCNT(ch)
+#define GD32_DMA_CHPADDR(dma, ch) DMA_CHPADDR(ch)
+#define GD32_DMA_CHMADDR(dma, ch) DMA_CHMADDR(ch)
+#endif
 
 LOG_MODULE_REGISTER(dma_gd32, CONFIG_DMA_LOG_LEVEL);
 

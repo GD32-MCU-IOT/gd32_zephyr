@@ -50,7 +50,8 @@ LOG_MODULE_REGISTER(usart_gd32, CONFIG_UART_LOG_LEVEL);
  * Define compatibility macros to minimize code changes.
  */
 #if defined(CONFIG_SOC_SERIES_GD32A50X) || defined(CONFIG_SOC_SERIES_GD32H73X_75X) || \
-	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC)
+	defined(CONFIG_SOC_SERIES_GD32G5X3) || defined(CONFIG_SOC_SERIES_GD32W51X_F5HC) || \
+	defined(CONFIG_SOC_SERIES_GD32L23X)
 #define USART_DATA_TX(usartx) (&USART_TDATA(usartx))
 #define USART_DATA_RX(usartx) (&USART_RDATA(usartx))
 #elif defined(CONFIG_SOC_SERIES_GD32E51X)
@@ -1233,6 +1234,9 @@ static int usart_gd32_configure(const struct device *dev,
 	}
 
 	/* Validate parameters */
+	if (cfg_new->parity > UART_CFG_PARITY_SPACE) {
+		return -EINVAL;
+	}
 	if ((cfg_new->parity == UART_CFG_PARITY_MARK) ||
 	    (cfg_new->parity == UART_CFG_PARITY_SPACE)) {
 		return -ENOTSUP;

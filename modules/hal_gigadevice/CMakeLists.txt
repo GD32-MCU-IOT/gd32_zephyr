@@ -152,8 +152,8 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_GTOC     ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V1   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V2   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
-# GD32E51X has ADD IP functions in i2c.c, no separate i2c_add.c
-if(NOT CONFIG_SOC_SERIES_GD32E51X)
+# GD32E51X and GD32L23X have ADD IP functions in i2c.c, no separate i2c_add.c
+if(NOT CONFIG_SOC_SERIES_GD32E51X AND NOT CONFIG_SOC_SERIES_GD32L23X)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
 endif()
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)

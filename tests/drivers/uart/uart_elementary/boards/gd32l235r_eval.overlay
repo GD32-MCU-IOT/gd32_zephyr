@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/gd32l235r(b)xx-pinctrl.h>
+
+&pinctrl {
+	usart0_test_default: usart0_test_default {
+		group1 {
+			pinmux = <USART0_TX_PA9>, <USART0_RX_PA10>,
+				 <USART0_RTS_PA12>, <USART0_CTS_PA11>;
+		};
+	};
+};
+
+dut: &usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_test_default>;
+	pinctrl-names = "default";
+	hw-flow-control;
+};
