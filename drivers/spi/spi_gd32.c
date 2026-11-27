@@ -346,11 +346,31 @@ static int spi_gd32_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 #else
+#if defined(CONFIG_SOC_SERIES_GD32L23X)
+	if (cfg->reg == DT_REG_ADDR(DT_NODELABEL(spi0))) {
+		SPI_CTL1(cfg->reg) &= ~SPI_CTL1_DZ;
+		if (SPI_WORD_SIZE_GET(config->operation) == 8) {
+			SPI_CTL1(cfg->reg) |= SPI_FRAMESIZE_8BIT;
+		} else if (SPI_WORD_SIZE_GET(config->operation) == 16) {
+			SPI_CTL1(cfg->reg) |= SPI_FRAMESIZE_16BIT;
+		} else {
+			return -ENOTSUP;
+		}
+	} else {
+		SPI_CTL0(cfg->reg) &= ~SPI_CTL0_FF16;
+		if (SPI_WORD_SIZE_GET(config->operation) == 16) {
+			SPI_CTL0(cfg->reg) |= SPI_CTL0_FF16;
+		}
+	}
+#else
 	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
 		SPI_CTL0(cfg->reg) |= SPI_FRAMESIZE_8BIT;
-	} else {
+	} else if (SPI_WORD_SIZE_GET(config->operation) == 16) {
 		SPI_CTL0(cfg->reg) |= SPI_FRAMESIZE_16BIT;
+	} else {
+		return -ENOTSUP;
 	}
+#endif
 #endif
 	/* Reset to hardware NSS mode. */
 	SPI_CTL0(cfg->reg) &= ~SPI_CTL0_SWNSSEN;

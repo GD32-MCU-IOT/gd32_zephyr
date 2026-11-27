@@ -11,4 +11,17 @@
 			pinmux = <USART1_TX_PA2>, <USART1_RX_PA3>;
 		};
 	};
+
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_SCK_PA5>, <SPI0_MISO_PA6>, <SPI0_MOSI_PA7>;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SCL_PB6>, <I2C0_SDA_PB7>;
+			drive-open-drain;
+		};
+	};
 };

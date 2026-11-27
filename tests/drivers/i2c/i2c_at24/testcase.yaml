@@ -1,18 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 common:
-  depends_on: i2c
   tags:
     - drivers
     - i2c
-  filter: dt_compat_enabled("atmel,at24")
   harness: ztest
+  filter: dt_compat_enabled("atmel,at24")
   harness_config:
     fixture: i2c_at24
 
 tests:
   drivers.i2c.at24:
-    depends_on: i2c
     tags:
       - drivers
       - i2c

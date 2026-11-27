@@ -28,15 +28,17 @@ static inline void i2c_gd32_enable_dma_interrupts(const struct i2c_gd32_config *
 		i2c_add_interrupt_disable(cfg->reg, I2C_ADD_INT_TI);
 		i2c_add_interrupt_disable(cfg->reg, I2C_ADD_INT_RBNE);
 		i2c_add_interrupt_disable(cfg->reg, I2C_ADD_INT_ADDM);
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	} else {
 		/* Legacy IP: Enable error and event interrupts only */
 		i2c_interrupt_enable(cfg->reg, I2C_INT_ERR); /* Error interrupt */
 		i2c_interrupt_enable(cfg->reg, I2C_INT_EV);  /* Event interrupt */
 		/* Disable buffer interrupts - DMA handles data transfer */
 		i2c_interrupt_disable(cfg->reg, I2C_INT_BUF);
+#endif
 	}
 }
-#endif
+#endif /* CONFIG_I2C_GD32_DMA */
 
 static inline void i2c_gd32_disable_interrupts(const struct i2c_gd32_config *cfg)
 {
@@ -49,11 +51,13 @@ static inline void i2c_gd32_disable_interrupts(const struct i2c_gd32_config *cfg
 		i2c_add_interrupt_disable(cfg->reg, I2C_ADD_INT_TI);
 		i2c_add_interrupt_disable(cfg->reg, I2C_ADD_INT_RBNE);
 		i2c_add_interrupt_disable(cfg->reg, I2C_ADD_INT_ADDM);
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	} else {
 		/* Legacy IP: Disable all I2C interrupts */
 		i2c_interrupt_disable(cfg->reg, I2C_INT_ERR);
 		i2c_interrupt_disable(cfg->reg, I2C_INT_EV);
 		i2c_interrupt_disable(cfg->reg, I2C_INT_BUF);
+#endif
 	}
 }
 
@@ -102,6 +106,7 @@ static uint32_t i2c_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 
 	block_cfg->block_size = data->current->len;
 
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	/* Set DMALST bit for read operations with length >= 2 per manual */
 	if (dir == RX && data->current->len >= 2 && (data->current->flags & I2C_MSG_READ)) {
 		if (!GD32_I2C_IS_ADD(cfg->reg)) {
@@ -110,12 +115,15 @@ static uint32_t i2c_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 			LOG_DBG("Legacy IP: DMALST set for multi-byte reception");
 		}
 	}
+#endif
 
 	if (dir == TX) {
 		if (GD32_I2C_IS_ADD(cfg->reg)) {
 			block_cfg->dest_address = (uint32_t)&I2C_ADD_TDATA(cfg->reg);
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 		} else {
 			block_cfg->dest_address = (uint32_t)&I2C_DATA(cfg->reg);
+#endif
 		}
 		block_cfg->dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 		if (data->current->buf) {
@@ -130,8 +138,10 @@ static uint32_t i2c_gd32_dma_setup(const struct device *dev, const uint32_t dir)
 	if (dir == RX) {
 		if (GD32_I2C_IS_ADD(cfg->reg)) {
 			block_cfg->source_address = (uint32_t)&I2C_ADD_RDATA(cfg->reg);
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 		} else {
 			block_cfg->source_address = (uint32_t)&I2C_DATA(cfg->reg);
+#endif
 		}
 		block_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 
@@ -206,6 +216,7 @@ static void i2c_gd32_complete(const struct device *dev, int status)
 		if (i2c_add_flag_get(cfg->reg, I2C_ADD_FLAG_NACK)) {
 			i2c_add_flag_clear(cfg->reg, I2C_ADD_FLAG_NACK);
 		}
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	} else {
 		/* Legacy IP: Disable DMA functionality and clear DMALST bit */
 		i2c_dma_config(cfg->reg, I2C_DMA_OFF);
@@ -216,6 +227,7 @@ static void i2c_gd32_complete(const struct device *dev, int status)
 			LOG_DBG("Legacy IP: DMALST cleared after DMA completion");
 		}
 		LOG_DBG("Legacy IP: DMAON disabled after transfer completion");
+#endif
 	}
 
 	for (size_t i = 0; i < i2c_gd32_dma_enabled_num(dev); i++) {
@@ -405,6 +417,7 @@ int i2c_gd32_bus_recovery_gd(const struct device *dev)
 				return 0;
 			}
 		}
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	} else {
 		/* Disable I2C peripheral */
 		i2c_disable(cfg->reg);
@@ -443,6 +456,7 @@ int i2c_gd32_bus_recovery_gd(const struct device *dev)
 				return 0;
 			}
 		}
+#endif
 	}
 
 	LOG_ERR("I2C bus recovery failed");
@@ -460,10 +474,11 @@ static inline void i2c_gd32_enable_interrupts(const struct i2c_gd32_config *cfg)
 		i2c_add_interrupt_enable(cfg->reg, I2C_ADD_INT_NACK);
 		i2c_add_interrupt_enable(cfg->reg, I2C_ADD_INT_TI);
 		i2c_add_interrupt_enable(cfg->reg, I2C_ADD_INT_RBNE);
-
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	} else {
 		i2c_interrupt_enable(cfg->reg, I2C_INT_ERR);
 		i2c_interrupt_enable(cfg->reg, I2C_INT_EV);
+#endif
 	}
 }
 
@@ -498,6 +513,7 @@ static inline void i2c_gd32_xfer_write(struct i2c_gd32_data *data,
 	}
 }
 
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 static void i2c_gd32_handle_rbne(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
@@ -581,12 +597,8 @@ static void i2c_gd32_handle_tbe(const struct device *dev)
 		k_sem_give(&data->sync_sem);
 	}
 }
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 
-/*
- * ADD IP specific TBE handler.
- * Send one byte, disable TIE on last byte, wait for TC or AUTOEND->STOP.
- * Don't give semaphore here unless extreme case (xfer_len==0 without TC).
- */
 static void i2c_gd32_add_handle_tbe(const struct device *dev, uint32_t stat)
 {
 	struct i2c_gd32_data *data = dev->data;
@@ -615,6 +627,7 @@ static void i2c_gd32_add_handle_tbe(const struct device *dev, uint32_t stat)
 	}
 }
 
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 static void i2c_gd32_handle_btc(const struct device *dev)
 {
 	struct i2c_gd32_data *data = dev->data;
@@ -698,6 +711,7 @@ static void i2c_gd32_handle_addsend(const struct device *dev)
 		i2c_stop_on_bus(cfg->reg);
 	}
 }
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 
 void i2c_gd32_event_isr_gd(const struct device *dev)
 {
@@ -791,6 +805,7 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 		return;
 	}
 
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	stat = I2C_STAT0(cfg->reg);
 
 #ifdef CONFIG_I2C_TARGET
@@ -886,6 +901,7 @@ void i2c_gd32_event_isr_gd(const struct device *dev)
 	} else if (stat & I2C_STAT0_TBE) {
 		i2c_gd32_handle_tbe(dev);
 	}
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 }
 
 void i2c_gd32_error_isr_gd(const struct device *dev)
@@ -911,6 +927,7 @@ void i2c_gd32_error_isr_gd(const struct device *dev)
 		return;
 	}
 
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	stat = I2C_STAT0(cfg->reg);
 
 	if (stat & I2C_STAT0_BERR) {
@@ -944,6 +961,7 @@ void i2c_gd32_error_isr_gd(const struct device *dev)
 		i2c_stop_on_bus(cfg->reg);
 		k_sem_give(&data->sync_sem);
 	}
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 }
 
 static void i2c_gd32_log_err(struct i2c_gd32_data *data)
@@ -1021,6 +1039,7 @@ static int i2c_gd32_target_register(const struct device *dev, struct i2c_target_
 		i2c_add_enable(cfg->reg);
 
 		LOG_INF("I2C ADD target registered addr=0x%02x", addr);
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	} else {
 		/* Legacy IP target mode configuration */
 		i2c_disable(cfg->reg);
@@ -1029,6 +1048,7 @@ static int i2c_gd32_target_register(const struct device *dev, struct i2c_target_
 		i2c_enable(cfg->reg);
 
 		LOG_INF("I2C legacy target registered addr=0x%02x", addr);
+#endif
 	}
 
 	data->target_cfg = target;
@@ -1146,6 +1166,7 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 		i2c_add_start_on_bus(cfg->reg);
 		return;
 	}
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	/* Legacy */
 #ifdef CONFIG_I2C_TARGET
 	data->master_active = true;
@@ -1198,6 +1219,7 @@ static void i2c_gd32_xfer_begin(const struct device *dev)
 		i2c_interrupt_enable(cfg->reg, I2C_INT_BUF);
 	}
 	i2c_start_on_bus(cfg->reg);
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 }
 
 static int i2c_gd32_xfer_end(const struct device *dev)
@@ -1231,8 +1253,9 @@ static int i2c_gd32_xfer_end(const struct device *dev)
 				i2c_add_enable(cfg->reg);
 			}
 #endif
-		} else {
-
+		}
+#ifndef CONFIG_SOC_SERIES_GD32L23X
+		else {
 			while (i2c_flag_get(cfg->reg, I2C_FLAG_I2CBSY)) {
 				/* NOP */
 			}
@@ -1249,6 +1272,7 @@ static int i2c_gd32_xfer_end(const struct device *dev)
 			}
 #endif
 		}
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 	}
 	if (data->errs) {
 		return -EIO;
@@ -1500,7 +1524,10 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 {
 	struct i2c_gd32_data *data = dev->data;
 	const struct i2c_gd32_config *cfg = dev->config;
-	uint32_t pclk1, freq;
+	uint32_t pclk1;
+#ifndef CONFIG_SOC_SERIES_GD32L23X
+	uint32_t freq;
+#endif
 	int err = 0;
 
 	k_sem_take(&data->bus_mutex, K_FOREVER);
@@ -1654,13 +1681,14 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 			/* SCL delay calculation: tSCLDELY ≥
 			 * {tSU,DAT(min)}/[(PSC+1)*tI2CCLK]} - 1
 			 */
-			scl_dely = (tsu_dat_min_ns + (t_psc * t_i2c_clk_ns / 2)) /
+			scl_dely = (tsu_dat_min_ns + (t_psc * t_i2c_clk_ns / 2U)) /
 				   (t_psc * t_i2c_clk_ns);
 			if (scl_dely > 0U) {
 				scl_dely -= 1U; /* Per manual: subtract 1 */
 			}
 
 			/* Assume DNF = 0 (digital noise filter disabled) */
+
 			uint32_t dnf_compensation =
 				3U * t_i2c_clk_ns; /* (DNF+3)*tI2CCLK with DNF=0 */
 			uint32_t total_delay = tvd_dat_max_ns + taf_max_ns;
@@ -1724,6 +1752,7 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 		goto done;
 	}
 
+#ifndef CONFIG_SOC_SERIES_GD32L23X
 	freq = pclk1 / 1000000U;
 	if (freq > I2CCLK_MAX) {
 		LOG_ERR("I2C max clock freq %u, current is %u\n", I2CCLK_MAX, freq);
@@ -1783,6 +1812,7 @@ int i2c_gd32_configure_gd(const struct device *dev, uint32_t dev_config)
 	}
 
 	data->dev_config = dev_config;
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
 error:
 	k_sem_give(&data->bus_mutex);
 

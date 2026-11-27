@@ -132,8 +132,115 @@
 #define i2c_add_master_clock_config    i2c_master_clock_config
 #endif /* CONFIG_SOC_SERIES_GD32E51X */
 
-#define GD32_I2C_IS_ADD(periph)    (!GD32_I2C_IS_LEGACY(periph))
-#endif
+#ifdef CONFIG_SOC_SERIES_GD32L23X
+/* L23x: I2C0/1/2 all use ADD IP, no legacy IP. */
+#define GD32_I2C_IS_LEGACY(periph) 0U
+
+/* L23x HAL compatibility layer: map ADD IP names to the native I2C API. */
+/* Registers */
+#define I2C_ADD_CTL0(periph)           I2C_CTL0(periph)
+#define I2C_ADD_CTL1(periph)           I2C_CTL1(periph)
+#define I2C_ADD_STAT(periph)           I2C_STAT(periph)
+#define I2C_ADD_STATC(periph)          I2C_STATC(periph)
+#define I2C_ADD_TDATA(periph)          I2C_TDATA(periph)
+#define I2C_ADD_RDATA(periph)          I2C_RDATA(periph)
+#define I2C_ADD_TIMING(periph)         I2C_TIMING(periph)
+
+/* CTL0 bits */
+#define I2C_ADD_CTL0_I2CEN             I2C_CTL0_I2CEN
+#define I2C_ADD_CTL0_DENT              I2C_CTL0_DENT
+#define I2C_ADD_CTL0_DENR              I2C_CTL0_DENR
+#define I2C_ADD_CTL0_TIE               I2C_CTL0_TIE
+#define I2C_ADD_CTL0_RBNEIE            I2C_CTL0_RBNEIE
+
+/* CTL1 bits */
+#define I2C_ADD_CTL1_AUTOEND           I2C_CTL1_AUTOEND
+#define I2C_ADD_CTL1_RELOAD            I2C_CTL1_RELOAD
+#define I2C_ADD_CTL1_START             I2C_CTL1_START
+#define I2C_ADD_CTL1_STOP              I2C_CTL1_STOP
+
+/* STAT bits */
+#define I2C_ADD_STAT_I2CBSY            I2C_STAT_I2CBSY
+#define I2C_ADD_STAT_NACK              I2C_STAT_NACK
+#define I2C_ADD_STAT_STPDET            I2C_STAT_STPDET
+#define I2C_ADD_STAT_TC                I2C_STAT_TC
+#define I2C_ADD_STAT_TCR               I2C_STAT_TCR
+#define I2C_ADD_STAT_TBE               I2C_STAT_TBE
+#define I2C_ADD_STAT_TI                I2C_STAT_TI
+#define I2C_ADD_STAT_RBNE              I2C_STAT_RBNE
+#define I2C_ADD_STAT_ADDSEND           I2C_STAT_ADDSEND
+#define I2C_ADD_STAT_BERR              I2C_STAT_BERR
+#define I2C_ADD_STAT_LOSTARB           I2C_STAT_LOSTARB
+
+/* STATC bits */
+#define I2C_ADD_STATC_NACKC            I2C_STATC_NACKC
+
+/* Interrupts */
+#define I2C_ADD_INT_ERR                I2C_INT_ERR
+#define I2C_ADD_INT_TC                 I2C_INT_TC
+#define I2C_ADD_INT_STPDET             I2C_INT_STPDET
+#define I2C_ADD_INT_NACK               I2C_INT_NACK
+#define I2C_ADD_INT_TI                 I2C_INT_TI
+#define I2C_ADD_INT_RBNE               I2C_INT_RBNE
+#define I2C_ADD_INT_ADDM               I2C_INT_ADDM
+
+/* Flags */
+#define I2C_ADD_FLAG_TBE               I2C_FLAG_TBE
+#define I2C_ADD_FLAG_TI                I2C_FLAG_TI
+#define I2C_ADD_FLAG_RBNE              I2C_FLAG_RBNE
+#define I2C_ADD_FLAG_ADDSEND           I2C_FLAG_ADDSEND
+#define I2C_ADD_FLAG_TC                I2C_FLAG_TC
+#define I2C_ADD_FLAG_TCR               I2C_FLAG_TCR
+#define I2C_ADD_FLAG_STPDET            I2C_FLAG_STPDET
+#define I2C_ADD_FLAG_NACK              I2C_FLAG_NACK
+#define I2C_ADD_FLAG_BERR              I2C_FLAG_BERR
+#define I2C_ADD_FLAG_LOSTARB           I2C_FLAG_LOSTARB
+#define I2C_ADD_FLAG_OUERR             I2C_FLAG_OUERR
+#define I2C_ADD_FLAG_PECERR            I2C_FLAG_PECERR
+#define I2C_ADD_FLAG_TIMEOUT           I2C_FLAG_TIMEOUT
+#define I2C_ADD_FLAG_SMBALT            I2C_FLAG_SMBALT
+#define I2C_ADD_FLAG_I2CBSY            I2C_FLAG_I2CBSY
+#define I2C_ADD_FLAG_TR                I2C_FLAG_TR
+
+/* DMA */
+#define I2C_ADD_DMA_TRANSMIT           I2C_DMA_TRANSMIT
+#define I2C_ADD_DMA_RECEIVE            I2C_DMA_RECEIVE
+
+/* Master transfer direction */
+#define I2C_ADD_MASTER_TRANSMIT        I2C_MASTER_TRANSMIT
+#define I2C_ADD_MASTER_RECEIVE         I2C_MASTER_RECEIVE
+
+/* Address format */
+#define I2C_ADD_ADDFORMAT_7BITS        I2C_ADDFORMAT_7BITS
+#define I2C_ADD_ADDFORMAT_10BITS       I2C_ADDFORMAT_10BITS
+
+/* Function mappings */
+#define i2c_add_interrupt_enable       i2c_interrupt_enable
+#define i2c_add_interrupt_disable      i2c_interrupt_disable
+#define i2c_add_flag_get               i2c_flag_get
+#define i2c_add_flag_clear             i2c_flag_clear
+#define i2c_add_dma_enable             i2c_dma_enable
+#define i2c_add_dma_disable            i2c_dma_disable
+#define i2c_add_enable                 i2c_enable
+#define i2c_add_disable                i2c_disable
+#define i2c_add_start_on_bus            i2c_start_on_bus
+#define i2c_add_stop_on_bus             i2c_stop_on_bus
+#define i2c_add_automatic_end_enable    i2c_automatic_end_enable
+#define i2c_add_automatic_end_disable   i2c_automatic_end_disable
+#define i2c_add_transfer_byte_number_config i2c_transfer_byte_number_config
+#define i2c_add_address10_enable       i2c_address10_enable
+#define i2c_add_address10_disable      i2c_address10_disable
+#define i2c_add_address10_header_disable i2c_address10_header_disable
+#define i2c_add_master_addressing      i2c_master_addressing
+#define i2c_add_timing_config          i2c_timing_config
+#define i2c_add_master_clock_config    i2c_master_clock_config
+#define i2c_add_address_config         i2c_address_config
+#define i2c_add_address_disable        i2c_address_disable
+#define i2c_add_stretch_scl_low_enable i2c_stretch_scl_low_enable
+#endif /* CONFIG_SOC_SERIES_GD32L23X */
+
+#define GD32_I2C_IS_ADD(periph) (!GD32_I2C_IS_LEGACY(periph))
+#endif /* CONFIG_I2C_GD32_I2C_V3 */
 
 /* Bus error */
 #define I2C_GD32_ERR_BERR BIT(0)

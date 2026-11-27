@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* USART1 is the console on this board, so this test uses USART0 as DUT. */
+
+&pinctrl {
+	usart0_default: usart0_default {
+		group1 {
+			pinmux = <USART0_TX_PA9>, <USART0_RX_PA10>;
+		};
+	};
+};
+
+dut: &usart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&usart0_default>;
+	pinctrl-names = "default";
+};
