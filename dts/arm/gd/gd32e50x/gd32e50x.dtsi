@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022, Teslabs Engineering S.L.
+ * Copyright (c) 2026 GigaDevice Semiconductor Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -168,7 +169,7 @@
 		};
 
 		i2c2: i2c@4000c000 {
-			compatible = "gd,gd32-i2c";
+			compatible = "gd,gd32-i2c-v2";
 			reg = <0x4000c000 0x400>;
 			#address-cells = <1>;
 			#size-cells = <0>;

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 zephyr_syscall_header(${ZEPHYR_BASE}/include/zephyr/drivers/i2c.h)
@@ -33,10 +34,8 @@ zephyr_library_sources_ifdef(CONFIG_I2C_CC32XX i2c_cc32xx.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_DW i2c_dw.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_ENE_KB1200 i2c_ene_kb1200.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_ESP32 i2c_esp32.c)
-zephyr_library_sources_ifdef(CONFIG_I2C_GD32 i2c_gd32_common.c)
-zephyr_library_sources_ifdef(CONFIG_I2C_GD32_I2C_V1 i2c_gd32.c)
-zephyr_library_sources_ifdef(CONFIG_I2C_GD32_I2C_V2 i2c_gd32_v2.c)
-zephyr_library_sources_ifdef(CONFIG_I2C_GD32_I2C_V3 i2c_gd32_v3.c)
+zephyr_library_sources_ifdef(CONFIG_I2C_GD32_LEGACY i2c_gd32.c)
+zephyr_library_sources_ifdef(CONFIG_I2C_GD32_V2 i2c_gd32_v2.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_GECKO i2c_gecko.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_IMX i2c_imx.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_INFINEON_CAT1_HAL i2c_infineon.c)

@@ -112,13 +112,13 @@
 
 /*
  * I2C single-instance compatibility shim.
- * GD32M531 HAL functions have no periph parameter; Zephyr I2C V2 driver
+ * GD32M531 HAL functions have no periph parameter; Zephyr i2c_gd32_v2 driver
  * passes periph as the first argument. These macros transparently discard
  * the periph argument.
  *
  * Safe: HAL .c files do NOT include soc.h (verified via build.ninja).
  */
-#ifdef CONFIG_USE_GD32_I2C_V2
+#ifdef CONFIG_I2C_GD32_V2
 
 /* Register macros: object-like -> function-like (accept periph base address) */
 #undef I2C_CTL0
@@ -170,7 +170,7 @@
 #define i2c_transfer_byte_number_config(periph, n)                                                 \
 	((void)(periph), i2c_transfer_byte_number_config((uint8_t)(n)))
 
-#endif /* CONFIG_USE_GD32_I2C_V2 */
+#endif /* CONFIG_I2C_GD32_V2 */
 
 /*
  * SPI single-instance compatibility shim.

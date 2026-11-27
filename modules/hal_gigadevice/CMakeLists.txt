@@ -150,13 +150,11 @@ zephyr_library_sources_ifdef(CONFIG_USE_GD32_GPIO     ${gd32_std_src_dir}/${CONF
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_GPTIMER  ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_gptimer.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_GTOC     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_gtoc.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_HAU      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_hau.c)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V1   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V2   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
-# GD32E51X has ADD IP functions in i2c.c, no separate i2c_add.c
-if(NOT CONFIG_SOC_SERIES_GD32E51X)
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
+# GD32F527 keeps its ADD I2C IP in a separate source; E50x/E51x have it in _i2c.c
+if(CONFIG_SOC_SERIES_GD32F527)
+zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c_add.c)
 endif()
-zephyr_library_sources_ifdef(CONFIG_USE_GD32_I2C_V3   ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_i2c.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_IPA      ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_ipa.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_IREF     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_iref.c)
 zephyr_library_sources_ifdef(CONFIG_USE_GD32_MISC     ${gd32_std_src_dir}/${CONFIG_SOC_SERIES}_misc.c)

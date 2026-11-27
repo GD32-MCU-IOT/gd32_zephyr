@@ -1,59 +1,29 @@
 # Copyright (c) 2021 BrainCo Inc.
-# Copyright (c) 2025 GigaDevice Semiconductor Inc.
+# Copyright (c) 2026 GigaDevice Semiconductor Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 config I2C_GD32
 	bool "GigaDevice GD32 I2C driver"
 	default y
-	depends on DT_HAS_GD_GD32_I2C_ENABLED || \
-		   DT_HAS_GD_GD32_I2C_V2_ENABLED || \
-		   DT_HAS_GD_GD32_I2C_V3_ENABLED
+	depends on DT_HAS_GD_GD32_I2C_ENABLED || DT_HAS_GD_GD32_I2C_V2_ENABLED
 	select PINCTRL
 	select USE_GD32_I2C
 	help
 	  Enable I2C support on the GD32 SoCs
 
-config USE_GD32_I2C_V1
-	bool "I2C driver version 1"
-	default y
-	depends on DT_HAS_GD_GD32_I2C_ENABLED
-	select I2C_GD32_I2C_V1
-	help
-		Driver variant matching `gd,gd32-i2c` compatible.
-		This is the original driver implementation for GD32F4XX and other earlier series.
+if I2C_GD32
 
-config USE_GD32_I2C_V2
-	bool "I2C driver version 2"
-	default y
-	depends on DT_HAS_GD_GD32_I2C_V2_ENABLED
-	select I2C_GD32_I2C_V2
+config I2C_GD32_LEGACY
+	def_bool DT_HAS_GD_GD32_I2C_ENABLED
 	help
-		Driver variant matching `gd,gd32-i2c-v2` compatible.
-		This version includes enhanced features and optimizations for GD32H73x_75x and newer series.
+	  Driver for the legacy GD32 I2C IP (gd,gd32-i2c).
 
-config USE_GD32_I2C_V3
-	bool "I2C driver version 3"
-	default y
-	depends on DT_HAS_GD_GD32_I2C_V3_ENABLED
-	select I2C_GD32_I2C_V3
+config I2C_GD32_V2
+	def_bool DT_HAS_GD_GD32_I2C_V2_ENABLED
 	help
-		Driver variant matching `gd,gd32-i2c-v3` compatible.
-		This is the latest version with full feature support for GD32F527 series.
+	  Driver for the GD32 ADD I2C IP with TIMING register (gd,gd32-i2c-v2).
 
-config I2C_GD32_I2C_V1
-	bool
-	help
-		Internal symbol for I2C driver version 1.
-
-config I2C_GD32_I2C_V2
-	bool
-	help
-		Internal symbol for I2C driver version 2.
-
-config I2C_GD32_I2C_V3
-	bool
-	help
-		Internal symbol for I2C driver version 3.
+endif # I2C_GD32
 
 config I2C_GD32_DMA
 	bool "GD32 I2C DMA support"
